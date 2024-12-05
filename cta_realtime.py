@@ -52,6 +52,7 @@ class RealtimeConverter:
         self.start = start
         self.end = end
         self.days = {}
+        self.output_stop_times = pd.DataFrame()
 
     def process(self):
         rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
@@ -107,6 +108,31 @@ class RealtimeConverter:
         interpolated = combined.interpolate(method='index')[1:].astype(int)
         return interpolated
 
+    def apply_to_template(self, sched_stops: pd.DataFrame, trip_pattern_output: pd.DataFrame, rt_trip_id):
+        ndf = sched_stops.copy().reset_index()
+        ndf = ndf.drop(columns=['index'])
+        ndf['stop_id'] = ndf['stop_id'].astype(int)
+        print(trip_pattern_output['stop_id'])
+        if not (ndf['stop_id'] == trip_pattern_output['stop_id']).all():
+            print(f'Pattern mismatch')
+            return
+
+        def to_gtfs_time(unix_timestamp: int):
+            ts = datetime.datetime.fromtimestamp(unix_timestamp)
+            hour = ts.hour
+            if hour < 4:
+                hour += 24
+            return f'{hour:02d}:{ts.minute:02d}:{ts.second:02d}'
+
+        times = trip_pattern_output['tmstmp'].apply(to_gtfs_time)
+        print(times.rename('arrival_time'))
+        print(ndf['arrival_time'])
+        ndf['arrival_time'] = times.rename('arrival_time')
+        ndf['departure_time'] = times.rename('departure_time')
+        ndf['trip_id'] = rt_trip_id
+        print(ndf)
+        return ndf
+
     def process_pattern(self, date, route, pid):
         df: pd.DataFrame = self.days.get(date)
         if df.empty:
@@ -116,13 +142,19 @@ class RealtimeConverter:
         schedule_patterns = self.fw.get_closest_pattern(route, approx_len)
         representative_trip = schedule_patterns.iloc[0].trip_id
         sched_stops = self.fw.get_trip_stops(representative_trip)
+        logger.debug(f'Scheduled stops: {sched_stops}')
         rt_trips = pdf.tatripid.unique()
-        for t in rt_trips:
+        for rt_trip_id in rt_trips:
             logger.debug(f' ==== T ====')
-            single_rt_trip = pdf[pdf.tatripid == t]
+            single_rt_trip = pdf[pdf.tatripid == rt_trip_id]
             r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
-            print(r)
+            output = r[r.stop_id != -1].reset_index()
+            #output.to_csv('/tmp/p1.csv')
+            print(output)
             print()
+            ndf = self.apply_to_template(sched_stops, output, rt_trip_id)
+            # need to rewrite trips too
+            self.output_stop_times = pd.concat([self.output_stop_times, ndf])
 
 
 if __name__ == "__main__":
@@ -133,11 +165,14 @@ if __name__ == "__main__":
                         help='Route to analyze.')
     parser.add_argument('--pattern', type=int, nargs=1, default=[10918],
                         help='Stop pattern to analyze.')
+    parser.add_argument('--output_file', type=str, nargs=1, default=['~/tmp/transit/new_stop_times.txt'],
+                        help='Stop pattern to analyze.')
     args = parser.parse_args()
     logging.basicConfig()
     if args.debug:
         logger.setLevel(logging.DEBUG)
     print(f'Starting')
+    output_file = Path(args.output_file[0]).expanduser()
     sched_path = Path('~/datasets/transit').expanduser()
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
     fw = FeedWrapper(feed, '20240509')
@@ -148,3 +183,4 @@ if __name__ == "__main__":
                            start)
     rt.process()
     rt.process_pattern(start, args.route[0], args.pattern[0])
+    rt.output_stop_times.to_csv(output_file, index=False)

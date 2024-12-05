@@ -62,6 +62,8 @@ class RealtimeConverter:
         # sp['unixts'] = sp.apply(lambda x: int(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M').timestamp()), axis=1)
         # intermediate2 = pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).set_index('pdist').interpolate(method='index')[1:].astype(int)
         # trip_stops from gtfs
+        single_sched = pd.concat([sched_stops['shape_dist_traveled'].rename('pdist'), sched_stops['stop_id']],
+                                 axis=1).reset_index().drop(columns=['index'])
         def timefn(x):
             # TODO: figure out 24-hour cutover
             rawdate = datetime.datetime.strptime(x, '%Y%m%d %H:%M')
@@ -70,17 +72,25 @@ class RealtimeConverter:
             return int(rawdate.timestamp())
         times = single_rt_trip['tmstmp'].apply(timefn)
         single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1)
-        deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
-        if single_rt1.iloc[0].pdist == 0:
-            single_rt = single_rt1
-        else:
+
+        fakerows = []
+        if single_rt1.iloc[0].pdist != 0:
+            deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
             v = deltas.pdist / deltas.tmstmp
             nt = int(single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v)
-            fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
-            single_rt = pd.concat([fakerow, single_rt1]).sort_values(['pdist'], ignore_index=True)
+            #fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
+            fakerows.append({'tmstmp': nt, 'pdist': 0})
+        if single_rt1.iloc[-1].pdist < single_sched.iloc[-1].pdist:
+            deltas = single_rt1.iloc[-1] - single_rt1.iloc[-2]
+            v = deltas.pdist / deltas.tmstmp
+            nt = int(single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v)
+            fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
+        if fakerows:
+            fdf = pd.DataFrame(fakerows)
+            single_rt = pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
+        else:
+            single_rt = single_rt1
         single_rt['stop_id'] = -1
-        single_sched = pd.concat([sched_stops['shape_dist_traveled'].rename('pdist'), sched_stops['stop_id']],
-                                 axis=1).reset_index().drop(columns=['index'])
         print(single_rt)
         print(single_sched)
         print(' ====== ')

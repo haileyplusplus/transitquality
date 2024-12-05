@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Interpolation works with debug prints and interpolation warning">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Remove deprecation warning. Need post-interpolation as well">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cta_realtime.py" beforeDir="false" afterPath="$PROJECT_DIR$/cta_realtime.py" afterDir="false" />
     </list>
@@ -95,13 +95,22 @@
       <option name="project" value="LOCAL" />
       <updated>1733339069656</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Remove deprecation warning. Need post-interpolation as well">
+      <option name="closed" value="true" />
+      <created>1733429233856</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1733429233856</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial commit" />
     <MESSAGE value="Get to point of non-working interpolation" />
     <MESSAGE value="Interpolation works with debug prints and interpolation warning" />
-    <option name="LAST_COMMIT_MESSAGE" value="Interpolation works with debug prints and interpolation warning" />
+    <MESSAGE value="Remove deprecation warning. Need post-interpolation as well" />
+    <option name="LAST_COMMIT_MESSAGE" value="Remove deprecation warning. Need post-interpolation as well" />
   </component>
 </project>

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
 import sys
+import argparse
 import datetime
+import logging
 from pathlib import Path
 
 import pandas as pd
 import geopandas as gpd
 
 import gtfs_kit
+
+logger = logging.getLogger(__name__)
 
 
 class FeedWrapper:
@@ -55,7 +59,7 @@ class RealtimeConverter:
         self.days[self.start] = rtdf
 
     def process_trip(self, date, route, pid, sched_stops, single_rt_trip):
-        print(f'  -- process trip -- ')
+        logger.debug(f'  -- process trip -- ')
         # this interpolation isn't quite right: maybe need to set the index and use that
         # fixed with below
         # pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).interpolate(method='linear')[1:].astype(int)[:50]
@@ -91,13 +95,13 @@ class RealtimeConverter:
         else:
             single_rt = single_rt1
         single_rt['stop_id'] = -1
-        print(single_rt)
-        print(single_sched)
-        print(' ====== ')
+        logger.debug(single_rt)
+        logger.debug(single_sched)
+        logger.debug(' ====== ')
         combined = pd.concat([single_rt, single_sched],
                              ignore_index=True).sort_values(
             ['pdist']).set_index('pdist')
-        print(combined)
+        logger.debug(combined)
         #combined = combined.infer_objects(copy=True)
         combined['stop_id'] = combined['stop_id'].astype(int)
         interpolated = combined.interpolate(method='index')[1:].astype(int)
@@ -114,13 +118,25 @@ class RealtimeConverter:
         sched_stops = self.fw.get_trip_stops(representative_trip)
         rt_trips = pdf.tatripid.unique()
         for t in rt_trips:
-            print(f' ==== T ====')
+            logger.debug(f' ==== T ====')
             single_rt_trip = pdf[pdf.tatripid == t]
             r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
             print(r)
+            print()
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Collect information about photos into a central db.')
+    parser.add_argument('--debug', action='store_true',
+                        help='Print debug logging.')
+    parser.add_argument('--route', type=str, nargs=1, default=['72'],
+                        help='Route to analyze.')
+    parser.add_argument('--pattern', type=int, nargs=1, default=[10918],
+                        help='Stop pattern to analyze.')
+    args = parser.parse_args()
+    logging.basicConfig()
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
     print(f'Starting')
     sched_path = Path('~/datasets/transit').expanduser()
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
@@ -131,4 +147,4 @@ if __name__ == "__main__":
                            start,
                            start)
     rt.process()
-    rt.process_pattern(start, '72', 10918)
+    rt.process_pattern(start, args.route[0], args.pattern[0])

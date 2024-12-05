@@ -88,6 +88,8 @@ class RealtimeConverter:
                              ignore_index=True).sort_values(
             ['pdist']).set_index('pdist')
         print(combined)
+        #combined = combined.infer_objects(copy=True)
+        combined['stop_id'] = combined['stop_id'].astype(int)
         interpolated = combined.interpolate(method='index')[1:].astype(int)
         return interpolated
 
@@ -102,6 +104,7 @@ class RealtimeConverter:
         sched_stops = self.fw.get_trip_stops(representative_trip)
         rt_trips = pdf.tatripid.unique()
         for t in rt_trips:
+            print(f' ==== T ====')
             single_rt_trip = pdf[pdf.tatripid == t]
             r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
             print(r)

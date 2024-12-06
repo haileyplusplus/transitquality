@@ -53,6 +53,7 @@ class RealtimeConverter:
         self.end = end
         self.days = {}
         self.output_stop_times = pd.DataFrame()
+        self.output_trips = pd.DataFrame()
 
     def process(self):
         rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
@@ -144,6 +145,7 @@ class RealtimeConverter:
         sched_stops = self.fw.get_trip_stops(representative_trip)
         logger.debug(f'Scheduled stops: {sched_stops}')
         rt_trips = pdf.tatripid.unique()
+        sched_trip = self.fw.get_trip(representative_trip)
         for rt_trip_id in rt_trips:
             logger.debug(f' ==== T ====')
             single_rt_trip = pdf[pdf.tatripid == rt_trip_id]
@@ -155,6 +157,12 @@ class RealtimeConverter:
             ndf = self.apply_to_template(sched_stops, output, rt_trip_id)
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])
+            rewrite_rt_trip = sched_trip.copy().reset_index().drop(columns=['index'])
+            rewrite_rt_trip['trip_id'] = rt_trip_id
+            rewrite_rt_trip['block_id'] = single_rt_trip.iloc[0].tablockid.replace(' ', '')
+            print(single_rt_trip)
+            print(rewrite_rt_trip)
+            self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
 
 
 if __name__ == "__main__":
@@ -165,14 +173,14 @@ if __name__ == "__main__":
                         help='Route to analyze.')
     parser.add_argument('--pattern', type=int, nargs=1, default=[10918],
                         help='Stop pattern to analyze.')
-    parser.add_argument('--output_file', type=str, nargs=1, default=['~/tmp/transit/new_stop_times.txt'],
-                        help='Stop pattern to analyze.')
+    parser.add_argument('--output_dir', type=str, nargs=1, default=['~/tmp/transit'],
+                        help='Output directory for generated files.')
     args = parser.parse_args()
     logging.basicConfig()
     if args.debug:
         logger.setLevel(logging.DEBUG)
     print(f'Starting')
-    output_file = Path(args.output_file[0]).expanduser()
+    output_file = Path(args.output_dir[0]).expanduser()
     sched_path = Path('~/datasets/transit').expanduser()
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
     fw = FeedWrapper(feed, '20240509')
@@ -183,4 +191,5 @@ if __name__ == "__main__":
                            start)
     rt.process()
     rt.process_pattern(start, args.route[0], args.pattern[0])
-    rt.output_stop_times.to_csv(output_file, index=False)
+    rt.output_stop_times.to_csv(output_file / 'new_stop_times.txt', index=False)
+    rt.output_trips.to_csv(output_file / 'new_trips.txt', index=False)

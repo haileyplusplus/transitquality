@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Add logging and argument parsing">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Outputs redone stop times">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cta_realtime.py" beforeDir="false" afterPath="$PROJECT_DIR$/cta_realtime.py" afterDir="false" />
     </list>
@@ -119,7 +119,15 @@
       <option name="project" value="LOCAL" />
       <updated>1733430049164</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Outputs redone stop times">
+      <option name="closed" value="true" />
+      <created>1733432010039</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1733432010039</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -129,6 +137,7 @@
     <MESSAGE value="Remove deprecation warning. Need post-interpolation as well" />
     <MESSAGE value="Implement interpolation on both ends" />
     <MESSAGE value="Add logging and argument parsing" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add logging and argument parsing" />
+    <MESSAGE value="Outputs redone stop times" />
+    <option name="LAST_COMMIT_MESSAGE" value="Outputs redone stop times" />
   </component>
 </project>

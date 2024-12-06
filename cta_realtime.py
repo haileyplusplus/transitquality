@@ -10,6 +10,7 @@ import pandas as pd
 import geopandas as gpd
 
 import gtfs_kit
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class FeedWrapper:
         self.feed = feed
         self.datestr = datestr
         self.cache = {}
+        self.stats_cache = {}
 
     def get_timetable(self, route):
         rv = self.cache.get(route)
@@ -29,7 +31,10 @@ class FeedWrapper:
         return rv
 
     def get_stop_patterns(self, route: str):
-        stats = self.feed.compute_trip_stats([route])
+        stats = self.stats_cache.get(route)
+        if not stats:
+            stats = self.feed.compute_trip_stats([route])
+            self.stats_cache[route] = stats
         stop_patterns = stats.groupby(['stop_pattern_name'])
         # g.iloc[(g['distance'] - key).abs().argsort()][:1]
         return stop_patterns.first()
@@ -54,6 +59,7 @@ class RealtimeConverter:
         self.days = {}
         self.output_stop_times = pd.DataFrame()
         self.output_trips = pd.DataFrame()
+        self.errors = []
 
     def process(self):
         rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
@@ -80,22 +86,26 @@ class RealtimeConverter:
         single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1)
 
         fakerows = []
-        if single_rt1.iloc[0].pdist != 0:
-            deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
-            v = deltas.pdist / deltas.tmstmp
-            nt = int(single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v)
-            #fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
-            fakerows.append({'tmstmp': nt, 'pdist': 0})
-        if single_rt1.iloc[-1].pdist < single_sched.iloc[-1].pdist:
-            deltas = single_rt1.iloc[-1] - single_rt1.iloc[-2]
-            v = deltas.pdist / deltas.tmstmp
-            nt = int(single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v)
-            fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
-        if fakerows:
-            fdf = pd.DataFrame(fakerows)
-            single_rt = pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
-        else:
-            single_rt = single_rt1
+        try:
+            if single_rt1.iloc[0].pdist != 0:
+                deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
+                v = deltas.pdist / deltas.tmstmp
+                nt = int(single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v)
+                #fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
+                fakerows.append({'tmstmp': nt, 'pdist': 0})
+            if single_rt1.iloc[-1].pdist < single_sched.iloc[-1].pdist:
+                deltas = single_rt1.iloc[-1] - single_rt1.iloc[-2]
+                v = deltas.pdist / deltas.tmstmp
+                nt = int(single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v)
+                fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
+            if fakerows:
+                fdf = pd.DataFrame(fakerows)
+                single_rt = pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
+            else:
+                single_rt = single_rt1
+        except OverflowError as e:
+            self.errors.append(e)
+            return None
         single_rt['stop_id'] = -1
         logger.debug(single_rt)
         logger.debug(single_sched)
@@ -113,10 +123,10 @@ class RealtimeConverter:
         ndf = sched_stops.copy().reset_index()
         ndf = ndf.drop(columns=['index'])
         ndf['stop_id'] = ndf['stop_id'].astype(int)
-        print(trip_pattern_output['stop_id'])
+        logger.debug(trip_pattern_output['stop_id'])
         if not (ndf['stop_id'] == trip_pattern_output['stop_id']).all():
             print(f'Pattern mismatch')
-            return
+            return None
 
         def to_gtfs_time(unix_timestamp: int):
             ts = datetime.datetime.fromtimestamp(unix_timestamp)
@@ -126,12 +136,12 @@ class RealtimeConverter:
             return f'{hour:02d}:{ts.minute:02d}:{ts.second:02d}'
 
         times = trip_pattern_output['tmstmp'].apply(to_gtfs_time)
-        print(times.rename('arrival_time'))
-        print(ndf['arrival_time'])
+        logger.debug(times.rename('arrival_time'))
+        logger.debug(ndf['arrival_time'])
         ndf['arrival_time'] = times.rename('arrival_time')
         ndf['departure_time'] = times.rename('departure_time')
         ndf['trip_id'] = rt_trip_id
-        print(ndf)
+        logger.debug(ndf)
         return ndf
 
     def process_pattern(self, date, route, pid):
@@ -150,19 +160,32 @@ class RealtimeConverter:
             logger.debug(f' ==== T ====')
             single_rt_trip = pdf[pdf.tatripid == rt_trip_id]
             r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
+            if r is None:
+                continue
             output = r[r.stop_id != -1].reset_index()
             #output.to_csv('/tmp/p1.csv')
-            print(output)
-            print()
+            #print(output)
+            #print()
             ndf = self.apply_to_template(sched_stops, output, rt_trip_id)
+            if ndf is None:
+                continue
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])
             rewrite_rt_trip = sched_trip.copy().reset_index().drop(columns=['index'])
             rewrite_rt_trip['trip_id'] = rt_trip_id
             rewrite_rt_trip['block_id'] = single_rt_trip.iloc[0].tablockid.replace(' ', '')
-            print(single_rt_trip)
-            print(rewrite_rt_trip)
+            #print(single_rt_trip)
+            #print(rewrite_rt_trip)
             self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
+
+    def process_route(self, date, route):
+        df: pd.DataFrame = self.days.get(date)
+        if df.empty:
+            return False
+        pdf = df.query(f'rt == "{route}"')
+        patterns = pdf.pid.unique()
+        for p in tqdm(patterns):
+            self.process_pattern(date, route, p)
 
 
 if __name__ == "__main__":
@@ -190,6 +213,8 @@ if __name__ == "__main__":
                            start,
                            start)
     rt.process()
-    rt.process_pattern(start, args.route[0], args.pattern[0])
+    #rt.process_pattern(start, args.route[0], args.pattern[0])
+    rt.process_route(start, args.route[0])
     rt.output_stop_times.to_csv(output_file / 'new_stop_times.txt', index=False)
     rt.output_trips.to_csv(output_file / 'new_trips.txt', index=False)
+    print(len(rt.errors), 'errors')

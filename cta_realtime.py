@@ -51,6 +51,20 @@ class FeedWrapper:
         return self.feed.stop_times[self.feed.stop_times.trip_id == trip_id]
 
 
+class RealtimeManager:
+    def __init__(self, rt_path: Path, start: datetime.date, days: int):
+        self.rt_path = rt_path
+        self.start = start
+        self.num_days = days
+
+    def load_data(self):
+        for x in range(self.num_days):
+            d = self.start + datetime.timedelta(days=x)
+            rtfile = self.rt_path / d.strftime('%Y-%m-%d.csv')
+            rtdf = pd.read_csv(rtfile, low_memory=False)
+            self.days[d] = rtdf
+
+
 class RealtimeConverter:
     EPSILON = 0.001
 
@@ -180,10 +194,7 @@ class RealtimeConverter:
         logger.debug(ndf)
         return ndf
 
-    def process_pattern(self, date, route, pid):
-        df: pd.DataFrame = self.days.get(date)
-        if df.empty:
-            return False
+    def process_pattern(self, df: pd.DataFrame, date, route, pid):
         pdf = df.query(f'rt == "{route}" and pid == {pid}')
         approx_len = pdf.pdist.max()
         schedule_patterns = self.fw.get_closest_pattern(route, approx_len)
@@ -225,7 +236,7 @@ class RealtimeConverter:
         pdf = df.query(f'rt == "{route}"')
         patterns = pdf.pid.unique()
         for p in tqdm(patterns):
-            self.process_pattern(date, route, p)
+            self.process_pattern(pdf, date, route, p)
 
     def output_summary(self):
         print(f'Trips attempted: {self.trips_attempted:6d}')
@@ -263,7 +274,8 @@ if __name__ == "__main__":
     rt.process()
     #
     if args.pattern:
-        rt.process_pattern(start, args.route[0], args.pattern[0])
+        raise ValueError('Not supported')
+        #rt.process_pattern(start, args.route[0], args.pattern[0])
     else:
         rt.process_route(start, args.route[0])
     rt.output_stop_times.to_csv(output_dir / 'new_stop_times.txt', index=False)

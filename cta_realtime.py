@@ -5,6 +5,7 @@ import argparse
 import datetime
 import logging
 from pathlib import Path
+import math
 
 import pandas as pd
 import geopandas as gpd
@@ -31,8 +32,8 @@ class FeedWrapper:
         return rv
 
     def get_stop_patterns(self, route: str):
-        stats = self.stats_cache.get(route)
-        if not stats:
+        stats = self.stats_cache.get(route, pd.DataFrame())
+        if stats.empty:
             stats = self.feed.compute_trip_stats([route])
             self.stats_cache[route] = stats
         stop_patterns = stats.groupby(['stop_pattern_name'])
@@ -51,6 +52,8 @@ class FeedWrapper:
 
 
 class RealtimeConverter:
+    EPSILON = 0.001
+
     def __init__(self, rt_path: Path, fw: FeedWrapper, start: datetime.date, end: datetime.date):
         self.rt_path = rt_path
         self.fw = fw
@@ -87,16 +90,32 @@ class RealtimeConverter:
 
         fakerows = []
         try:
+            if single_rt1.empty or len(single_rt1) < 2:
+                return None
             if single_rt1.iloc[0].pdist != 0:
                 deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
+                if deltas.tmstmp < self.EPSILON:
+                    return None
                 v = deltas.pdist / deltas.tmstmp
-                nt = int(single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v)
+                if v < self.EPSILON:
+                    return None
+                ntf = single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v
+                if math.isnan(ntf):
+                    return None
+                nt = int(ntf)
                 #fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
                 fakerows.append({'tmstmp': nt, 'pdist': 0})
             if single_rt1.iloc[-1].pdist < single_sched.iloc[-1].pdist:
                 deltas = single_rt1.iloc[-1] - single_rt1.iloc[-2]
+                if deltas.tmstmp < self.EPSILON:
+                    return None
                 v = deltas.pdist / deltas.tmstmp
-                nt = int(single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v)
+                if v < self.EPSILON:
+                    return None
+                ntf = single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v
+                if math.isnan(ntf):
+                    return None
+                nt = int(ntf)
                 fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
             if fakerows:
                 fdf = pd.DataFrame(fakerows)
@@ -194,7 +213,8 @@ if __name__ == "__main__":
                         help='Print debug logging.')
     parser.add_argument('--route', type=str, nargs=1, default=['72'],
                         help='Route to analyze.')
-    parser.add_argument('--pattern', type=int, nargs=1, default=[10918],
+    parser.add_argument('--pattern', type=int, nargs=1,
+                        #, default=[10918],
                         help='Stop pattern to analyze.')
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/tmp/transit'],
                         help='Output directory for generated files.')
@@ -213,8 +233,11 @@ if __name__ == "__main__":
                            start,
                            start)
     rt.process()
-    #rt.process_pattern(start, args.route[0], args.pattern[0])
-    rt.process_route(start, args.route[0])
+    #
+    if args.pattern:
+        rt.process_pattern(start, args.route[0], args.pattern[0])
+    else:
+        rt.process_route(start, args.route[0])
     rt.output_stop_times.to_csv(output_file / 'new_stop_times.txt', index=False)
     rt.output_trips.to_csv(output_file / 'new_trips.txt', index=False)
     print(len(rt.errors), 'errors')

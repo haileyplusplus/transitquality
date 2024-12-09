@@ -52,28 +52,52 @@ class FeedWrapper:
 
 
 class RealtimeManager:
+    RT_SERVICE_PREFIX = 9000
+
     def __init__(self, rt_path: Path, start: datetime.date, days: int):
         self.rt_path = rt_path
         self.start = start
         self.num_days = days
+        self.rt_data = {}
 
     def load_data(self):
         for x in range(self.num_days):
             d = self.start + datetime.timedelta(days=x)
             rtfile = self.rt_path / d.strftime('%Y-%m-%d.csv')
             rtdf = pd.read_csv(rtfile, low_memory=False)
-            self.days[d] = rtdf
+            self.rt_data[x] = rtdf
+
+    def calc_service_id(self, offset=None, date=None):
+        if offset is None:
+            offset = (date - self.start).days
+        return str(self.RT_SERVICE_PREFIX + offset)
+
+    def get(self, offset):
+        return self.rt_data.get(offset)
+
+    def get_all(self):
+        for k, v in sorted(self.rt_data.items()):
+            yield k, v
+
+    def generate_services(self) -> pd.DataFrame:
+        dd = []
+        for x in range(self.num_days):
+            service_id = self.RT_SERVICE_PREFIX + x
+            date = self.start + datetime.timedelta(days=x)
+            dd.append({'service_id': service_id,
+                       'date': date.strftime('%Y%m%d'),
+                       'exception_type': 1})
+        return pd.DataFrame(dd)
 
 
 class RealtimeConverter:
     EPSILON = 0.001
 
-    def __init__(self, rt_path: Path, fw: FeedWrapper, start: datetime.date, end: datetime.date):
+    def __init__(self, rt_path: Path, fw: FeedWrapper, start: datetime.date, num_days: int):
         self.rt_path = rt_path
         self.fw = fw
         self.start = start
-        self.end = end
-        self.days = {}
+        self.rt_manager = RealtimeManager(rt_path, start, num_days)
         self.output_stop_times = pd.DataFrame()
         self.output_trips = pd.DataFrame()
         self.errors = []
@@ -81,9 +105,10 @@ class RealtimeConverter:
         self.trips_processed = 0
 
     def process(self):
-        rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
-        rtdf = pd.read_csv(rtfile, low_memory=False)
-        self.days[self.start] = rtdf
+        self.rt_manager.load_data()
+        # rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
+        # rtdf = pd.read_csv(rtfile, low_memory=False)
+        # self.days[self.start] = rtdf
 
     def frame_interpolation(self, single_rt1: pd.DataFrame, single_sched: pd.DataFrame) -> pd.DataFrame | None:
         if single_rt1.empty or len(single_rt1) < 2:
@@ -222,6 +247,7 @@ class RealtimeConverter:
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])
             rewrite_rt_trip = sched_trip.copy().reset_index().drop(columns=['index'])
+            rewrite_rt_trip['service_id'] = self.rt_manager.calc_service_id(date=date)
             rewrite_rt_trip['trip_id'] = rt_trip_id
             rewrite_rt_trip['block_id'] = single_rt_trip.iloc[0].tablockid.replace(' ', '')
             #print(single_rt_trip)
@@ -229,18 +255,25 @@ class RealtimeConverter:
             self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
             self.trips_processed += 1
 
-    def process_route(self, date, route):
-        df: pd.DataFrame = self.days.get(date)
-        if df.empty:
-            return False
-        pdf = df.query(f'rt == "{route}"')
-        patterns = pdf.pid.unique()
-        for p in tqdm(patterns):
-            self.process_pattern(pdf, date, route, p)
+    def process_route(self, route):
+        # date = self.start
+        # for x in range(self.)
+        # df: pd.DataFrame = self.days.get(date)
+        for offset, df in self.rt_manager.get_all():
+            date = self.start + datetime.timedelta(days=offset)
+            pdf = df.query(f'rt == "{route}"')
+            patterns = pdf.pid.unique()
+            for p in tqdm(patterns):
+                self.process_pattern(pdf, date, route, p)
 
     def output_summary(self):
         print(f'Trips attempted: {self.trips_attempted:6d}')
         print(f'Trips processed: {self.trips_processed:6d}')
+
+    def write_files(self, output_dir: Path):
+        self.output_stop_times.to_csv(output_dir / 'new_stop_times.txt', index=False)
+        self.output_trips.to_csv(output_dir / 'new_trips.txt', index=False)
+        self.rt_manager.generate_services().to_csv(output_dir / 'new_calendar_dates.txt', index=False)
 
 
 if __name__ == "__main__":
@@ -254,6 +287,10 @@ if __name__ == "__main__":
                         help='Stop pattern to analyze.')
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/tmp/transit'],
                         help='Output directory for generated files.')
+    parser.add_argument('--num_days', type=int, nargs=1,
+                        default=[7],
+                        #, default=[10918],
+                        help='Number of days to analyze.')
     args = parser.parse_args()
     logging.basicConfig()
     if args.debug:
@@ -267,19 +304,19 @@ if __name__ == "__main__":
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
     fw = FeedWrapper(feed, '20240509')
     start = datetime.date(2024, 5, 9)
+    num_days = args.num_days[0]
     rt = RealtimeConverter(Path('~/tmp/transit').expanduser(),
                            fw,
                            start,
-                           start)
+                           num_days)
     rt.process()
     #
     if args.pattern:
         raise ValueError('Not supported')
         #rt.process_pattern(start, args.route[0], args.pattern[0])
     else:
-        rt.process_route(start, args.route[0])
-    rt.output_stop_times.to_csv(output_dir / 'new_stop_times.txt', index=False)
-    rt.output_trips.to_csv(output_dir / 'new_trips.txt', index=False)
+        rt.process_route(args.route[0])
+    rt.write_files(output_dir)
     print(len(rt.errors), 'errors')
     with open(error_file, 'w') as efh:
         json.dump(rt.errors, efh, indent=4)

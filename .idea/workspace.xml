@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Make more conversion successful">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Slight refactor">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cta_realtime.py" beforeDir="false" afterPath="$PROJECT_DIR$/cta_realtime.py" afterDir="false" />
     </list>
@@ -159,7 +159,15 @@
       <option name="project" value="LOCAL" />
       <updated>1733779466113</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="Slight refactor">
+      <option name="closed" value="true" />
+      <created>1733783940907</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1733783940907</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -174,6 +182,7 @@
     <MESSAGE value="Small works but large is more difficult" />
     <MESSAGE value="Add guards so conversion works." />
     <MESSAGE value="Make more conversion successful" />
-    <option name="LAST_COMMIT_MESSAGE" value="Make more conversion successful" />
+    <MESSAGE value="Slight refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="Slight refactor" />
   </component>
 </project>

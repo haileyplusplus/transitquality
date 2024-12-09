@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import json
 import sys
 import argparse
 import datetime
@@ -63,35 +63,30 @@ class RealtimeConverter:
         self.output_stop_times = pd.DataFrame()
         self.output_trips = pd.DataFrame()
         self.errors = []
+        self.trips_attempted = 0
+        self.trips_processed = 0
 
     def process(self):
         rtfile = self.rt_path / self.start.strftime('%Y-%m-%d.csv')
         rtdf = pd.read_csv(rtfile, low_memory=False)
         self.days[self.start] = rtdf
 
-    def process_trip(self, date, route, pid, sched_stops, single_rt_trip):
-        logger.debug(f'  -- process trip -- ')
-        # this interpolation isn't quite right: maybe need to set the index and use that
-        # fixed with below
-        # pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).interpolate(method='linear')[1:].astype(int)[:50]
-        # sp['unixts'] = sp.apply(lambda x: int(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M').timestamp()), axis=1)
-        # intermediate2 = pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).set_index('pdist').interpolate(method='index')[1:].astype(int)
-        # trip_stops from gtfs
-        single_sched = pd.concat([sched_stops['shape_dist_traveled'].rename('pdist'), sched_stops['stop_id']],
-                                 axis=1).reset_index().drop(columns=['index'])
-        def timefn(x):
-            # TODO: figure out 24-hour cutover
-            rawdate = datetime.datetime.strptime(x, '%Y%m%d %H:%M')
-            if rawdate.hour < 4:
-                rawdate += datetime.timedelta(days=1)
-            return int(rawdate.timestamp())
-        times = single_rt_trip['tmstmp'].apply(timefn)
-        single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1)
-
+    def frame_interpolation(self, single_rt1: pd.DataFrame, single_sched: pd.DataFrame) -> pd.DataFrame | None:
+        if single_rt1.empty or len(single_rt1) < 2:
+            return None
         fakerows = []
+        maxval = single_rt1.pdist.max()
+        beginnings = single_rt1[single_rt1.pdist == 0]
+        endings = single_rt1[single_rt1.pdist == maxval]
+        begin_drop = len(beginnings) - 1
+        end_drop = len(endings) - 1
+        if end_drop > 0:
+            single_rt1.drop(single_rt1.tail(end_drop).index, inplace=True)
+        if begin_drop > 0:
+            single_rt1.drop(single_rt1.head(begin_drop).index, inplace=True)
+        if len(single_rt1) < 2:
+            return None
         try:
-            if single_rt1.empty or len(single_rt1) < 2:
-                return None
             if single_rt1.iloc[0].pdist != 0:
                 deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
                 if deltas.tmstmp < self.EPSILON:
@@ -119,11 +114,33 @@ class RealtimeConverter:
                 fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
             if fakerows:
                 fdf = pd.DataFrame(fakerows)
-                single_rt = pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
+                return pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
             else:
-                single_rt = single_rt1
+                return single_rt1
         except OverflowError as e:
             self.errors.append(e)
+        return None
+
+    def process_trip(self, date, route, pid, sched_stops, single_rt_trip):
+        logger.debug(f'  -- process trip -- ')
+        # this interpolation isn't quite right: maybe need to set the index and use that
+        # fixed with below
+        # pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).interpolate(method='linear')[1:].astype(int)[:50]
+        # sp['unixts'] = sp.apply(lambda x: int(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M').timestamp()), axis=1)
+        # intermediate2 = pd.concat([spf, s3], ignore_index=True).sort_values(['pdist']).set_index('pdist').interpolate(method='index')[1:].astype(int)
+        # trip_stops from gtfs
+        single_sched = pd.concat([sched_stops['shape_dist_traveled'].rename('pdist'), sched_stops['stop_id']],
+                                 axis=1).reset_index().drop(columns=['index'])
+        def timefn(x):
+            # TODO: figure out 24-hour cutover
+            rawdate = datetime.datetime.strptime(x, '%Y%m%d %H:%M')
+            if rawdate.hour < 4:
+                rawdate += datetime.timedelta(days=1)
+            return int(rawdate.timestamp())
+        times = single_rt_trip['tmstmp'].apply(timefn)
+        single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1)
+        single_rt = self.frame_interpolation(single_rt1, single_sched)
+        if single_rt is None:
             return None
         single_rt['stop_id'] = -1
         logger.debug(single_rt)
@@ -176,10 +193,12 @@ class RealtimeConverter:
         rt_trips = pdf.tatripid.unique()
         sched_trip = self.fw.get_trip(representative_trip)
         for rt_trip_id in rt_trips:
+            self.trips_attempted += 1
             logger.debug(f' ==== T ====')
             single_rt_trip = pdf[pdf.tatripid == rt_trip_id]
             r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
             if r is None:
+                self.errors.append(['process', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
                 continue
             output = r[r.stop_id != -1].reset_index()
             #output.to_csv('/tmp/p1.csv')
@@ -187,6 +206,7 @@ class RealtimeConverter:
             #print()
             ndf = self.apply_to_template(sched_stops, output, rt_trip_id)
             if ndf is None:
+                self.errors.append(['template', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
                 continue
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])
@@ -196,6 +216,7 @@ class RealtimeConverter:
             #print(single_rt_trip)
             #print(rewrite_rt_trip)
             self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
+            self.trips_processed += 1
 
     def process_route(self, date, route):
         df: pd.DataFrame = self.days.get(date)
@@ -205,6 +226,10 @@ class RealtimeConverter:
         patterns = pdf.pid.unique()
         for p in tqdm(patterns):
             self.process_pattern(date, route, p)
+
+    def output_summary(self):
+        print(f'Trips attempted: {self.trips_attempted:6d}')
+        print(f'Trips processed: {self.trips_processed:6d}')
 
 
 if __name__ == "__main__":
@@ -223,7 +248,10 @@ if __name__ == "__main__":
     if args.debug:
         logger.setLevel(logging.DEBUG)
     print(f'Starting')
-    output_file = Path(args.output_dir[0]).expanduser()
+    output_dir = Path(args.output_dir[0]).expanduser()
+    runtime = datetime.datetime.now()
+    runstr = runtime.strftime('%Y%m%d%H%M%S')
+    error_file = output_dir / f'errors-{runstr}.json'
     sched_path = Path('~/datasets/transit').expanduser()
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
     fw = FeedWrapper(feed, '20240509')
@@ -238,6 +266,9 @@ if __name__ == "__main__":
         rt.process_pattern(start, args.route[0], args.pattern[0])
     else:
         rt.process_route(start, args.route[0])
-    rt.output_stop_times.to_csv(output_file / 'new_stop_times.txt', index=False)
-    rt.output_trips.to_csv(output_file / 'new_trips.txt', index=False)
+    rt.output_stop_times.to_csv(output_dir / 'new_stop_times.txt', index=False)
+    rt.output_trips.to_csv(output_dir / 'new_trips.txt', index=False)
     print(len(rt.errors), 'errors')
+    with open(error_file, 'w') as efh:
+        json.dump(rt.errors, efh, indent=4)
+    rt.output_summary()

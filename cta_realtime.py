@@ -6,6 +6,8 @@ import datetime
 import logging
 from pathlib import Path
 import math
+import tempfile
+import zipfile
 
 import pandas as pd
 import geopandas as gpd
@@ -259,12 +261,15 @@ class RealtimeConverter:
         # date = self.start
         # for x in range(self.)
         # df: pd.DataFrame = self.days.get(date)
+        work = []
         for offset, df in self.rt_manager.get_all():
             date = self.start + datetime.timedelta(days=offset)
             pdf = df.query(f'rt == "{route}"')
             patterns = pdf.pid.unique()
-            for p in tqdm(patterns):
-                self.process_pattern(pdf, date, route, p)
+            for p in patterns:
+                work.append((pdf, date, route, p))
+        for w in tqdm(work):
+            self.process_pattern(*w)
 
     def output_summary(self):
         print(f'Trips attempted: {self.trips_attempted:6d}')
@@ -274,6 +279,22 @@ class RealtimeConverter:
         self.output_stop_times.to_csv(output_dir / 'new_stop_times.txt', index=False)
         self.output_trips.to_csv(output_dir / 'new_trips.txt', index=False)
         self.rt_manager.generate_services().to_csv(output_dir / 'new_calendar_dates.txt', index=False)
+
+    def write_zip(self, output_dir: Path):
+        startstr = self.start.strftime('%Y%m%d')
+        with tempfile.TemporaryDirectory() as tempdir:
+            tmp_path = Path(tempdir)
+            zipfilename = output_dir / f'cta_rt_sched_{startstr}.zip'
+            self.output_stop_times.to_csv(tmp_path / 'stop_times.txt', index=False)
+            self.output_trips.to_csv(tmp_path / 'trips.txt', index=False)
+            self.rt_manager.generate_services().to_csv(tmp_path / 'calendar_dates.txt', index=False)
+            feed = self.fw.feed
+            for dfname in {'agency', 'calendar', 'frequencies', 'routes', 'shapes', 'stops', 'transfers'}:
+                df = getattr(feed, dfname)
+                df.to_csv(tmp_path / f'{dfname}.txt', index=False)
+            with zipfile.ZipFile(zipfilename, 'w') as zf:
+                for fn in tmp_path.glob('*.txt'):
+                    zf.write(fn, arcname=fn.name)
 
 
 if __name__ == "__main__":
@@ -302,8 +323,9 @@ if __name__ == "__main__":
     error_file = output_dir / f'errors-{runstr}.json'
     sched_path = Path('~/datasets/transit').expanduser()
     feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
-    fw = FeedWrapper(feed, '20240509')
-    start = datetime.date(2024, 5, 9)
+    # TODO: match schedule patterns to actual days
+    fw = FeedWrapper(feed, '20240506')
+    start = datetime.date(2024, 5, 6)
     num_days = args.num_days[0]
     rt = RealtimeConverter(Path('~/tmp/transit').expanduser(),
                            fw,
@@ -316,7 +338,8 @@ if __name__ == "__main__":
         #rt.process_pattern(start, args.route[0], args.pattern[0])
     else:
         rt.process_route(args.route[0])
-    rt.write_files(output_dir)
+    #rt.write_files(output_dir)
+    rt.write_zip(output_dir)
     print(len(rt.errors), 'errors')
     with open(error_file, 'w') as efh:
         json.dump(rt.errors, efh, indent=4)

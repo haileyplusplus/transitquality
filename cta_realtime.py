@@ -306,7 +306,7 @@ class RealtimeConverter:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Collect information about photos into a central db.')
+    parser = argparse.ArgumentParser(description='Convert realtime bus status feeds to GTFS format.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
     parser.add_argument('--route', type=str, nargs=1, default=['72'],

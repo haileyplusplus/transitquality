@@ -238,19 +238,21 @@ class RealtimeConverter:
             if r is None:
                 self.errors.append(['process', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
                 continue
+            service_id = self.rt_manager.calc_service_id(date=date)
+            new_trip_id = f'{rt_trip_id}-{service_id}'
             output = r[r.stop_id != -1].reset_index()
             #output.to_csv('/tmp/p1.csv')
             #print(output)
             #print()
-            ndf = self.apply_to_template(sched_stops, output, rt_trip_id)
+            ndf = self.apply_to_template(sched_stops, output, new_trip_id)
             if ndf is None:
                 self.errors.append(['template', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
                 continue
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])
             rewrite_rt_trip = sched_trip.copy().reset_index().drop(columns=['index'])
-            rewrite_rt_trip['service_id'] = self.rt_manager.calc_service_id(date=date)
-            rewrite_rt_trip['trip_id'] = rt_trip_id
+            rewrite_rt_trip['service_id'] = service_id
+            rewrite_rt_trip['trip_id'] = new_trip_id
             rewrite_rt_trip['block_id'] = single_rt_trip.iloc[0].tablockid.replace(' ', '')
             #print(single_rt_trip)
             #print(rewrite_rt_trip)

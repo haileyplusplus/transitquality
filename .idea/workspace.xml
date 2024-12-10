@@ -4,7 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Output multiple days with correct service ids">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Write schedule as zipfile">
+      <change afterPath="$PROJECT_DIR$/schedtest.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cta_realtime.py" beforeDir="false" afterPath="$PROJECT_DIR$/cta_realtime.py" afterDir="false" />
     </list>
@@ -175,7 +176,15 @@
       <option name="project" value="LOCAL" />
       <updated>1733785348318</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="Write schedule as zipfile">
+      <option name="closed" value="true" />
+      <created>1733790953780</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1733790953780</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -192,6 +201,7 @@
     <MESSAGE value="Make more conversion successful" />
     <MESSAGE value="Slight refactor" />
     <MESSAGE value="Output multiple days with correct service ids" />
-    <option name="LAST_COMMIT_MESSAGE" value="Output multiple days with correct service ids" />
+    <MESSAGE value="Write schedule as zipfile" />
+    <option name="LAST_COMMIT_MESSAGE" value="Write schedule as zipfile" />
   </component>
 </project>

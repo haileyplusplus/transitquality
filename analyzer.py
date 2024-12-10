@@ -138,14 +138,14 @@ if __name__ == "__main__":
     if not config_file.exists():
         print(f'Missing config file {config_file}')
         sys.exit(1)
-    files = Path(args.feed_dir[0]).expanduser().glob('cta_rt*.zip')
+    files = Path(args.feed_dir[0]).expanduser().glob('cta_rt*12*.zip')
     feed = None
-    for f in files:
-        feed = gtfs_kit.read_feed(f, dist_units='mi')
-        break
+    if files:
+        feed = gtfs_kit.read_feed([x for x in files][-1], dist_units='mi')
     if feed is None:
         print(f'Missing GTFS feed')
         sys.exit(1)
+    print(feed.calendar_dates)
     manager = ConfigManager(config_file)
     print(manager.error)
     analyzer = Analyzer(feed, manager)

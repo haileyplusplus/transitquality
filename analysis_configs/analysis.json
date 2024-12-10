@@ -9,8 +9,8 @@
   {
     "analyzertype": "twostopfixedtime",
     "start_tofd": "19:30",
-    "start_stop": "North Ave & Milwaukee/Damen (Blue Line), Westbound, Northwest Corner",
-    "end_stop": "North Ave & Wells, Westbound, Northeast Corner",
+    "start_stop": "North Ave & Milwaukee/Damen (Blue Line), Eastbound, Southwest Corner",
+    "end_stop": "North Ave & Wells, Eastbound, Southwest Corner",
     "days": 7
   }
 ]

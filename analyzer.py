@@ -87,7 +87,7 @@ class Analyzer:
         end = self.get_stop_by_desc(end_stop)
         if start is None or end is None:
             print(f'Missing stop: {start_stop} , {end_stop}')
-            return False
+            return None
         dates = self.get_dates(ndays)
         s1 = self.feed.build_stop_timetable(start.stop_id, dates)
         s2 = self.feed.build_stop_timetable(end.stop_id, dates)
@@ -96,6 +96,9 @@ class Analyzer:
             df['departure_seconds'] = df.departure_time.map(self.to_seconds)
             df.set_index('trip_id', inplace=True)
         joined = s1.join(s2, lsuffix='_start', rsuffix='_end')
+        joined = joined[joined.stop_sequence_start < joined.stop_sequence_end]
+        if joined.empty:
+            return None
         joined['duration'] = joined['datetime_end'] - joined['datetime_start']
         tofd_seconds = self.to_seconds(tofd)
         daily_trips = joined[joined.departure_seconds_start >= tofd_seconds].groupby(['date_start']).first()

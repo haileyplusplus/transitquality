@@ -203,7 +203,7 @@ class RealtimeConverter:
         ndf['stop_id'] = ndf['stop_id'].astype(int)
         logger.debug(trip_pattern_output['stop_id'])
         if not (ndf['stop_id'] == trip_pattern_output['stop_id']).all():
-            print(f'Pattern mismatch')
+            #print(f'Pattern mismatch')
             return None
 
         def to_gtfs_time(unix_timestamp: int):
@@ -299,14 +299,15 @@ class RealtimeConverter:
             feed = self.fw.feed
             for dfname in {'agency', 'calendar', 'frequencies', 'routes', 'shapes', 'stops', 'transfers'}:
                 df = getattr(feed, dfname)
-                df.to_csv(tmp_path / f'{dfname}.txt', index=False)
+                if df is not None:
+                    df.to_csv(tmp_path / f'{dfname}.txt', index=False)
             with zipfile.ZipFile(zipfilename, 'w') as zf:
                 for fn in tmp_path.glob('*.txt'):
                     zf.write(fn, arcname=fn.name)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert realtime bus status feeds to GTFS format.')
+    parser = argparse.ArgumentParser(description='Convert realtime bus status feeds to GTFS format  .')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
     parser.add_argument('--route', type=str, nargs=1, default=['72'],
@@ -316,6 +317,11 @@ if __name__ == "__main__":
                         help='Stop pattern to analyze.')
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/tmp/transit'],
                         help='Output directory for generated files.')
+    parser.add_argument('--start_date', type=str, nargs=1, default=['20241202'],
+                        help='Start date for analysis.')
+    parser.add_argument('--schedule_filename', type=str, nargs=1,
+                        default=['cta_20241014.zip'],
+                        help='Start date for analysis.')
     parser.add_argument('--num_days', type=int, nargs=1,
                         default=[7],
                         #, default=[10918],
@@ -330,17 +336,20 @@ if __name__ == "__main__":
     runstr = runtime.strftime('%Y%m%d%H%M%S')
     error_file = output_dir / f'errors-{runstr}.json'
     sched_path = Path('~/datasets/transit').expanduser()
-    feed = gtfs_kit.read_feed(sched_path / 'google_transit_2024-05-18.zip', 'mi')
+    sched_filename = args.schedule_filename[0]
+    feed = gtfs_kit.read_feed(sched_path / sched_filename, 'mi')
+    feed.validate()
     # TODO: match schedule patterns to actual days
-    fw = FeedWrapper(feed, '20240506')
-    start = datetime.date(2024, 5, 6)
+    startstr = args.start_date[0]
+    start = datetime.datetime.strptime(startstr, '%Y%m%d').date()
+    fw = FeedWrapper(feed, startstr)
+    #start = datetime.date(2024, 5, 6)
     num_days = args.num_days[0]
     rt = RealtimeConverter(Path('~/tmp/transit').expanduser(),
                            fw,
                            start,
                            num_days)
     rt.process()
-    #
     if args.pattern:
         raise ValueError('Not supported')
         #rt.process_pattern(start, args.route[0], args.pattern[0])

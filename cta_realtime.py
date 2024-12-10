@@ -24,6 +24,7 @@ class FeedWrapper:
         self.datestr = datestr
         self.cache = {}
         self.stats_cache = {}
+        self.trips_cache = {}
 
     def get_timetable(self, route):
         rv = self.cache.get(route)
@@ -33,17 +34,21 @@ class FeedWrapper:
         self.cache[route] = rv
         return rv
 
-    def get_stop_patterns(self, route: str):
+    def get_stop_patterns(self, route: str, date: str):
         stats = self.stats_cache.get(route, pd.DataFrame())
         if stats.empty:
             stats = self.feed.compute_trip_stats([route])
             self.stats_cache[route] = stats
-        stop_patterns = stats.groupby(['stop_pattern_name'])
+        daily_trips = self.trips_cache.get(date)
+        if daily_trips is None:
+            daily_trips = self.feed.get_trips(date).trip_id
+            self.trips_cache[date] = daily_trips
+        stop_patterns = stats[stats.trip_id.isin(daily_trips)].groupby(['stop_pattern_name'])
         # g.iloc[(g['distance'] - key).abs().argsort()][:1]
         return stop_patterns.first()
 
-    def get_closest_pattern(self, route, dist):
-        patterns = self.get_stop_patterns(route)
+    def get_closest_pattern(self, route, date, dist):
+        patterns = self.get_stop_patterns(route, date)
         return patterns.iloc[(patterns['distance'] - dist).abs().argsort()][:2]
 
     def get_trip(self, trip_id):
@@ -225,7 +230,7 @@ class RealtimeConverter:
     def process_pattern(self, df: pd.DataFrame, date, route, pid):
         pdf = df.query(f'rt == "{route}" and pid == {pid}')
         approx_len = pdf.pdist.max()
-        schedule_patterns = self.fw.get_closest_pattern(route, approx_len)
+        schedule_patterns = self.fw.get_closest_pattern(route, date.strftime('%Y%m%d'), approx_len)
         representative_trip = schedule_patterns.iloc[0].trip_id
         sched_stops = self.fw.get_trip_stops(representative_trip)
         logger.debug(f'Scheduled stops: {sched_stops}')
@@ -306,10 +311,49 @@ class RealtimeConverter:
                     zf.write(fn, arcname=fn.name)
 
 
+def main(args):
+    print(f'Starting')
+    output_dir = Path(args.output_dir[0]).expanduser()
+    runtime = datetime.datetime.now()
+    runstr = runtime.strftime('%Y%m%d%H%M%S')
+    error_file = output_dir / f'errors-{runstr}.json'
+    sched_path = Path('~/datasets/transit').expanduser()
+    sched_filename = args.schedule_filename[0]
+    feed = gtfs_kit.read_feed(sched_path / sched_filename, 'mi')
+    feed.validate()
+    # TODO: match schedule patterns to actual days
+    startstr = args.start_date[0]
+    start = datetime.datetime.strptime(startstr, '%Y%m%d').date()
+    fw = FeedWrapper(feed, startstr)
+    #start = datetime.date(2024, 5, 6)
+    num_days = args.num_days[0]
+    rt = RealtimeConverter(Path('~/tmp/transit').expanduser(),
+                           fw,
+                           start,
+                           num_days)
+    if args.no_process:
+        return rt
+    rt.process()
+    if args.pattern:
+        raise ValueError('Not supported')
+        #rt.process_pattern(start, args.route[0], args.pattern[0])
+    else:
+        rt.process_route(args.route[0])
+    #rt.write_files(output_dir)
+    rt.write_zip(output_dir)
+    print(len(rt.errors), 'errors')
+    with open(error_file, 'w') as efh:
+        json.dump(rt.errors, efh, indent=4)
+    rt.output_summary()
+    return rt
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert realtime bus status feeds to GTFS format  .')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
+    parser.add_argument('--no_process', action='store_true',
+                        help='Don\'t do processing (useful for interactive mode).')
     parser.add_argument('--route', type=str, nargs=1, default=['72'],
                         help='Route to analyze.')
     parser.add_argument('--pattern', type=int, nargs=1,
@@ -330,34 +374,4 @@ if __name__ == "__main__":
     logging.basicConfig()
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    print(f'Starting')
-    output_dir = Path(args.output_dir[0]).expanduser()
-    runtime = datetime.datetime.now()
-    runstr = runtime.strftime('%Y%m%d%H%M%S')
-    error_file = output_dir / f'errors-{runstr}.json'
-    sched_path = Path('~/datasets/transit').expanduser()
-    sched_filename = args.schedule_filename[0]
-    feed = gtfs_kit.read_feed(sched_path / sched_filename, 'mi')
-    feed.validate()
-    # TODO: match schedule patterns to actual days
-    startstr = args.start_date[0]
-    start = datetime.datetime.strptime(startstr, '%Y%m%d').date()
-    fw = FeedWrapper(feed, startstr)
-    #start = datetime.date(2024, 5, 6)
-    num_days = args.num_days[0]
-    rt = RealtimeConverter(Path('~/tmp/transit').expanduser(),
-                           fw,
-                           start,
-                           num_days)
-    rt.process()
-    if args.pattern:
-        raise ValueError('Not supported')
-        #rt.process_pattern(start, args.route[0], args.pattern[0])
-    else:
-        rt.process_route(args.route[0])
-    #rt.write_files(output_dir)
-    rt.write_zip(output_dir)
-    print(len(rt.errors), 'errors')
-    with open(error_file, 'w') as efh:
-        json.dump(rt.errors, efh, indent=4)
-    rt.output_summary()
+    rt = main(args)

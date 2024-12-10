@@ -105,6 +105,7 @@ class RealtimeConverter:
         self.errors = []
         self.trips_attempted = 0
         self.trips_processed = 0
+        self.trips_seen = set([])
 
     def process(self):
         self.rt_manager.load_data()
@@ -240,6 +241,11 @@ class RealtimeConverter:
                 continue
             service_id = self.rt_manager.calc_service_id(date=date)
             new_trip_id = f'{rt_trip_id}-{service_id}'
+            # TODO: consider renumbering these
+            if new_trip_id in self.trips_seen:
+                self.errors.append(['repeated_trip', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
+                continue
+            self.trips_seen.add(new_trip_id)
             output = r[r.stop_id != -1].reset_index()
             #output.to_csv('/tmp/p1.csv')
             #print(output)

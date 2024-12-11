@@ -9,6 +9,7 @@ import math
 import tempfile
 import zipfile
 
+import geopandas
 import pandas as pd
 import geopandas as gpd
 
@@ -19,12 +20,22 @@ logger = logging.getLogger(__name__)
 
 
 class FeedWrapper:
+    GLOBAL = 'EPSG:4326'
+    CHICAGO = 'EPSG:26916'  # unit: meters
+
     def __init__(self, feed: gtfs_kit.Feed, datestr: str):
         self.feed = feed
         self.datestr = datestr
         self.cache = {}
         self.stats_cache = {}
         self.trips_cache = {}
+        self.geo_stops = None
+        self.initialize()
+
+    def initialize(self):
+        s = self.feed.stops
+        geo = geopandas.points_from_xy(s.stop_lon, s.stop_lat, crs=self.GLOBAL)
+        self.geo_stops = gpd.GeoDataFrame(s, geometry=geo).to_crs(self.CHICAGO)
 
     def get_timetable(self, route):
         rv = self.cache.get(route)
@@ -72,7 +83,8 @@ class RealtimeManager:
             d = self.start + datetime.timedelta(days=x)
             rtfile = self.rt_path / d.strftime('%Y-%m-%d.csv')
             rtdf = pd.read_csv(rtfile, low_memory=False)
-            self.rt_data[x] = rtdf
+            geo = geopandas.points_from_xy(rtdf.lon, rtdf.lat, crs=FeedWrapper.GLOBAL)
+            self.rt_data[x] = gpd.GeoDataFrame(rtdf, geometry=geo).to_crs(FeedWrapper.CHICAGO)
 
     def calc_service_id(self, offset=None, date=None):
         if offset is None:

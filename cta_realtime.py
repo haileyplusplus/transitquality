@@ -218,12 +218,15 @@ class RealtimeConverter:
         return interpolated
 
     def apply_to_template(self, sched_stops: pd.DataFrame, trip_pattern_output: pd.DataFrame, rt_trip_id):
-        ndf = sched_stops.copy().reset_index()
+        logger.debug(f'apply_to_template {rt_trip_id}')
+        logger.debug(f'sched stops {sched_stops}')
+        logger.debug(f'trip pattern output {trip_pattern_output}')
+        ndf = sched_stops.sort_values(['stop_sequence']).copy().reset_index()
         ndf = ndf.drop(columns=['index'])
         ndf['stop_id'] = ndf['stop_id'].astype(int)
-        logger.debug(trip_pattern_output['stop_id'])
         if not (ndf['stop_id'] == trip_pattern_output['stop_id']).all():
             #print(f'Pattern mismatch')
+            logger.debug(f'Pattern mismatch: {ndf['stop_id']}, tpo {trip_pattern_output['stop_id']}')
             return None
 
         def to_gtfs_time(unix_timestamp: int):
@@ -301,7 +304,7 @@ class RealtimeConverter:
             self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
             self.trips_processed += 1
 
-    def process_route(self, route):
+    def process_route(self, route, pattern=None):
         # date = self.start
         # for x in range(self.)
         # df: pd.DataFrame = self.days.get(date)
@@ -310,6 +313,9 @@ class RealtimeConverter:
             date = self.start + datetime.timedelta(days=offset)
             pdf = df.query(f'rt == "{route}"')
             patterns = pdf.pid.unique()
+            if pattern is not None:
+                work.append((pdf, date, route, pattern))
+                continue
             for p in patterns:
                 work.append((pdf, date, route, p))
         for w in tqdm(work):
@@ -366,8 +372,9 @@ def main(args):
         return rt
     rt.process()
     if args.pattern:
-        raise ValueError('Not supported')
+        #raise ValueError('Not supported')
         #rt.process_pattern(start, args.route[0], args.pattern[0])
+        rt.process_route(args.route[0], args.pattern[0])
     else:
         rt.process_route(args.route[0])
     #rt.write_files(output_dir)

@@ -68,6 +68,9 @@ class FeedWrapper:
     def get_trip_stops(self, trip_id):
         return self.feed.stop_times[self.feed.stop_times.trip_id == trip_id]
 
+    def get_stop(self, stop_id):
+        return self.geo_stops[self.geo_stops.stop_id == stop_id]
+
 
 class RealtimeManager:
     RT_SERVICE_PREFIX = 9000
@@ -242,11 +245,26 @@ class RealtimeConverter:
     def process_pattern(self, df: pd.DataFrame, date, route, pid):
         pdf = df.query(f'rt == "{route}" and pid == {pid}')
         approx_len = pdf.pdist.max()
+        rt_trips = pdf.tatripid.unique()
         schedule_patterns = self.fw.get_closest_pattern(route, date.strftime('%Y%m%d'), approx_len)
-        representative_trip = schedule_patterns.iloc[0].trip_id
+        if schedule_patterns.empty:
+            # TODO: log error
+            return
+        # now we need to choose the right direction by looking at which stops the rt ends are closest to
+        rt_begin = pdf.sort_values('pdist').iloc[0]
+        rt_end = pdf.sort_values('pdist').tail(1).iloc[0]
+        dists = []
+        for _, pattern in schedule_patterns.iterrows():
+            dist = 0
+            start = self.fw.get_stop(pattern.start_stop_id).geometry.iloc[0]
+            end = self.fw.get_stop(pattern.end_stop_id).geometry.iloc[0]
+            dist += rt_begin.geometry.distance(start)
+            dist += rt_end.geometry.distance(end)
+            dists.append((dist, pattern.name))
+        dists.sort()
+        representative_trip = schedule_patterns.loc[dists[0][1]].trip_id
         sched_stops = self.fw.get_trip_stops(representative_trip)
         logger.debug(f'Scheduled stops: {sched_stops}')
-        rt_trips = pdf.tatripid.unique()
         sched_trip = self.fw.get_trip(representative_trip)
         for rt_trip_id in rt_trips:
             self.trips_attempted += 1

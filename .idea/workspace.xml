@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="More feed hacking">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Add geometries to stops and realtime data">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cta_realtime.py" beforeDir="false" afterPath="$PROJECT_DIR$/cta_realtime.py" afterDir="false" />
     </list>
@@ -247,7 +247,15 @@
       <option name="project" value="LOCAL" />
       <updated>1733868449822</updated>
     </task>
-    <option name="localTasksCounter" value="24" />
+    <task id="LOCAL-00024" summary="Add geometries to stops and realtime data">
+      <option name="closed" value="true" />
+      <created>1733883321757</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1733883321757</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -273,6 +281,7 @@
     <MESSAGE value="Add more parameters, handle empty GTFS tables" />
     <MESSAGE value="Slightly better matching" />
     <MESSAGE value="More feed hacking" />
-    <option name="LAST_COMMIT_MESSAGE" value="More feed hacking" />
+    <MESSAGE value="Add geometries to stops and realtime data" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add geometries to stops and realtime data" />
   </component>
 </project>

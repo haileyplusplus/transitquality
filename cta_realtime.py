@@ -287,7 +287,8 @@ class RealtimeConverter:
             #print()
             ndf = self.apply_to_template(sched_stops, output, new_trip_id)
             if ndf is None:
-                self.errors.append(['template', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
+                sj = json.loads(sched_stops.to_json())
+                self.errors.append(['template', sj, date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
                 continue
             # need to rewrite trips too
             self.output_stop_times = pd.concat([self.output_stop_times, ndf])

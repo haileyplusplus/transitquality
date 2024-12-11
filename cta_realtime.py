@@ -85,7 +85,7 @@ class RealtimeManager:
         for x in range(self.num_days):
             d = self.start + datetime.timedelta(days=x)
             rtfile = self.rt_path / d.strftime('%Y-%m-%d.csv')
-            rtdf = pd.read_csv(rtfile, low_memory=False)
+            rtdf = pd.read_csv(rtfile, low_memory=False).drop(columns=['scrape_file'])
             geo = geopandas.points_from_xy(rtdf.lon, rtdf.lat, crs=FeedWrapper.GLOBAL)
             self.rt_data[x] = gpd.GeoDataFrame(rtdf, geometry=geo).to_crs(FeedWrapper.CHICAGO)
 
@@ -200,9 +200,13 @@ class RealtimeConverter:
                 rawdate += datetime.timedelta(days=1)
             return int(rawdate.timestamp())
         times = single_rt_trip['tmstmp'].apply(timefn)
-        single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1)
+        single_rt1 = pd.concat([times, single_rt_trip['pdist']], axis=1).sort_values(['pdist'])
         single_rt = self.frame_interpolation(single_rt1, single_sched)
         if single_rt is None:
+            logger.debug(f'Error processing trip')
+            logger.debug(f'sched stops {sched_stops}')
+            logger.debug(f'single rt trip {single_rt_trip}')
+            logger.debug(f'single_rt1 {single_rt1}')
             return None
         single_rt['stop_id'] = -1
         logger.debug(single_rt)

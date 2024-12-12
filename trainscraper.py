@@ -24,6 +24,7 @@ class TrainScraper:
         self.next_scrape = None
         self.output_dir = output_dir
         self.scrape_interval = scrape_interval
+        self.night = False
         self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
         self.initialize_logging()
 
@@ -37,6 +38,22 @@ class TrainScraper:
                             format='%(asctime)s: %(message)s',
                             datefmt='%Y%m%d %H:%S',
                             level=logging.INFO)
+
+    def check_interval(self):
+        hour = datetime.datetime.now().hour
+        if hour <= 4:
+            if not self.night:
+                self.night = True
+                logging.info(f'Entering night mode.')
+                return
+        if self.night:
+            self.night = False
+            logging.info(f'Exiting night mode.')
+
+    def get_scrape_interval(self):
+        if self.night:
+            return datetime.timedelta(minutes=5)
+        return self.scrape_interval
 
     def parse_success(self, json_response):
         if not isinstance(json_response, dict):
@@ -63,7 +80,7 @@ class TrainScraper:
             self.next_scrape = datetime.datetime.now() + self.ERROR_REST
             return
         self.parse(rj)
-        self.next_scrape = self.last_scraped + self.scrape_interval
+        self.next_scrape = self.last_scraped + self.get_scrape_interval()
 
     def parse(self, json_response):
         datestr = self.last_scraped.strftime('%Y%m%d%H%M%S')
@@ -90,4 +107,5 @@ if __name__ == "__main__":
     if not args.api_key:
         print(f'API key required')
     ts = TrainScraper(Path(args.output_dir[0]).expanduser(), datetime.timedelta(seconds=60), api_key=args.api_key[0])
+    logging.info(f'Initializing scraping every {ts.scrape_interval.total_seconds()} seconds.')
     ts.loop()

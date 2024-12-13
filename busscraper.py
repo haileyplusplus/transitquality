@@ -11,7 +11,7 @@ import pytz
 import sys
 
 import requests
-import pandas as pd
+#import pandas as pd
 
 
 logger = logging.getLogger(__file__)
@@ -41,7 +41,8 @@ class ResponseWrapper:
         self.error_list = error_list
 
     def __str__(self):
-        return f'ResponseWrapper: dict {self.json_dict} code {self.error_code} list {self.error_list}'
+        jds = str(self.json_dict)[:300]
+        return f'ResponseWrapper: dict {jds} code {self.error_code} list {self.error_list}'
 
     @classmethod
     def transient_error(cls):
@@ -181,8 +182,9 @@ class Requestor:
         """
         diff = Util.utcnow() - self.last_request
         if diff < datetime.timedelta(seconds=5):
-            logging.debug(f'Last scrape {self.last_request} waiting {diff}')
-            time.sleep(diff.total_seconds())
+            wait = datetime.timedelta(seconds=5) - diff
+            logging.debug(f'Last scrape {self.last_request} waiting {wait}')
+            time.sleep(wait.total_seconds())
         self.last_request = Util.utcnow()
         params = kwargs
         params['key'] = self.api_key
@@ -225,20 +227,31 @@ class Pattern:
         self.timestamp = None
 
     def get_origin(self):
-        sw = self.stops_and_waypoints[self.stops_and_waypoints.typ == 'S'].sort_values('seq')
-        if len(sw) > 1:
-            return sw.iloc[0].stpid
+        #sw = self.stops_and_waypoints[self.stops_and_waypoints.typ == 'S'].sort_values('seq')
+        for s in self.stops_and_waypoints:
+            if s['typ'] == 'S':
+                return s['stpid']
+        # if len(sw) > 1:
+        #     return sw.iloc[0].stpid
         return None
 
     def initialize(self):
         filename = self.pattern_filename()
+        found = False
         if filename.exists():
             with open(filename) as fh:
-                d = json.load(fh)
-                if not self.from_dict(d):
-                    return False
+                try:
+                    d = json.load(fh)
+                    if not self.from_dict(d):
+                        logging.warning(f'Unable to parse pattern from file {filename}')
+                        found = False
+                except json.JSONDecodeError:
+                    logging.warning(f'Unable to load pattern from file {filename}')
+                    found = False
+        if found:
             return True
         patternsresp = self.requestor.make_request('getpatterns', pid=self.pattern_id)
+        logging.debug(patternsresp)
         if not patternsresp.ok():
             return False
         # TODO: safety
@@ -253,18 +266,23 @@ class Pattern:
 
     def from_dict(self, pattern_dict: dict):
         if {'pid', 'ln', 'rtdir', 'pt'} - set(pattern_dict.keys()):
+            logger.warning(f'Error parsing pattern: keys missing {pattern_dict.keys()}')
             return False
         if self.pattern_id != pattern_dict['pid']:
+            logger.warning(f'Error parsing pattern: pid mismatch. got {pattern_dict["pid"]}, expected {self.pattern_id}')
             return False
         self.direction = pattern_dict['rtdir']
         self.len_ft = pattern_dict['ln']
         pattern_list: list[dict] = pattern_dict['pt']
-        self.stops_and_waypoints = pd.DataFrame(pattern_list)
+        #self.stops_and_waypoints = pd.DataFrame(pattern_list)
+        pattern_list.sort(key=lambda d: d['seq'])
+        self.stops_and_waypoints = pattern_list
         ts = pattern_dict.get('timestamp')
         if ts:
             self.timestamp = datetime.datetime.fromisoformat(ts)
         else:
             self.timestamp = Util.utcnow()
+        return True
 
     def to_dict(self):
         return {
@@ -272,8 +290,8 @@ class Pattern:
             'pid': self.pattern_id,
             'ln': self.len_ft,
             'rtdir': self.direction,
-            'timestamp': self.timestamp,
-            'pt': self.stops_and_waypoints.to_dict(),
+            'timestamp': self.timestamp.isoformat(),
+            'pt': self.stops_and_waypoints,
         }
 
     def serialize(self):
@@ -281,7 +299,7 @@ class Pattern:
         if filename.exists():
             return
         with open(filename, 'w') as ofh:
-            json.dump(self.to_dict(), filename)
+            json.dump(self.to_dict(), ofh)
 
 
 class RouteInfo:

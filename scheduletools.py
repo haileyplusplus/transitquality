@@ -11,6 +11,10 @@ import pandas as pd
 import tqdm
 
 
+"""
+Matching schedules to directions: 0 is south and west, 1 is north and east
+"""
+
 class DateWrap:
     def __init__(self, datestr: str):
         """
@@ -135,9 +139,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
+    parser.add_argument('--generate', action='store_true',
+                        help='Generate schedules.')
     parser.add_argument('--schedule_dir', type=str, nargs=1, default=['~/datasets/transit'],
                         help='Directory containing schedule files.')
     args = parser.parse_args()
     sched_dir = Path(args.schedule_dir[0]).expanduser()
     tools = ScheduleTools(sched_dir)
-    tools.generate()
+    if args.generate:
+        tools.generate()

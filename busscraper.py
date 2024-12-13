@@ -227,7 +227,7 @@ class Pattern:
         self.len_ft = None
         self.stops_and_waypoints = None
         self.timestamp = None
-        self.last_seen = None
+        #self.last_seen = None
 
     def get_origin(self):
         #sw = self.stops_and_waypoints[self.stops_and_waypoints.typ == 'S'].sort_values('seq')
@@ -320,14 +320,18 @@ class RouteInfo:
 
     Also: getpredictions()
     """
-    def __init__(self, route: dict, requestor: Requestor):
-        self.route_id: str = route['rt']
-        self.route_name: str = route['rtnm']
-        self.color = route.get('rtclr')
-        self.requestor: Requestor = requestor
+    def __init__(self, route: dict, requestor: Requestor, deserialize=False):
         self.directions = []
         self.patterns = {}
         self.origins = []
+        self.patterns_last_seen = {}
+        self.requestor: Requestor = requestor
+        if deserialize:
+            self.parse_scraping_history(route)
+            return
+        self.route_id: str = route['rt']
+        self.route_name: str = route['rtnm']
+        self.color = route.get('rtclr')
         self.last_origin_predictions = None
         self.last_scrape_attempt = None
         self.last_scrape_successful = None
@@ -339,9 +343,55 @@ class RouteInfo:
     def __eq__(self, other):
         return self.route_id == other.route_id
 
+    @staticmethod
+    def serializable(s):
+        if s is None:
+            return None
+        if isinstance(s, datetime.datetime):
+            return s.isoformat()
+        return s
+
+    @staticmethod
+    def deserialize(s):
+        if s is None:
+            return None
+        return datetime.datetime.fromisoformat(s)
+
+    def scraping_history(self) -> dict:
+        patterns = {}
+        for p in self.patterns.values():
+            patterns[p.pattern_id] = {
+                'last_seen': self.serializable(p.last_seen),
+                'origin_stop': p.get_origin(),
+                'direction': p.direction,
+            }
+        s = self.serializable
+        return {
+            'route_id': self.route_id,
+            'route_name': self.route_name,
+            'route_color': self.color,
+            'last_origin_predictions': s(self.last_origin_predictions),
+            'last_scrape_attempt': s(self.last_scrape_attempt),
+            'last_scrape_successful': s(self.last_scrape_successful),
+            'last_successful_scrape': s(self.last_successful_scrape),
+            'patterns': patterns,
+        }
+
+    def parse_scraping_history(self, d: dict):
+        ds = self.deserialize
+        self.route_id = d['route_id']
+        self.route_name = d.get('route_name')
+        self.color = d.get('color')
+        self.last_scrape_attempt = ds(d.get('last_scrape_attempt'))
+        self.last_successful_scrape = ds(d.get('last_successful_scrape'))
+        self.last_origin_predictions = ds(d.get('last_origin_predictions'))
+        self.last_scrape_successful = d.get('last_scrape_successful')
+        for k, v in d.get('patterns', {}):
+            self.patterns_last_seen[k] = self.deserialize(v)
+
     def calc_next_scrape(self, interval: datetime.timedelta):
         if self.last_scrape_attempt is None:
-            return Util.utcnow()
+            return Util.utcnow() - datetime.timedelta(minutes=1)
         if not self.last_scrape_successful:
             return self.last_scrape_attempt + datetime.timedelta(minutes=15)
         return self.last_scrape_attempt + interval
@@ -352,14 +402,14 @@ class RouteInfo:
     def get_pattern(self, pid: int):
         p = self.patterns.get(pid)
         if p:
-            p.last_seen = Util.utcnow()
+            self.patterns_last_seen[pid] = Util.utcnow()
             return p
         p = Pattern(self.route_id, pid, self.requestor)
         if not p.initialize():
             logging.error(f'Could not initialize pattern {pid} on route {self.route_id}')
             return None
         p.last_seen = Util.utcnow()
-        self.patterns[pid] = p
+        self.patterns_last_seen[pid] = p
         return p
 
     def get_origin_predictions(self):
@@ -453,9 +503,26 @@ day has been exceeded.
 class Routes:
     def __init__(self, requestor):
         self.requestor = requestor
-        self.routes = None
+        self.routes = {}
+
+    def serialize(self):
+        statedir = self.requestor.output_dir / 'state'
+        scrapefile = statedir / 'scraping_info.json'
+        out = {}
+        for r in self.routes.values():
+            out[r.route_id] = r.scraping_history()
+        with open(scrapefile, 'w') as fh:
+            json.dump(out, fh)
 
     def initialize(self):
+        statedir = self.requestor.output_dir / 'state'
+        scrapefile = statedir / 'scraping_info.json'
+        if scrapefile.exists():
+            with open(scrapefile) as fh:
+                d = json.load(fh)
+                for k, v in d.items():
+                    self.routes[k] = RouteInfo(v, self.requestor, deserialize=True)
+            return True
         routesresp = self.requestor.make_request('getroutes')
         if not routesresp.ok():
             print(f'Routes failed to initialize')
@@ -464,7 +531,9 @@ class Routes:
             #return False
         self.routes = {}
         for route in routesresp.payload():
-            # TODO: safe get
+            # TODO: safe get, update occasionally
+            if route['rt'] in self.routes:
+                continue
             route_info = RouteInfo(route, self.requestor)
             self.routes[route['rt']] = route_info
         return True
@@ -500,6 +569,7 @@ class BusScraper:
         self.requestor = Requestor(output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
         self.state = RunState.RUNNING
+        self.count = 100
         self.routes.initialize()
 
         self.rt_queue = []
@@ -508,6 +578,10 @@ class BusScraper:
         self.next_scrape = None
 
     def scrape_one(self):
+        self.count -= 1
+        if self.count <= 0:
+            self.routes.serialize()
+            self.count = 100
         routes_to_scrape = self.routes.choose(self.scrape_interval)
         routestr = ','.join([x.route_id for x in routes_to_scrape])
         scrapetime = Util.utcnow()
@@ -535,6 +609,7 @@ class BusScraper:
 
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')
+        self.routes.serialize()
         self.state = RunState.SHUTDOWN_REQUESTED
 
 

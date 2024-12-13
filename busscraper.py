@@ -7,11 +7,14 @@ import logging
 from pathlib import Path
 import json
 import time
+import pytz
 
 import requests
 
 
 logger = logging.getLogger(__file__)
+
+CTA_TIMEZONE = pytz.timezone('America/Chicago')
 
 
 class ResponseWrapper:
@@ -85,6 +88,8 @@ class Requestor:
         self.start_time = datetime.datetime.now(datetime.UTC)
         self.api_key = api_key
         self.output_dir = output_dir
+        self.request_count = 0
+        self.last_request = datetime.datetime.now(datetime.UTC)
         self.initialize_logging()
 
     def initialize_logging(self):
@@ -150,12 +155,18 @@ class Requestor:
         :param kwargs:
         :return: JSON response dict, or int if application or server error
         """
+        diff = datetime.datetime.now(datetime.UTC) - self.last_request
+        if diff < datetime.timedelta(seconds=5):
+            time.sleep(diff.total_seconds())
+        self.last_request = datetime.datetime.now(datetime.UTC)
         params = kwargs
         params['key'] = self.api_key
         params['format'] = 'json'
         trunc_response = '(unavailable)'
+        self.request_count += 1
+        logging.info(f'Request {self.request_count:6d}: cmd {command} args {kwargs}')
         try:
-            req_time = datetime.datetime.now()
+            req_time = datetime.datetime.now(tz=datetime.UTC)
             response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
             trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
             json_response = response.json()
@@ -171,7 +182,7 @@ class Requestor:
             return ResponseWrapper.permanent_error()
 
     def log(self, req_time, command, text_response):
-        datestr = req_time.strftime('%Y%m%d%H%M%S')
+        datestr = req_time.strftime('%Y%m%d%H%M%Sz')
         filename = self.output_dir / 'raw_data' / f'ttscrape-{command}-{datestr}.json'
         with open(filename, 'w') as ofh:
             ofh.write(text_response)
@@ -186,6 +197,12 @@ class Pattern:
         self.len_ft = None
         self.stops_and_waypoints = None
         self.timestamp = None
+
+    def get_origin(self):
+        sw = self.stops_and_waypoints[self.stops_and_waypoints.typ == 'S'].sort_values('seq')
+        if len(sw) > 1:
+            return sw.iloc[0].stpid
+        return None
 
     def initialize(self):
         filename = self.pattern_filename()
@@ -260,8 +277,55 @@ class RouteInfo:
         self.color = route.get('rtclr')
         self.requestor: Requestor = requestor
         self.directions = []
-        self.stops = {}
-        self.patterns = None
+        self.patterns = {}
+        self.origins = []
+        self.last_origin_predictions = None
+        self.last_scrape_attempt = None
+        self.last_scrape_successful = None
+        self.last_successful_scrape = None
+
+    def calc_next_scrape(self, interval: datetime.timedelta):
+        if self.last_scrape_attempt is None:
+            return datetime.datetime.now(tz=datetime.UTC)
+        if not self.last_scrape_successful:
+            return self.last_scrape_attempt + datetime.timedelta(minutes=15)
+        return self.last_scrape_attempt + interval
+
+    def mark_attempt(self, scrapetime):
+        self.last_scrape_attempt = scrapetime
+
+    def get_pattern(self, pid: int):
+        p = self.patterns.get(pid)
+        if p:
+            return p
+        p = Pattern(self.route_id, pid, self.requestor)
+        if not p.initialize():
+            logging.error(f'Could not initialize pattern {pid} on route {self.route_id}')
+            return None
+        self.patterns[pid] = p
+        return p
+
+    def get_origin_predictions(self):
+        stops = []
+        for p in self.patterns.values():
+            origin = p.get_origin()
+            if origin:
+                stops.append(origin)
+        if not stops:
+            return
+        stopids = ','.join(stops[:10])
+        self.last_origin_predictions = datetime.datetime.now(tz=datetime.UTC)
+        res = self.requestor.make_request('getpredictions', stpid=stopids)
+        if not res.ok():
+            logging.warning(f'Error getting origin predictions for route {self.route_id}')
+
+    def parse_vehicle_update(self, vehicles):
+        for d in vehicles:
+            if d['rt'] != self.route_id:
+                continue
+            self.last_scrape_successful = True
+            self.last_successful_scrape = datetime.datetime.now(tz=datetime.UTC)
+            p = self.get_pattern(d['pid'])
 
     def refresh(self):
         """
@@ -295,6 +359,17 @@ class RouteInfo:
 Transaction limit for current
 day has been exceeded.
 
+
+{
+	"bustime-response": {
+		"error": [
+			{
+				"stpid": "6601",
+				"msg": "No service scheduled"
+			}
+		]
+	}
+}
 
         :return:
         """
@@ -337,50 +412,50 @@ class Routes:
     def ok(self):
         return self.routes is not None
 
+    def choose(self, interval):
+        s = []
+        for route in self.routes.values():
+            s.append((route.calc_next_scrape(interval), route))
+        s.sort()
+        first, _ = s[0]
+        diff = first - datetime.datetime.now(tz=datetime.UTC)
+        if diff > datetime.timedelta():
+            time.sleep(diff.total_seconds())
+        routes = [x[1] for x in s[:10]]
+        return routes
+
 
 class BusScraper:
-    def __init__(self, scrape_interval: datetime.timedelta):
-        self.start_time = datetime.datetime.now()
-        self.last_scraped = None
-        self.next_scrape = None
+    def __init__(self, scrape_interval: datetime.timedelta, output_dir: Path, api_key: str):
+        self.start_time = datetime.datetime.now(tz=datetime.UTC)
         self.scrape_interval = scrape_interval
         self.night = False
+        self.requestor = Requestor(output_dir, api_key)
+        self.routes = Routes(self.requestor)
+        self.routes.initialize()
 
-    def check_interval(self):
-        hour = datetime.datetime.now().hour
-        if hour <= 4:
-            if not self.night:
-                self.night = True
-                logging.info(f'Entering night mode.')
-                return
-        if self.night:
-            self.night = False
-            logging.info(f'Exiting night mode.')
-
-    def get_scrape_interval(self):
-        if self.night:
-            return datetime.timedelta(minutes=5)
-        return self.scrape_interval
+        self.rt_queue = []
+        self.metadata_queue = []
+        self.last_scraped = None
+        self.next_scrape = None
 
     def scrape_one(self):
-        self.last_scraped = datetime.datetime.now()
-        result = requests.get(self.locations_url)
-        if result.status_code != 200:
-            logging.error(f'Received non-ok HTTP status code {result.status_code}')
-            self.next_scrape = datetime.datetime.now() + self.ERROR_REST
-            return
-        rj = result.json()
-        if self.parse_success(rj) != 0:
-            self.next_scrape = datetime.datetime.now() + self.ERROR_REST
-            return
-        self.parse(rj)
-        self.next_scrape = self.last_scraped + self.get_scrape_interval()
+        routes_to_scrape = self.routes.choose(self.scrape_interval)
+        routestr = ','.join([x.route_id for x in routes_to_scrape])
+        scrapetime = datetime.datetime.now(tz=datetime.UTC)
+        for route in routes_to_scrape:
+            route.mark_attempt(scrapetime)
+        res = self.requestor.make_request('getvehicles', rt=routestr)
+        if not res.ok():
+            time.sleep(1)
+            return False
+        for route in routes_to_scrape:
+            route.parse_vehicle_update(res.payload())
+        return True
 
     def loop(self):
         while True:
             self.scrape_one()
-            interval = self.next_scrape - datetime.datetime.now()
-            time.sleep(interval.total_seconds())
 
 
 if __name__ == "__main__":

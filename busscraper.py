@@ -426,7 +426,7 @@ class Routes:
 
 
 class BusScraper:
-    def __init__(self, scrape_interval: datetime.timedelta, output_dir: Path, api_key: str):
+    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str):
         self.start_time = datetime.datetime.now(tz=datetime.UTC)
         self.scrape_interval = scrape_interval
         self.night = False

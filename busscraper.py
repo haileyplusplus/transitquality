@@ -5,10 +5,12 @@ import os
 import datetime
 import logging
 from pathlib import Path
+from enum import Enum
 import json
 import time
 import pytz
 import sys
+import signal
 
 import requests
 #import pandas as pd
@@ -225,6 +227,7 @@ class Pattern:
         self.len_ft = None
         self.stops_and_waypoints = None
         self.timestamp = None
+        self.last_seen = None
 
     def get_origin(self):
         #sw = self.stops_and_waypoints[self.stops_and_waypoints.typ == 'S'].sort_values('seq')
@@ -349,11 +352,13 @@ class RouteInfo:
     def get_pattern(self, pid: int):
         p = self.patterns.get(pid)
         if p:
+            p.last_seen = Util.utcnow()
             return p
         p = Pattern(self.route_id, pid, self.requestor)
         if not p.initialize():
             logging.error(f'Could not initialize pattern {pid} on route {self.route_id}')
             return None
+        p.last_seen = Util.utcnow()
         self.patterns[pid] = p
         return p
 
@@ -480,13 +485,21 @@ class Routes:
         return routes
 
 
+class RunState(Enum):
+    RUNNING = 1
+    SHUTDOWN_REQUESTED = 2
+    SHUTDOWN = 3
+
+
 class BusScraper:
-    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str, debug=False):
+    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str, debug=False, dry_run=False):
         self.start_time = Util.utcnow()
+        self.dry_run = dry_run
         self.scrape_interval = scrape_interval
         self.night = False
         self.requestor = Requestor(output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
+        self.state = RunState.RUNNING
         self.routes.initialize()
 
         self.rt_queue = []
@@ -500,6 +513,12 @@ class BusScraper:
         scrapetime = Util.utcnow()
         for route in routes_to_scrape:
             route.mark_attempt(scrapetime)
+        if self.dry_run:
+            logger.info(f'Would scrape {routestr}')
+            for route in routes_to_scrape:
+                route.last_scrape_successful = True
+                route.last_successful_scrape = Util.utcnow()
+            return True
         res = self.requestor.make_request('getvehicles', rt=routestr)
         if not res.ok():
             time.sleep(1)
@@ -509,12 +528,20 @@ class BusScraper:
         return True
 
     def loop(self):
-        while True:
+        while self.state == RunState.RUNNING:
             self.scrape_one()
+        self.state = RunState.SHUTDOWN
+        logging.info(f'Recorded shutdown')
+
+    def exithandler(self, *args):
+        logging.info(f'Shutdown requested: {args}')
+        self.state = RunState.SHUTDOWN_REQUESTED
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
+    parser.add_argument('--dry_run', action='store_true',
+                        help='Simulate scraping.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/scraping/bustracker'],
@@ -530,6 +557,10 @@ if __name__ == "__main__":
     datadir.mkdir(parents=True, exist_ok=True)
     statedir = outdir / 'state'
     statedir.mkdir(parents=True, exist_ok=True)
-    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug)
+    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
+                    dry_run=args.dry_run)
+    signal.signal(signal.SIGINT, ts.exithandler)
+    signal.signal(signal.SIGTERM, ts.exithandler)
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
     ts.loop()
+    logging.info(f'End of program')

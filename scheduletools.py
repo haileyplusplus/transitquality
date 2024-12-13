@@ -121,13 +121,13 @@ class ScheduleTools:
     def generate(self):
         today = pendulum.now().date().strftime('%Y%m%d')
         dates = self.feed.get_dates()
-        #dates = ['20241230', '20241231']
+        #dates = ['20241229', '20241230', '20241231']
         sched_dates = [DateWrap(x) for x in dates if not DateWrap(x).in_past()]
         df = pd.DataFrame()
         for d in tqdm.tqdm(sorted(sched_dates)):
             r = self.route_stats(d)
             if r is not None:
-                df = pd.concat([df, r])
+                df = pd.concat([df, r], ignore_index=True)
         df.to_json(self.schedule_dir / f'route-summary-{today}.json')
 
 

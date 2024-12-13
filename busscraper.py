@@ -245,6 +245,8 @@ class Pattern:
                     if not self.from_dict(d):
                         logging.warning(f'Unable to parse pattern from file {filename}')
                         found = False
+                    else:
+                        found = True
                 except json.JSONDecodeError:
                     logging.warning(f'Unable to load pattern from file {filename}')
                     found = False
@@ -518,7 +520,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/scraping/bustracker'],
                         help='Output directory for generated files.')
     parser.add_argument('--api_key', type=str, nargs=1,
-                        help='Train tracker API key.')
+                        help='Bus tracker API key.')
     args = parser.parse_args()
     if not args.api_key:
         print(f'API key required')

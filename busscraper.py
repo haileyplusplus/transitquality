@@ -8,13 +8,22 @@ from pathlib import Path
 import json
 import time
 import pytz
+import sys
 
 import requests
+import pandas as pd
 
 
 logger = logging.getLogger(__file__)
 
 CTA_TIMEZONE = pytz.timezone('America/Chicago')
+
+
+class Util:
+    @staticmethod
+    def utcnow():
+        #return datetime.datetime.now (tz=datetime.UTC)
+        return datetime.datetime.utcnow()
 
 
 class ResponseWrapper:
@@ -31,6 +40,9 @@ class ResponseWrapper:
         self.error_code = error_code
         self.error_list = error_list
 
+    def __str__(self):
+        return f'ResponseWrapper: dict {self.json_dict} code {self.error_code} list {self.error_list}'
+
     @classmethod
     def transient_error(cls):
         return ResponseWrapper(error_code=ResponseWrapper.TRANSIENT_ERROR)
@@ -44,7 +56,8 @@ class ResponseWrapper:
         return ResponseWrapper(error_code=ResponseWrapper.RATE_LIMIT_ERROR)
 
     def ok(self):
-        return isinstance(self.json_dict, dict)
+        #return isinstance(self.json_dict, dict)
+        return self.json_dict is not None
 
     def get_error_code(self):
         return self.error_code
@@ -63,12 +76,19 @@ class Requestor:
     LOG_PAYLOAD_LIMIT = 200
     COMMAND_RESPONSE_SCHEMA = {
         'gettime': ('tm', str),
-        'getvehicles': ('vehicle', list[dict[str, str | int | bool]]),
-        'getroutes': ('routes', list[dict[str, str]]),
-        'getpatterns': ('ptr', list[dict]),
-        'getstops': ('stops', list[dict]),
-        'getdirections': ('directions', list[dict]),
-        'getpredictions': ('prd', list[dict]),
+        #'getvehicles': ('vehicle', list[dict[str, str | int | bool]]),
+        # 'getvehicles': ('vehicle', list[dict]),
+        # 'getroutes': ('routes', list[dict[str, str]]),
+        # 'getpatterns': ('ptr', list[dict]),
+        # 'getstops': ('stops', list[dict]),
+        # 'getdirections': ('directions', list[dict]),
+        # 'getpredictions': ('prd', list[dict]),
+        'getvehicles': ('vehicle', list),
+        'getroutes': ('routes', list),
+        'getpatterns': ('ptr', list),
+        'getstops': ('stops', list),
+        'getdirections': ('directions', list),
+        'getpredictions': ('prd', list),
     }
 
     """
@@ -84,12 +104,13 @@ class Requestor:
     Also: getpredictions()
     """
 
-    def __init__(self, output_dir: Path, api_key: str):
-        self.start_time = datetime.datetime.now(datetime.UTC)
+    def __init__(self, output_dir: Path, api_key: str, debug=False):
+        self.start_time = Util.utcnow()
         self.api_key = api_key
         self.output_dir = output_dir
         self.request_count = 0
-        self.last_request = datetime.datetime.now(datetime.UTC)
+        self.last_request = Util.utcnow()
+        self.debug = debug
         self.initialize_logging()
 
     def initialize_logging(self):
@@ -97,11 +118,14 @@ class Requestor:
         logdir.mkdir(parents=True, exist_ok=True)
         datestr = self.start_time.strftime('%Y%m%d%H%M%Sz')
         logfile = logdir / f'train-scraper-{datestr}.log'
+        level = logging.INFO
+        if self.debug:
+            level = logging.DEBUG
         logging.basicConfig(filename=logfile,
                             filemode='a',
                             format='%(asctime)s: %(message)s',
-                            datefmt='%Y%m%d %H:%S',
-                            level=logging.INFO)
+                            datefmt='%Y%m%d %H:%M:%S',
+                            level=level)
 
     @staticmethod
     def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
@@ -123,7 +147,7 @@ class Requestor:
         if expected in bustime_response:
             # partial errors are possible
             app_error = bustime_response.get('error')
-            return ResponseWrapper(json_dict=bustime_response['expected'], error_list=app_error)
+            return ResponseWrapper(json_dict=bustime_response[expected], error_list=app_error)
         if 'error' in bustime_response:
             app_error = bustime_response['error']
             errorstr = str(app_error)
@@ -155,22 +179,24 @@ class Requestor:
         :param kwargs:
         :return: JSON response dict, or int if application or server error
         """
-        diff = datetime.datetime.now(datetime.UTC) - self.last_request
+        diff = Util.utcnow() - self.last_request
         if diff < datetime.timedelta(seconds=5):
+            logging.debug(f'Last scrape {self.last_request} waiting {diff}')
             time.sleep(diff.total_seconds())
-        self.last_request = datetime.datetime.now(datetime.UTC)
+        self.last_request = Util.utcnow()
         params = kwargs
         params['key'] = self.api_key
         params['format'] = 'json'
         trunc_response = '(unavailable)'
         self.request_count += 1
-        logging.info(f'Request {self.request_count:6d}: cmd {command} args {kwargs}')
+        ac = kwargs.copy()
+        del ac['key']
+        logging.info(f'Request {self.request_count:6d}: cmd {command} args {ac}')
         try:
-            req_time = datetime.datetime.now(tz=datetime.UTC)
+            req_time = Util.utcnow()
             response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
             trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
-            json_response = response.json()
-            result = self.parse_success(json_response, command)
+            result = self.parse_success(response, command)
             if result.ok():
                 self.log(req_time, command, response.text)
             return result
@@ -212,7 +238,7 @@ class Pattern:
                 if not self.from_dict(d):
                     return False
             return True
-        patternsresp = self.requestor.make_request('patterns', pid=self.pattern_id)
+        patternsresp = self.requestor.make_request('getpatterns', pid=self.pattern_id)
         if not patternsresp.ok():
             return False
         # TODO: safety
@@ -225,20 +251,20 @@ class Pattern:
         statedir = self.requestor.output_dir / 'state'
         return statedir / f'pattern-{self.route_id}-{self.pattern_id}.json'
 
-    def from_dict(self, pd: dict):
-        if {'pid', 'ln', 'rtdir', 'pt'} - set(pd.keys()):
+    def from_dict(self, pattern_dict: dict):
+        if {'pid', 'ln', 'rtdir', 'pt'} - set(pattern_dict.keys()):
             return False
-        if self.pattern_id != pd['pid']:
+        if self.pattern_id != pattern_dict['pid']:
             return False
-        self.direction = pd['rtdir']
-        self.len_ft = pd['ln']
-        pattern_list: list[dict] = pd['pt']
+        self.direction = pattern_dict['rtdir']
+        self.len_ft = pattern_dict['ln']
+        pattern_list: list[dict] = pattern_dict['pt']
         self.stops_and_waypoints = pd.DataFrame(pattern_list)
-        ts = pd.get('timestamp')
+        ts = pattern_dict.get('timestamp')
         if ts:
             self.timestamp = datetime.datetime.fromisoformat(ts)
         else:
-            self.timestamp = datetime.datetime.now(tz=datetime.UTC)
+            self.timestamp = Util.utcnow()
 
     def to_dict(self):
         return {
@@ -284,9 +310,15 @@ class RouteInfo:
         self.last_scrape_successful = None
         self.last_successful_scrape = None
 
+    def __lt__(self, other):
+        return self.route_id < other.route_id
+
+    def __eq__(self, other):
+        return self.route_id == other.route_id
+
     def calc_next_scrape(self, interval: datetime.timedelta):
         if self.last_scrape_attempt is None:
-            return datetime.datetime.now(tz=datetime.UTC)
+            return Util.utcnow()
         if not self.last_scrape_successful:
             return self.last_scrape_attempt + datetime.timedelta(minutes=15)
         return self.last_scrape_attempt + interval
@@ -314,7 +346,7 @@ class RouteInfo:
         if not stops:
             return
         stopids = ','.join(stops[:10])
-        self.last_origin_predictions = datetime.datetime.now(tz=datetime.UTC)
+        self.last_origin_predictions = Util.utcnow()
         res = self.requestor.make_request('getpredictions', stpid=stopids)
         if not res.ok():
             logging.warning(f'Error getting origin predictions for route {self.route_id}')
@@ -324,7 +356,7 @@ class RouteInfo:
             if d['rt'] != self.route_id:
                 continue
             self.last_scrape_successful = True
-            self.last_successful_scrape = datetime.datetime.now(tz=datetime.UTC)
+            self.last_successful_scrape = Util.utcnow()
             p = self.get_pattern(d['pid'])
 
     def refresh(self):
@@ -401,9 +433,12 @@ class Routes:
     def initialize(self):
         routesresp = self.requestor.make_request('getroutes')
         if not routesresp.ok():
-            return False
+            print(f'Routes failed to initialize')
+            print(routesresp)
+            sys.exit(1)
+            #return False
         self.routes = {}
-        for route in routesresp:
+        for route in routesresp.payload():
             # TODO: safe get
             route_info = RouteInfo(route, self.requestor)
             self.routes[route['rt']] = route_info
@@ -418,7 +453,7 @@ class Routes:
             s.append((route.calc_next_scrape(interval), route))
         s.sort()
         first, _ = s[0]
-        diff = first - datetime.datetime.now(tz=datetime.UTC)
+        diff = first - Util.utcnow()
         if diff > datetime.timedelta():
             time.sleep(diff.total_seconds())
         routes = [x[1] for x in s[:10]]
@@ -426,11 +461,11 @@ class Routes:
 
 
 class BusScraper:
-    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str):
-        self.start_time = datetime.datetime.now(tz=datetime.UTC)
+    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str, debug=False):
+        self.start_time = Util.utcnow()
         self.scrape_interval = scrape_interval
         self.night = False
-        self.requestor = Requestor(output_dir, api_key)
+        self.requestor = Requestor(output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
         self.routes.initialize()
 
@@ -442,7 +477,7 @@ class BusScraper:
     def scrape_one(self):
         routes_to_scrape = self.routes.choose(self.scrape_interval)
         routestr = ','.join([x.route_id for x in routes_to_scrape])
-        scrapetime = datetime.datetime.now(tz=datetime.UTC)
+        scrapetime = Util.utcnow()
         for route in routes_to_scrape:
             route.mark_attempt(scrapetime)
         res = self.requestor.make_request('getvehicles', rt=routestr)
@@ -475,6 +510,6 @@ if __name__ == "__main__":
     datadir.mkdir(parents=True, exist_ok=True)
     statedir = outdir / 'state'
     statedir.mkdir(parents=True, exist_ok=True)
-    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0])
+    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug)
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
     ts.loop()

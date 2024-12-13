@@ -1,0 +1,405 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import datetime
+import logging
+from pathlib import Path
+import json
+import time
+
+import requests
+
+
+logger = logging.getLogger(__file__)
+
+
+class ResponseWrapper:
+    """
+    Simple wrapper to encapsulate response return values
+    """
+    TRANSIENT_ERROR = -1
+    PERMANENT_ERROR = -2
+    RATE_LIMIT_ERROR = -3
+    PARTIAL_ERROR = -4
+
+    def __init__(self, json_dict=None, error_code=None, error_list=None):
+        self.json_dict = json_dict
+        self.error_code = error_code
+        self.error_list = error_list
+
+    @classmethod
+    def transient_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.TRANSIENT_ERROR)
+
+    @classmethod
+    def permanent_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.PERMANENT_ERROR)
+
+    @classmethod
+    def rate_limit_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.RATE_LIMIT_ERROR)
+
+    def ok(self):
+        return isinstance(self.json_dict, dict)
+
+    def get_error_code(self):
+        return self.error_code
+
+    def payload(self):
+        return self.json_dict
+
+
+class Requestor:
+    """
+    Low-level scraper that gets, sends, and logs requests; also handles logging.
+    Handling periodic scraping is done elsewhere.
+    """
+    BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
+    ERROR_REST = datetime.timedelta(minutes=30)
+    LOG_PAYLOAD_LIMIT = 200
+    COMMAND_RESPONSE_SCHEMA = {
+        'gettime': ('tm', str),
+        'getvehicles': ('vehicle', list[dict[str, str | int | bool]]),
+        'getroutes': ('routes', list[dict[str, str]]),
+        'getpatterns': ('ptr', list[dict]),
+        'getstops': ('stops', list[dict]),
+        'getdirections': ('directions', list[dict]),
+        'getpredictions': ('prd', list[dict]),
+    }
+
+    """
+    Useful things to scrape:
+    gettime()
+    getvehicles(rt, tmres='s') # up to 10 comma-separated routes
+    getroutes()
+    getdirections(rt) # 1 redundant
+    getstops(rt, dir) # redundant with getpatterns
+    getpatterns(rt) # 1
+     or getpatterns(pid) # up to 10
+    
+    Also: getpredictions()
+    """
+
+    def __init__(self, output_dir: Path, api_key: str):
+        self.start_time = datetime.datetime.now(datetime.UTC)
+        self.api_key = api_key
+        self.output_dir = output_dir
+        self.initialize_logging()
+
+    def initialize_logging(self):
+        logdir = self.output_dir / 'logs'
+        logdir.mkdir(parents=True, exist_ok=True)
+        datestr = self.start_time.strftime('%Y%m%d%H%M%Sz')
+        logfile = logdir / f'train-scraper-{datestr}.log'
+        logging.basicConfig(filename=logfile,
+                            filemode='a',
+                            format='%(asctime)s: %(message)s',
+                            datefmt='%Y%m%d %H:%S',
+                            level=logging.INFO)
+
+    @staticmethod
+    def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
+        trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
+        if response.status_code != 200:
+            logging.error(f'Non-successful status code: {response.status_code}. Response: {trunc_response}')
+            if response.status_code == 429:
+                # too many requests
+                return ResponseWrapper.rate_limit_error()
+            return ResponseWrapper.permanent_error()
+        json_response = response.json()
+        if not isinstance(json_response, dict):
+            logging.error(f'Received invalid JSON response: {trunc_response}')
+            return ResponseWrapper.permanent_error()
+        bustime_response = json_response.get('bustime-response')
+        if not isinstance(bustime_response, dict) or not bustime_response:
+            logging.error(f'Unexpected response format: {trunc_response}')
+        expected, _ = Requestor.COMMAND_RESPONSE_SCHEMA.get(command, (None, None))
+        if expected in bustime_response:
+            # partial errors are possible
+            app_error = bustime_response.get('error')
+            return ResponseWrapper(json_dict=bustime_response['expected'], error_list=app_error)
+        if 'error' in bustime_response:
+            app_error = bustime_response['error']
+            errorstr = str(app_error)
+            logging.error(f'Application error: {trunc_response}')
+            if 'transaction limit' in errorstr.lower():
+                return ResponseWrapper.rate_limit_error()
+            if 'API' in errorstr:
+                return ResponseWrapper.permanent_error()
+            if 'internal server error' in errorstr.lower():
+                return ResponseWrapper.permanent_error()
+            return ResponseWrapper.transient_error()
+        # if app_error_code is None:
+        #     logging.error(f'Could not parse error code from JSON response: {trunc_response}')
+        #     return ResponseWrapper.permanent_error()
+        # if not app_error_code.isdigit():
+        #     logging.error(f'Unreadable application error code (non-numeric) {app_error_code}: {trunc_response}')
+        #     return ResponseWrapper.permanent_error()
+        # num_code = int(app_error_code)
+        #if num_code == 0:
+        logging.error(f'Unexpected response schema: {trunc_response}')
+        return ResponseWrapper.permanent_error()
+        #logging.warning(f'Application error {app_error_code}: {trunc_response}')
+        #return ResponseWrapper(error_code=num_code)
+
+    def make_request(self, command, **kwargs) -> ResponseWrapper:
+        """
+        Makes a request by appending command to BASE_URL. Automatically adds api key and JSON format to arg dict.
+        :param command:
+        :param kwargs:
+        :return: JSON response dict, or int if application or server error
+        """
+        params = kwargs
+        params['key'] = self.api_key
+        params['format'] = 'json'
+        trunc_response = '(unavailable)'
+        try:
+            req_time = datetime.datetime.now()
+            response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
+            trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
+            json_response = response.json()
+            result = self.parse_success(json_response, command)
+            if result.ok():
+                self.log(req_time, command, response.text)
+            return result
+        except requests.exceptions.Timeout:
+            logging.warning(f'Request timed out.')
+            return ResponseWrapper.transient_error()
+        except requests.JSONDecodeError:
+            logging.warning(f'Unable to decode JSON payload: {trunc_response}')
+            return ResponseWrapper.permanent_error()
+
+    def log(self, req_time, command, text_response):
+        datestr = req_time.strftime('%Y%m%d%H%M%S')
+        filename = self.output_dir / 'raw_data' / f'ttscrape-{command}-{datestr}.json'
+        with open(filename, 'w') as ofh:
+            ofh.write(text_response)
+
+
+class Pattern:
+    def __init__(self, route_id: str, pattern_id: int, requestor: Requestor):
+        self.route_id = route_id
+        self.pattern_id = pattern_id
+        self.requestor = requestor
+        self.direction = None
+        self.len_ft = None
+        self.stops_and_waypoints = None
+        self.timestamp = None
+
+    def initialize(self):
+        filename = self.pattern_filename()
+        if filename.exists():
+            with open(filename) as fh:
+                d = json.load(fh)
+                if not self.from_dict(d):
+                    return False
+            return True
+        patternsresp = self.requestor.make_request('patterns', pid=self.pattern_id)
+        if not patternsresp.ok():
+            return False
+        # TODO: safety
+        result = self.from_dict(patternsresp.payload()[0])
+        if result:
+            self.serialize()
+        return result
+
+    def pattern_filename(self):
+        statedir = self.requestor.output_dir / 'state'
+        return statedir / f'pattern-{self.route_id}-{self.pattern_id}.json'
+
+    def from_dict(self, pd: dict):
+        if {'pid', 'ln', 'rtdir', 'pt'} - set(pd.keys()):
+            return False
+        if self.pattern_id != pd['pid']:
+            return False
+        self.direction = pd['rtdir']
+        self.len_ft = pd['ln']
+        pattern_list: list[dict] = pd['pt']
+        self.stops_and_waypoints = pd.DataFrame(pattern_list)
+        ts = pd.get('timestamp')
+        if ts:
+            self.timestamp = datetime.datetime.fromisoformat(ts)
+        else:
+            self.timestamp = datetime.datetime.now(tz=datetime.UTC)
+
+    def to_dict(self):
+        return {
+            'route_id': self.route_id,
+            'pid': self.pattern_id,
+            'ln': self.len_ft,
+            'rtdir': self.direction,
+            'timestamp': self.timestamp,
+            'pt': self.stops_and_waypoints.to_dict(),
+        }
+
+    def serialize(self):
+        filename = self.pattern_filename()
+        if filename.exists():
+            return
+        with open(filename, 'w') as ofh:
+            json.dump(self.to_dict(), filename)
+
+
+class RouteInfo:
+    """
+    Useful things to scrape:
+    gettime()
+    getvehicles(rt, tmres='s') # up to 10 comma-separated routes
+    getroutes()
+    getdirections(rt) # 1
+    getstops(rt, dir)
+    getpatterns(rt) # 1
+     or getpatterns(pid) # up to 10
+
+    Also: getpredictions()
+    """
+    def __init__(self, route: dict, requestor: Requestor):
+        self.route_id: str = route['rt']
+        self.route_name: str = route['rtnm']
+        self.color = route.get('rtclr')
+        self.requestor: Requestor = requestor
+        self.directions = []
+        self.stops = {}
+        self.patterns = None
+
+    def refresh(self):
+        """
+        {
+	"bustime-response": {
+		"directions": [
+			{
+				"dir": "Eastbound"
+			},
+			{
+				"dir": "Westbound"
+			}
+		]
+	}
+}
+
+
+{"bustime-response": {"error": [ {
+    "msg": "Invalid API access key supplied"
+} ] }}
+
+"vehicle": [...
+
+		"error": [
+			{
+				"rt": "137",
+				"msg": "No data found for parameter"
+			}
+		]
+
+Transaction limit for current
+day has been exceeded.
+
+
+        :return:
+        """
+        patternsresp = self.requestor.make_request('patterns', rt=self.route_id)
+        self.patterns = patternsresp.payload()
+
+        # directionsresp = self.requestor.make_request('getdirections', rt=self.route_id)
+        # if not directionsresp.ok():
+        #     return False
+        # directions = directionsresp.payload().get('directions', [])
+        # if not directions:
+        #     return False
+        # for dirdict in directions:
+        #     dir_ = dirdict.get('dir')
+        #     if dir_:
+        #         stopsresp = self.requestor.make_request('getstops', rt=self.route_id, dir=dir_)
+        #         if not stopsresp.ok():
+        #             break
+        #         if 'stops' not in stopsresp:
+        #             break
+        return True
+
+
+class Routes:
+    def __init__(self, requestor):
+        self.requestor = requestor
+        self.routes = None
+
+    def initialize(self):
+        routesresp = self.requestor.make_request('getroutes')
+        if not routesresp.ok():
+            return False
+        self.routes = {}
+        for route in routesresp:
+            # TODO: safe get
+            route_info = RouteInfo(route, self.requestor)
+            self.routes[route['rt']] = route_info
+        return True
+
+    def ok(self):
+        return self.routes is not None
+
+
+class BusScraper:
+    def __init__(self, scrape_interval: datetime.timedelta):
+        self.start_time = datetime.datetime.now()
+        self.last_scraped = None
+        self.next_scrape = None
+        self.scrape_interval = scrape_interval
+        self.night = False
+
+    def check_interval(self):
+        hour = datetime.datetime.now().hour
+        if hour <= 4:
+            if not self.night:
+                self.night = True
+                logging.info(f'Entering night mode.')
+                return
+        if self.night:
+            self.night = False
+            logging.info(f'Exiting night mode.')
+
+    def get_scrape_interval(self):
+        if self.night:
+            return datetime.timedelta(minutes=5)
+        return self.scrape_interval
+
+    def scrape_one(self):
+        self.last_scraped = datetime.datetime.now()
+        result = requests.get(self.locations_url)
+        if result.status_code != 200:
+            logging.error(f'Received non-ok HTTP status code {result.status_code}')
+            self.next_scrape = datetime.datetime.now() + self.ERROR_REST
+            return
+        rj = result.json()
+        if self.parse_success(rj) != 0:
+            self.next_scrape = datetime.datetime.now() + self.ERROR_REST
+            return
+        self.parse(rj)
+        self.next_scrape = self.last_scraped + self.get_scrape_interval()
+
+    def loop(self):
+        while True:
+            self.scrape_one()
+            interval = self.next_scrape - datetime.datetime.now()
+            time.sleep(interval.total_seconds())
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
+    parser.add_argument('--debug', action='store_true',
+                        help='Print debug logging.')
+    parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/scraping/bustracker'],
+                        help='Output directory for generated files.')
+    parser.add_argument('--api_key', type=str, nargs=1,
+                        help='Train tracker API key.')
+    args = parser.parse_args()
+    if not args.api_key:
+        print(f'API key required')
+    outdir = Path(args.output_dir[0]).expanduser()
+    outdir.mkdir(parents=True, exist_ok=True)
+    datadir = outdir / 'raw_data'
+    datadir.mkdir(parents=True, exist_ok=True)
+    statedir = outdir / 'state'
+    statedir.mkdir(parents=True, exist_ok=True)
+    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0])
+    logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
+    ts.loop()

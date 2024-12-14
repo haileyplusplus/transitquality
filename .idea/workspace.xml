@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Predictions">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Predictions not quite working">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/busscraper.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/trainscraper.py" beforeDir="false" afterPath="$PROJECT_DIR$/trainscraper.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -423,7 +423,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734148008582</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="Predictions not quite working">
+      <option name="closed" value="true" />
+      <created>1734148974321</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1734148974321</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -438,7 +446,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Update analysis parameters and filter out invalid stop sequences" />
     <MESSAGE value="Add more parameters, handle empty GTFS tables" />
     <MESSAGE value="Slightly better matching" />
     <MESSAGE value="More feed hacking" />
@@ -463,6 +470,7 @@
     <MESSAGE value="Fix pattern latest times, add convenience log symlink" />
     <MESSAGE value="Fix annoying bug" />
     <MESSAGE value="Predictions" />
-    <option name="LAST_COMMIT_MESSAGE" value="Predictions" />
+    <MESSAGE value="Predictions not quite working" />
+    <option name="LAST_COMMIT_MESSAGE" value="Predictions not quite working" />
   </component>
 </project>

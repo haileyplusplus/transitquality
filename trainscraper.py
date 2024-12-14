@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Train Tracker locations and other data.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
-    parser.add_argument('--output_dir', type=str, nargs=1, default=['~/tmp/transit/traintracker'],
+    parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/traintracker'],
                         help='Output directory for generated files.')
     parser.add_argument('--api_key', type=str, nargs=1,
                         help='Train tracker API key.')

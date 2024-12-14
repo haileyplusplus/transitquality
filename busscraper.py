@@ -121,6 +121,9 @@ class Requestor:
         logdir.mkdir(parents=True, exist_ok=True)
         datestr = self.start_time.strftime('%Y%m%d%H%M%Sz')
         logfile = logdir / f'train-scraper-{datestr}.log'
+        loglink = logdir / 'latest.log'
+        loglink.unlink(missing_ok=True)
+        loglink.symlink_to(logfile)
         level = logging.INFO
         if self.debug:
             level = logging.DEBUG
@@ -359,12 +362,8 @@ class RouteInfo:
 
     def scraping_history(self) -> dict:
         patterns = {}
-        for p in self.patterns.values():
-            patterns[p.pattern_id] = {
-                'last_seen': self.serializable(p.last_seen),
-                'origin_stop': p.get_origin(),
-                'direction': p.direction,
-            }
+        for k, v in self.patterns_last_seen.items():
+            patterns[k] = self.serializable(v)
         s = self.serializable
         return {
             'route_id': self.route_id,
@@ -569,7 +568,7 @@ class BusScraper:
         self.requestor = Requestor(output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
         self.state = RunState.RUNNING
-        self.count = 100
+        self.count = 10
         self.routes.initialize()
 
         self.rt_queue = []

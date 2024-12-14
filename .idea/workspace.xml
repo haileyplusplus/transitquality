@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Save pattern last seen time and handle exit gracefully">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Add serialization and deserialization, other updates">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/busscraper.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper.py" afterDir="false" />
     </list>
@@ -391,11 +391,18 @@
       <option name="project" value="LOCAL" />
       <updated>1734129245060</updated>
     </task>
-    <option name="localTasksCounter" value="42" />
+    <task id="LOCAL-00042" summary="Add serialization and deserialization, other updates">
+      <option name="closed" value="true" />
+      <created>1734133487620</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1734133487620</updated>
+    </task>
+    <option name="localTasksCounter" value="43" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix issues with duplication. Add testing utility." />
     <MESSAGE value="Update testing utility" />
     <MESSAGE value="Don't output duplicate trip ids (maybe renumber?)" />
     <MESSAGE value="Very basic analysis and reporting" />
@@ -420,6 +427,7 @@
     <MESSAGE value="Yet another scraping bug" />
     <MESSAGE value="Schedule and scraping tools" />
     <MESSAGE value="Save pattern last seen time and handle exit gracefully" />
-    <option name="LAST_COMMIT_MESSAGE" value="Save pattern last seen time and handle exit gracefully" />
+    <MESSAGE value="Add serialization and deserialization, other updates" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add serialization and deserialization, other updates" />
   </component>
 </project>

@@ -361,9 +361,9 @@ class RouteInfo:
         return datetime.datetime.fromisoformat(s)
 
     def scraping_history(self) -> dict:
-        patterns = {}
+        patternd = {}
         for k, v in self.patterns_last_seen.items():
-            patterns[k] = self.serializable(v)
+            patternd[k] = self.serializable(v)
         s = self.serializable
         return {
             'route_id': self.route_id,
@@ -373,7 +373,7 @@ class RouteInfo:
             'last_scrape_attempt': s(self.last_scrape_attempt),
             'last_scrape_successful': s(self.last_scrape_successful),
             'last_successful_scrape': s(self.last_successful_scrape),
-            'patterns': patterns,
+            'patterns_seen': patternd,
         }
 
     def parse_scraping_history(self, d: dict):
@@ -385,8 +385,9 @@ class RouteInfo:
         self.last_successful_scrape = ds(d.get('last_successful_scrape'))
         self.last_origin_predictions = ds(d.get('last_origin_predictions'))
         self.last_scrape_successful = d.get('last_scrape_successful')
-        for k, v in d.get('patterns', {}):
-            self.patterns_last_seen[k] = self.deserialize(v)
+        for k, v in d.get('patterns_seen', {}).items():
+            if isinstance(v, str):
+                self.patterns_last_seen[k] = self.deserialize(v)
 
     def calc_next_scrape(self, interval: datetime.timedelta):
         if self.last_scrape_attempt is None:
@@ -407,8 +408,7 @@ class RouteInfo:
         if not p.initialize():
             logging.error(f'Could not initialize pattern {pid} on route {self.route_id}')
             return None
-        p.last_seen = Util.utcnow()
-        self.patterns_last_seen[pid] = p
+        self.patterns_last_seen[pid] = Util.utcnow()
         return p
 
     def get_origin_predictions(self):
@@ -510,6 +510,7 @@ class Routes:
         out = {}
         for r in self.routes.values():
             out[r.route_id] = r.scraping_history()
+        logging.debug(f'Serializing scraping info: {out}')
         with open(scrapefile, 'w') as fh:
             json.dump(out, fh)
 
@@ -517,11 +518,14 @@ class Routes:
         statedir = self.requestor.output_dir / 'state'
         scrapefile = statedir / 'scraping_info.json'
         if scrapefile.exists():
-            with open(scrapefile) as fh:
-                d = json.load(fh)
-                for k, v in d.items():
-                    self.routes[k] = RouteInfo(v, self.requestor, deserialize=True)
-            return True
+            try:
+                with open(scrapefile) as fh:
+                    d = json.load(fh)
+                    for k, v in d.items():
+                        self.routes[k] = RouteInfo(v, self.requestor, deserialize=True)
+                return True
+            except json.JSONDecodeError:
+                logging.warning(f'Error reading scraped info from {scrapefile}')
         routesresp = self.requestor.make_request('getroutes')
         if not routesresp.ok():
             print(f'Routes failed to initialize')
@@ -568,7 +572,7 @@ class BusScraper:
         self.requestor = Requestor(output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
         self.state = RunState.RUNNING
-        self.count = 10
+        self.count = 5
         self.routes.initialize()
 
         self.rt_queue = []

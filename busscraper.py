@@ -114,13 +114,17 @@ class Requestor:
         self.request_count = 0
         self.last_request = Util.utcnow()
         self.debug = debug
+        self.shutdown = False
         self.initialize_logging()
+
+    def cancel(self):
+        self.shutdown = True
 
     def initialize_logging(self):
         logdir = self.output_dir / 'logs'
         logdir.mkdir(parents=True, exist_ok=True)
         datestr = self.start_time.strftime('%Y%m%d%H%M%Sz')
-        logfile = logdir / f'train-scraper-{datestr}.log'
+        logfile = logdir / f'bus-scraper-{datestr}.log'
         loglink = logdir / 'latest.log'
         loglink.unlink(missing_ok=True)
         loglink.symlink_to(logfile)
@@ -185,9 +189,11 @@ class Requestor:
         :param kwargs:
         :return: JSON response dict, or int if application or server error
         """
+        if self.shutdown:
+            return ResponseWrapper.permanent_error()
         diff = Util.utcnow() - self.last_request
-        if diff < datetime.timedelta(seconds=5):
-            wait = datetime.timedelta(seconds=5) - diff
+        if diff < datetime.timedelta(seconds=4):
+            wait = datetime.timedelta(seconds=4) - diff
             logging.debug(f'Last scrape {self.last_request} waiting {wait}')
             time.sleep(wait.total_seconds())
         self.last_request = Util.utcnow()
@@ -230,6 +236,7 @@ class Pattern:
         self.len_ft = None
         self.stops_and_waypoints = None
         self.timestamp = None
+        self.approx_next_start = None
         #self.last_seen = None
 
     def get_origin(self):
@@ -276,7 +283,7 @@ class Pattern:
         if {'pid', 'ln', 'rtdir', 'pt'} - set(pattern_dict.keys()):
             logger.warning(f'Error parsing pattern: keys missing {pattern_dict.keys()}')
             return False
-        if self.pattern_id != pattern_dict['pid']:
+        if int(self.pattern_id) != int(pattern_dict['pid']):
             logger.warning(f'Error parsing pattern: pid mismatch. got {pattern_dict["pid"]}, expected {self.pattern_id}')
             return False
         self.direction = pattern_dict['rtdir']
@@ -328,6 +335,7 @@ class RouteInfo:
         self.patterns = {}
         self.origins = []
         self.patterns_last_seen = {}
+        self.stops_to_patterns = {}
         self.requestor: Requestor = requestor
         if deserialize:
             self.parse_scraping_history(route)
@@ -359,6 +367,19 @@ class RouteInfo:
         if s is None:
             return None
         return datetime.datetime.fromisoformat(s)
+
+    def get_pattern_id_from_stop(self, stop_id: str):
+        pid = self.stops_to_patterns.get(stop_id)
+        if pid is not None:
+            return pid
+        for v in self.patterns:
+            pid = v.pattern_id
+            s = v.get_origin()
+            if s is not None:
+                self.stops_to_patterns[pid] = s
+                if s == stop_id:
+                    return pid
+        return None
 
     def scraping_history(self) -> dict:
         patternd = {}
@@ -400,6 +421,8 @@ class RouteInfo:
         self.last_scrape_attempt = scrapetime
 
     def get_pattern(self, pid: int):
+        if pid is None:
+            return None
         p = self.patterns.get(pid)
         if p:
             self.patterns_last_seen[pid] = Util.utcnow()
@@ -410,6 +433,26 @@ class RouteInfo:
             return None
         self.patterns_last_seen[pid] = Util.utcnow()
         return p
+
+    def prediction_scrapes(self):
+        rv = []
+        for pid, v in self.patterns_last_seen.items():
+            pattern = self.get_pattern(pid)
+            if not pattern:
+                continue
+            stop_id = pattern.get_origin()
+            diff = Util.utcnow() - v
+            if pattern.approx_next_start:
+                rv.append((pattern.approx_next_start, self.route_id, pid, stop_id))
+            elif diff < datetime.timedelta(minutes=5):
+                rv.append((Util.utcnow(), self.route_id, pid, stop_id))
+        return rv
+
+    def mark_prediction_attempt(self, pid):
+        pattern = self.get_pattern(pid)
+        if not pattern:
+            return False
+        pattern.approx_next_start = Util.utcnow() + datetime.timedelta(minutes=30)
 
     def get_origin_predictions(self):
         stops = []
@@ -432,6 +475,31 @@ class RouteInfo:
             self.last_scrape_successful = True
             self.last_successful_scrape = Util.utcnow()
             p = self.get_pattern(d['pid'])
+
+    def parse_prediction_update(self, predictions):
+        for prd in predictions:
+            if prd['rt'] != self.route_id:
+                continue
+            if prd['typ'] != 'D':
+                continue
+            prediction = prd['prdctdn']
+            predno = None
+            if prediction == 'DUE':
+                predno = 0
+            elif prediction.isdigit():
+                predno = int(prediction)
+            pid = self.get_pattern_id_from_stop(prd['stpid'])
+            if pid is None:
+                logging.warning(f'Unable to find pattern {pid} for stop {prd["stpid"]}')
+                continue
+            pattern = self.get_pattern(pid)
+            if pattern is None:
+                logging.warning(f'Unable to find pattern {pid} for stop {prd["stpid"]}')
+                continue
+            if predno is None:
+                pattern.approx_next_start = Util.utcnow() + datetime.timedelta(minutes=30)
+                continue
+            pattern.approx_next_start = Util.utcnow() + datetime.timedelta(minutes=predno)
 
     def refresh(self):
         """
@@ -556,6 +624,19 @@ class Routes:
         routes = [x[1] for x in s[:10]]
         return routes
 
+    def choose_predictions(self, interval):
+        s = []
+        for route in self.routes.values():
+            s += route.prediction_scrapes()
+        if not s:
+            return []
+        s.sort()
+        first = s[0][0]
+        diff = first - Util.utcnow()
+        if diff > datetime.timedelta():
+            return []
+        return [x[1:] for x in s[:10]]
+
 
 class RunState(Enum):
     RUNNING = 1
@@ -585,6 +666,23 @@ class BusScraper:
         if self.count <= 0:
             self.routes.serialize()
             self.count = 100
+        if self.count % 7 == 0:
+            # scrape predictions this time
+            # rv.append((Util.utcnow(), self.route_id, pid, stop_id))
+            pred_to_scrape = self.routes.choose_predictions(self.scrape_interval)
+            if pred_to_scrape:
+                stops = []
+                for route_id, pid, stop in pred_to_scrape:
+                    self.routes.routes[route_id].mark_prediction_attempt(pid)
+                    stops.append(stop)
+                stopstr = ','.join(stops)
+                res = self.requestor.make_request('getpredictions', stpid=stopstr)
+                if not res.ok():
+                    time.sleep(1)
+                    return False
+                for route_id, pid, stop in pred_to_scrape:
+                    self.routes.routes[route_id].parse_prediction_update(res.payload())
+                return True
         routes_to_scrape = self.routes.choose(self.scrape_interval)
         routestr = ','.join([x.route_id for x in routes_to_scrape])
         scrapetime = Util.utcnow()
@@ -613,6 +711,7 @@ class BusScraper:
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')
         self.routes.serialize()
+        self.requestor.cancel()
         self.state = RunState.SHUTDOWN_REQUESTED
 
 

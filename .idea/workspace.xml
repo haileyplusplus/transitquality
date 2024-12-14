@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Predictions not quite working">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Update train scraping default">
+      <change afterPath="$PROJECT_DIR$/combine_train.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/trainscraper.py" beforeDir="false" afterPath="$PROJECT_DIR$/trainscraper.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -431,7 +431,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734148974321</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="Update train scraping default">
+      <option name="closed" value="true" />
+      <created>1734154819795</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1734154819795</updated>
+    </task>
+    <option name="localTasksCounter" value="48" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -446,7 +454,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add more parameters, handle empty GTFS tables" />
     <MESSAGE value="Slightly better matching" />
     <MESSAGE value="More feed hacking" />
     <MESSAGE value="Add geometries to stops and realtime data" />
@@ -471,6 +478,7 @@
     <MESSAGE value="Fix annoying bug" />
     <MESSAGE value="Predictions" />
     <MESSAGE value="Predictions not quite working" />
-    <option name="LAST_COMMIT_MESSAGE" value="Predictions not quite working" />
+    <MESSAGE value="Update train scraping default" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update train scraping default" />
   </component>
 </project>

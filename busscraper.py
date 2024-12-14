@@ -451,6 +451,7 @@ class RouteInfo:
     def mark_prediction_attempt(self, pid):
         pattern = self.get_pattern(pid)
         if not pattern:
+            logger.warning(f'Unable to find pattern {pid}, {type(pid)}')
             return False
         pattern.approx_next_start = Util.utcnow() + datetime.timedelta(minutes=30)
 
@@ -476,7 +477,7 @@ class RouteInfo:
             self.last_successful_scrape = Util.utcnow()
             p = self.get_pattern(d['pid'])
 
-    def parse_prediction_update(self, predictions):
+    def parse_prediction_update(self, predictions, stop_to_pid):
         for prd in predictions:
             if prd['rt'] != self.route_id:
                 continue
@@ -488,7 +489,8 @@ class RouteInfo:
                 predno = 0
             elif prediction.isdigit():
                 predno = int(prediction)
-            pid = self.get_pattern_id_from_stop(prd['stpid'])
+            #pid = self.get_pattern_id_from_stop(prd['stpid'])
+            pid = stop_to_pid.get(prd['stpid'].strip())
             if pid is None:
                 logging.warning(f'Unable to find pattern {pid} for stop {prd["stpid"]}')
                 continue
@@ -645,7 +647,8 @@ class RunState(Enum):
 
 
 class BusScraper:
-    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str, debug=False, dry_run=False):
+    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
+                 api_key: str, debug=False, dry_run=False, scrape_predictions=False):
         self.start_time = Util.utcnow()
         self.dry_run = dry_run
         self.scrape_interval = scrape_interval
@@ -654,6 +657,7 @@ class BusScraper:
         self.routes = Routes(self.requestor)
         self.state = RunState.RUNNING
         self.count = 5
+        self.scrape_predictions = scrape_predictions
         self.routes.initialize()
 
         self.rt_queue = []
@@ -666,13 +670,16 @@ class BusScraper:
         if self.count <= 0:
             self.routes.serialize()
             self.count = 100
-        if self.count % 7 == 0:
+        if self.count % 7 == 0 and self.scrape_predictions:
             # scrape predictions this time
             # rv.append((Util.utcnow(), self.route_id, pid, stop_id))
             pred_to_scrape = self.routes.choose_predictions(self.scrape_interval)
             if pred_to_scrape:
                 stops = []
+                stop_to_pid = {}
                 for route_id, pid, stop in pred_to_scrape:
+                    stop_to_pid[stop] = pid
+                    logger.info(f'Scraping predition: rt {route_id}  pid {pid}  stop {stop}')
                     self.routes.routes[route_id].mark_prediction_attempt(pid)
                     stops.append(stop)
                 stopstr = ','.join(stops)
@@ -681,7 +688,7 @@ class BusScraper:
                     time.sleep(1)
                     return False
                 for route_id, pid, stop in pred_to_scrape:
-                    self.routes.routes[route_id].parse_prediction_update(res.payload())
+                    self.routes.routes[route_id].parse_prediction_update(res.payload(), stop_to_pid)
                 return True
         routes_to_scrape = self.routes.choose(self.scrape_interval)
         routestr = ','.join([x.route_id for x in routes_to_scrape])
@@ -721,6 +728,8 @@ if __name__ == "__main__":
                         help='Simulate scraping.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
+    parser.add_argument('--scrape_predictions', action='store_true',
+                        help='Print debug logging.')
     parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/scraping/bustracker'],
                         help='Output directory for generated files.')
     parser.add_argument('--api_key', type=str, nargs=1,
@@ -735,7 +744,7 @@ if __name__ == "__main__":
     statedir = outdir / 'state'
     statedir.mkdir(parents=True, exist_ok=True)
     ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
-                    dry_run=args.dry_run)
+                    dry_run=args.dry_run, scrape_predictions=args.scrape_predictions)
     signal.signal(signal.SIGINT, ts.exithandler)
     signal.signal(signal.SIGTERM, ts.exithandler)
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')

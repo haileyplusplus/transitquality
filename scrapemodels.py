@@ -11,11 +11,6 @@ dbname = 'scrapestate.sqlite3'
 
 if socket.gethostname() == 'campari':
     campari_db = campari_dbpath / dbname
-    old_db = dbpath / dbname
-    if not campari_db.exists():
-        if not old_db.exists():
-            sys.exit(1)
-        old_db.rename(campari_db)
     if not campari_db.exists():
         sys.exit(1)
     db = SqliteDatabase(campari_db)

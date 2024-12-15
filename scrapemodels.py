@@ -5,6 +5,7 @@ from util import Util
 
 dbpath = Path(__file__).parent / 'data'
 
+#TODO: make this configurable
 db = SqliteDatabase(dbpath / 'scrapestate.sqlite3')
 
 

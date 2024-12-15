@@ -540,13 +540,15 @@ class Routes:
         thresh = scrapetime - scrape_interval
         patterns_to_scrape = (Pattern.select().
                               where(Pattern.scrape_state == ScrapeState.ACTIVE).
-                              where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt is None)).
-                              where(Pattern.predicted_time is None).order_by(Pattern.last_scrape_attempt).
+                              where(Pattern.first_stop.is_null(False)).
+                              where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt.is_null())).
+                              where(Pattern.predicted_time.is_null()).order_by(Pattern.last_scrape_attempt).
                               limit(5))
         models = [x for x in patterns_to_scrape]
         remain = 10 - len(models)
         patterns_to_scrape = ((Pattern.select().where(Pattern.scrape_state == ScrapeState.ACTIVE).
-                               where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt is None)).
+                               where(Pattern.first_stop.is_null(False)).
+                               where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt.is_null())).
                                order_by(Pattern.predicted_time).limit(remain)))
         models += [x for x in patterns_to_scrape]
         return models
@@ -588,6 +590,17 @@ class BusScraper:
         paused = Route.select().where((Route.scrape_state == ScrapeState.PAUSED)|(Route.scrape_state==ScrapeState.ATTEMPTED)).where(Route.last_scrape_attempt < thresh).order_by(Route.last_scrape_attempt)
         if paused.exists():
             for p in paused:
+                p.scrape_state = ScrapeState.ACTIVE
+                p.save()
+        attempt_thresh = Util.utcnow() - datetime.timedelta(minutes=2)
+        paused = Route.select().where(Route.scrape_state==ScrapeState.ATTEMPTED).where(Route.last_scrape_attempt < attempt_thresh)
+        if paused.exists():
+            for p in paused:
+                p.scrape_state = ScrapeState.ACTIVE
+                p.save()
+        pattern_paused = Pattern.select().where(Pattern.scrape_state==ScrapeState.ATTEMPTED).where(Pattern.last_scrape_attempt < attempt_thresh)
+        if pattern_paused.exists():
+            for p in pattern_paused:
                 p.scrape_state = ScrapeState.ACTIVE
                 p.save()
         if self.consecutive_patterns >= self.MAX_CONSECUTIVE_PATTERNS:

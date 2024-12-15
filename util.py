@@ -10,5 +10,5 @@ class Util:
         return datetime.datetime.now(pytz.UTC)
 
     @staticmethod
-    def localnow():
-        return datetime.datetime.now(CTA_TIMEZONE)
+    def ctanow():
+        return datetime.datetime.now(Util.CTA_TIMEZONE)

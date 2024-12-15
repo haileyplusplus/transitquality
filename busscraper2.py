@@ -215,6 +215,14 @@ class Requestor:
         """
         if self.shutdown:
             return ResponseWrapper.permanent_error()
+        req_day = Util.ctanow().date()
+        c = Count.get_or_none((Count.day == req_day) & (Count.command == command))
+        if c is None:
+            c = Count(day=req_day, command=command, requests=1)
+            c.save(force_insert=True)
+        else:
+            c.requests = c.requests + 1
+            c.save()
         diff = Util.utcnow() - self.last_request
         if diff < datetime.timedelta(seconds=4):
             wait = datetime.timedelta(seconds=4) - diff
@@ -236,14 +244,26 @@ class Requestor:
             result = self.parse_success(response, command)
             if result.ok():
                 self.log(req_time, command, response.text)
+                if result.get_error_dict():
+                    c.partial_errors = c.partial_errors + 1
+                    c.save()
+            else:
+                c.app_errors = c.app_errors + 1
+                c.save()
             return result
         except requests.exceptions.Timeout:
             logging.warning(f'Request timed out.')
+            c.errors = c.errors + 1
+            c.save()
             return ResponseWrapper.transient_error()
         except requests.JSONDecodeError:
+            c.errors = c.errors + 1
+            c.save()
             logging.warning(f'Unable to decode JSON payload: {trunc_response}')
             return ResponseWrapper.permanent_error()
         except requests.exceptions.ConnectionError:
+            c.errors = c.errors + 1
+            c.save()
             logging.warning(f'Connection error')
             time.sleep(30)
             return ResponseWrapper.transient_error()

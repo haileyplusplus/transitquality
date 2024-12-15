@@ -534,15 +534,19 @@ class Routes:
         #    r.save()
         return VehicleTask(models=routes)
 
-    def choose_predictions(self):
+    def choose_predictions(self, scrape_interval):
         # select up to 5 patterns without current prediction times
+        scrapetime = Util.utcnow()
+        thresh = scrapetime - scrape_interval
         patterns_to_scrape = (Pattern.select().
                               where(Pattern.scrape_state == ScrapeState.ACTIVE).
-                              where(Pattern.predicted_time is None).
+                              where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt is None)).
+                              where(Pattern.predicted_time is None).order_by(Pattern.last_scrape_attempt).
                               limit(5))
         models = [x for x in patterns_to_scrape]
         remain = 10 - len(models)
         patterns_to_scrape = ((Pattern.select().where(Pattern.scrape_state == ScrapeState.ACTIVE).
+                               where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt is None)).
                                order_by(Pattern.predicted_time).limit(remain)))
         models += [x for x in patterns_to_scrape]
         return models
@@ -600,10 +604,9 @@ class BusScraper:
             # scrape predictions
             routes_to_scrape.scrape(self.requestor)
             return
-        models = self.routes.choose_predictions()
+        models = self.routes.choose_predictions(self.scrape_interval)
         if not models:
             # nothing to scrape right now
-            logger.info(f'Nothing to scrape')
             time.sleep(1)
             return
         scrapetask = PredictionTask(models)

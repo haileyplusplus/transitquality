@@ -15,8 +15,8 @@ class BaseModel(Model):
 
 class Route(BaseModel):
     route_id = CharField(primary_key=True)
-    route_name = CharField()
-    route_color = CharField()
+    route_name = CharField(null=True)
+    route_color = CharField(null=True)
     last_scrape_attempt = DateTimeField(null=True)
     last_scrape_success = DateTimeField(null=True)
     scrape_state = IntegerField(default=0)
@@ -25,12 +25,12 @@ class Route(BaseModel):
 class Pattern(BaseModel):
     pattern_id = IntegerField(primary_key=True)
     route = ForeignKeyField(Route, backref='patterns')
-    timestamp = DateTimeField(Util.utcnow())
+    timestamp = DateTimeField(default=Util.utcnow())
     first_stop = CharField(null=True)
     direction = CharField(null=True)
     length = IntegerField(null=True)
-    last_prediction_scrape_attempt = DateTimeField(null=True)
-    last_prediction_scrape_success = DateTimeField(null=True)
+    last_scrape_attempt = DateTimeField(null=True)
+    last_scrape_success = DateTimeField(null=True)
     minutes_predicted = IntegerField(null=True)
     predicted_time = DateTimeField(null=True)
     scrape_state = IntegerField(null=True)

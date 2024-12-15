@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Get rid of moving code">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Enable testing on greendale">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper2.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scrapemodels.py" beforeDir="false" afterPath="$PROJECT_DIR$/scrapemodels.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -62,14 +63,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00007" summary="Add logging and argument parsing">
-      <option name="closed" value="true" />
-      <created>1733430049164</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1733430049164</updated>
     </task>
     <task id="LOCAL-00008" summary="Outputs redone stop times">
       <option name="closed" value="true" />
@@ -455,7 +448,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734287351401</updated>
     </task>
-    <option name="localTasksCounter" value="56" />
+    <task id="LOCAL-00056" summary="Enable testing on greendale">
+      <option name="closed" value="true" />
+      <created>1734287738308</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1734287738308</updated>
+    </task>
+    <option name="localTasksCounter" value="57" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -470,7 +471,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add logging and night mode to scraper" />
     <MESSAGE value="Initial commit" />
     <MESSAGE value="Let's see if this works" />
     <MESSAGE value="Fix many bugs" />
@@ -495,6 +495,7 @@
     <MESSAGE value="Fix null / not null filter syntax" />
     <MESSAGE value="Try to move database" />
     <MESSAGE value="Get rid of moving code" />
-    <option name="LAST_COMMIT_MESSAGE" value="Get rid of moving code" />
+    <MESSAGE value="Enable testing on greendale" />
+    <option name="LAST_COMMIT_MESSAGE" value="Enable testing on greendale" />
   </component>
 </project>

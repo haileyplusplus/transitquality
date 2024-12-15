@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 
 import requests
 
-from scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize
+from scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
 
 from util import Util
 
@@ -347,6 +347,7 @@ class PatternTask(ScrapeTask):
             model.direction = pattern.get('rtdir')
             min_seq = None
             stop_id = None
+            stop_name = None
             for stop in pattern.get('pt', []):
                 if not isinstance(stop, dict):
                     break
@@ -362,9 +363,19 @@ class PatternTask(ScrapeTask):
                 if min_seq is None or seq < min_seq:
                     min_seq = seq
                     stop_id = stop.get('stpid')
-            model.first_stop = stop_id
-            model.scrape_state = ScrapeState.ACTIVE
-            model.save()
+                    stop_name = stop.get('stpnm')
+            if stop_id is not None:
+                model.first_stop = stop_id
+                model.scrape_state = ScrapeState.ACTIVE
+                model.save()
+                stop_model = Stop.get_or_none(Stop.stop_id == stop_id)
+                insert = False
+                if stop_model is None:
+                    stop_model = Stop(stop_id=stop_id, stop_name=stop_name)
+                    insert = True
+                stop_model.scrape_state = ScrapeState.ACTIVE
+                stop_model.save(force_insert=insert)
+
 
     def handle_errors(self, error_dict: dict):
         pass
@@ -416,9 +427,14 @@ class VehicleTask(ScrapeTask):
                             scrape_state=ScrapeState.NEEDS_SCRAPING)
                 logger.debug(f'Inserting pattern {m}  pid {pid} route {rtm} {rt}')
                 m.save(force_insert=True)
-            elif pattern.scrape_state == ScrapeState.PAUSED:
-                pattern.scrape_state = ScrapeState.ACTIVE
-                pattern.save()
+            elif pattern.first_stop is not None:
+                stop_model = Stop.get_or_none(Stop.stop_id == pattern.first_stop)
+                if stop_model is None:
+                    logger.warning(f'Pattern {pid} for route {rt} missing first stop in db for {pattern.first_stop}')
+                    continue
+                if stop_model.scrape_state != ScrapeState.ACTIVE:
+                    stop_model.scrape_state = ScrapeState.ACTIVE
+                    stop_model.save()
 
     def handle_errors(self, error_dict: dict):
         for r in error_dict.get('rt', []):
@@ -430,11 +446,11 @@ class VehicleTask(ScrapeTask):
 
 
 class PredictionTask(ScrapeTask):
-    def __init__(self, models: Iterable[Pattern]):
+    def __init__(self, models: Iterable[Stop]):
         super().__init__(models)
 
-    def get_key(self, model: Pattern):
-        return model.first_stop
+    def get_key(self, model: Stop):
+        return model.stop_id
 
     def get_scrape_params(self) -> Tuple[str, dict]:
         return 'getpredictions', {'stpid': self.ids}
@@ -468,7 +484,13 @@ class PredictionTask(ScrapeTask):
             try:
                 t = datetime.datetime.strptime(prd.get('prdtm'),
                                                '%Y%m%d %H:%M').astimezone(Util.CTA_TIMEZONE)
-                m.predicted_time = t
+                if isinstance(m.predicted_time, str):
+                    existing_prediction = datetime.datetime.fromisoformat(m.predicted_time)
+                    if t > existing_prediction:
+                        continue
+                else:
+                    m.predicted_time = t
+                    m.save()
             except ValueError:
                 continue
             predno = None
@@ -538,18 +560,16 @@ class Routes:
         # select up to 5 patterns without current prediction times
         scrapetime = Util.utcnow()
         thresh = scrapetime - scrape_interval
-        patterns_to_scrape = (Pattern.select().
-                              where(Pattern.scrape_state == ScrapeState.ACTIVE).
-                              where(Pattern.first_stop.is_null(False)).
-                              where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt.is_null())).
-                              where(Pattern.predicted_time.is_null()).order_by(Pattern.last_scrape_attempt).
+        patterns_to_scrape = (Stop.select().
+                              where(Stop.scrape_state == ScrapeState.ACTIVE).
+                              where((Stop.last_scrape_attempt < thresh) | (Stop.last_scrape_attempt.is_null())).
+                              where(Stop.predicted_time.is_null()).order_by(Stop.last_scrape_attempt).
                               limit(5))
         models = [x for x in patterns_to_scrape]
         remain = 10 - len(models)
-        patterns_to_scrape = ((Pattern.select().where(Pattern.scrape_state == ScrapeState.ACTIVE).
-                               where(Pattern.first_stop.is_null(False)).
-                               where((Pattern.last_scrape_attempt < thresh) | (Pattern.last_scrape_attempt.is_null())).
-                               order_by(Pattern.predicted_time).limit(remain)))
+        patterns_to_scrape = ((Stop.select().where(Stop.scrape_state == ScrapeState.ACTIVE).
+                               where((Stop.last_scrape_attempt < thresh) | (Stop.last_scrape_attempt.is_null())).
+                               order_by(Stop.predicted_time).limit(remain)))
         models += [x for x in patterns_to_scrape]
         return models
 
@@ -583,9 +603,28 @@ class BusScraper:
         self.metadata_queue = []
         self.last_scraped = None
         self.next_scrape = None
+        self.converted = False
+
+    def convert_once(self):
+        if self.converted:
+            return
+        self.converted = True
+        patterns: Iterable[Pattern] = Pattern.select().where(Pattern.first_stop.is_null(False))
+        for p in patterns:
+            existing = Stop.get_or_none(Stop.stop_id == p.first_stop)
+            if existing is not None:
+                continue
+            stop_model = Stop(stop_id=p.first_stop,
+                              last_scrape_attempt=p.last_scrape_attempt,
+                              last_scrape_success=p.last_scrape_success,
+                              minutes_predicted=p.minutes_predicted,
+                              predicted_time=p.predicted_time,
+                              scrape_state=ScrapeState.ACTIVE)
+            stop_model.save(force_insert=True)
 
     def scrape_one(self):
         # unpause routes after 30 minutes
+        self.convert_once()
         thresh = Util.utcnow() - datetime.timedelta(minutes=30)
         paused = Route.select().where((Route.scrape_state == ScrapeState.PAUSED)|(Route.scrape_state==ScrapeState.ATTEMPTED)).where(Route.last_scrape_attempt < thresh).order_by(Route.last_scrape_attempt)
         if paused.exists():
@@ -593,12 +632,12 @@ class BusScraper:
                 p.scrape_state = ScrapeState.ACTIVE
                 p.save()
         attempt_thresh = Util.utcnow() - datetime.timedelta(minutes=2)
-        paused = Route.select().where(Route.scrape_state==ScrapeState.ATTEMPTED).where(Route.last_scrape_attempt < attempt_thresh)
+        paused = Route.select().where(Route.scrape_state == ScrapeState.ATTEMPTED).where(Route.last_scrape_attempt < attempt_thresh)
         if paused.exists():
             for p in paused:
                 p.scrape_state = ScrapeState.ACTIVE
                 p.save()
-        pattern_paused = Pattern.select().where(Pattern.scrape_state==ScrapeState.ATTEMPTED).where(Pattern.last_scrape_attempt < attempt_thresh)
+        pattern_paused = Stop.select().where(Stop.scrape_state == ScrapeState.ATTEMPTED).where(Stop.last_scrape_attempt < attempt_thresh)
         if pattern_paused.exists():
             for p in pattern_paused:
                 p.scrape_state = ScrapeState.ACTIVE

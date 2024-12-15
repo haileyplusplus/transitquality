@@ -53,6 +53,18 @@ class Pattern(BaseModel):
     scrape_state = IntegerField(null=True)
 
 
+class Stop(BaseModel):
+    stop_id = CharField(primary_key=True)
+    timestamp = DateTimeField(default=Util.utcnow())
+    stop_name = CharField(null=True)
+    last_scrape_attempt = DateTimeField(null=True)
+    last_scrape_success = DateTimeField(null=True)
+    # For stops with multiple routes, this is the closest prediction
+    minutes_predicted = IntegerField(null=True)
+    predicted_time = DateTimeField(null=True)
+    scrape_state = IntegerField(default=0)
+
+
 class Count(BaseModel):
     day = DateField()
     command = CharField()
@@ -70,4 +82,4 @@ class ErrorMessage(BaseModel):
 
 def db_initialize():
     db.connect()
-    db.create_tables([Route, Pattern, Count, ErrorMessage])
+    db.create_tables([Route, Pattern, Count, ErrorMessage, Stop])

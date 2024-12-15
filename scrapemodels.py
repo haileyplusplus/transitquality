@@ -49,6 +49,7 @@ class Pattern(BaseModel):
     last_scrape_attempt = DateTimeField(null=True)
     last_scrape_success = DateTimeField(null=True)
     minutes_predicted = IntegerField(null=True)
+    # overload: this is now last seen
     predicted_time = DateTimeField(null=True)
     scrape_state = IntegerField(null=True)
 

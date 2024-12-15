@@ -424,17 +424,21 @@ class VehicleTask(ScrapeTask):
                     continue
                 m = Pattern(pattern_id=pid,
                             route=rtm,
-                            scrape_state=ScrapeState.NEEDS_SCRAPING)
+                            scrape_state=ScrapeState.NEEDS_SCRAPING,
+                            predicted_time=resp_time)
                 logger.debug(f'Inserting pattern {m}  pid {pid} route {rtm} {rt}')
                 m.save(force_insert=True)
-            elif pattern.first_stop is not None:
-                stop_model = Stop.get_or_none(Stop.stop_id == pattern.first_stop)
-                if stop_model is None:
-                    logger.warning(f'Pattern {pid} for route {rt} missing first stop in db for {pattern.first_stop}')
-                    continue
-                if stop_model.scrape_state != ScrapeState.ACTIVE:
-                    stop_model.scrape_state = ScrapeState.ACTIVE
-                    stop_model.save()
+            else:
+                pattern.predicted_time = resp_time
+                pattern.save()
+                if pattern.first_stop is not None:
+                    stop_model = Stop.get_or_none(Stop.stop_id == pattern.first_stop)
+                    if stop_model is None:
+                        logger.warning(f'Pattern {pid} for route {rt} missing first stop in db for {pattern.first_stop}')
+                        continue
+                    if stop_model.scrape_state != ScrapeState.ACTIVE:
+                        stop_model.scrape_state = ScrapeState.ACTIVE
+                        stop_model.save()
 
     def handle_errors(self, error_dict: dict):
         for r in error_dict.get('rt', []):
@@ -608,6 +612,10 @@ class BusScraper:
     def convert_once(self):
         if self.converted:
             return
+        stopcount = Stop.select().count()
+        if stopcount > 0:
+            return
+        logger.info(f'Doing one-time pattern to stop conversion. {stopcount} stops')
         self.converted = True
         patterns: Iterable[Pattern] = Pattern.select().where(Pattern.first_stop.is_null(False))
         for p in patterns:
@@ -621,6 +629,7 @@ class BusScraper:
                               predicted_time=p.predicted_time,
                               scrape_state=ScrapeState.ACTIVE)
             stop_model.save(force_insert=True)
+        Pattern.update({Pattern.predicted_time: None, Pattern.minutes_predicted: None}).execute()
 
     def scrape_one(self):
         # unpause routes after 30 minutes
@@ -675,6 +684,14 @@ class BusScraper:
         self.requestor.cancel()
         self.state = RunState.SHUTDOWN_REQUESTED
 
+    def freshen_debug(self):
+        scrapetime = Util.utcnow()
+        routes: Iterable[Route] = Route.select()
+        for r in routes:
+            r.last_scrape_attempt = scrapetime
+            r.last_scrape_success = scrapetime
+            r.save()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
@@ -682,6 +699,8 @@ if __name__ == "__main__":
                         help='Simulate scraping.')
     parser.add_argument('--fetch_routes', action='store_true',
                         help='Fetch routes. By default, if routes are present there is no fetching.')
+    parser.add_argument('--freshen_debug', action='store_true',
+                        help='Bump last scraped for all active routes to present.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
     parser.add_argument('--scrape_predictions', action='store_true',
@@ -705,5 +724,8 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, ts.exithandler)
     signal.signal(signal.SIGTERM, ts.exithandler)
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
+    if args.freshen_debug:
+        logging.info(f'Artifical freshen debug')
+        ts.freshen_debug()
     ts.loop()
     logging.info(f'End of program')

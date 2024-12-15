@@ -629,7 +629,10 @@ class BusScraper:
                               predicted_time=p.predicted_time,
                               scrape_state=ScrapeState.ACTIVE)
             stop_model.save(force_insert=True)
-        Pattern.update({Pattern.predicted_time: None, Pattern.minutes_predicted: None}).execute()
+        Pattern.update({Pattern.predicted_time: None,
+                        Pattern.minutes_predicted: None,
+                        Pattern.last_scrape_attempt: None,
+                        Pattern.last_scrape_success: None}).execute()
 
     def scrape_one(self):
         # unpause routes after 30 minutes

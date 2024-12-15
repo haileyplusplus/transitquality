@@ -2,20 +2,27 @@ from peewee import CharField, BooleanField, DateField, ForeignKeyField, IntegerF
 
 from pathlib import Path
 from util import Util
+import shutil
 import socket
 import sys
 
 dbpath = Path(__file__).parent / 'data'
 campari_dbpath = Path('~/transit/scraping/bustracker/').expanduser()
 dbname = 'scrapestate.sqlite3'
+greendale_dbname = 'scrapestate-greendale.sqlite3'
+campari_db = campari_dbpath / dbname
 
 if socket.gethostname() == 'campari':
-    campari_db = campari_dbpath / dbname
     if not campari_db.exists():
         sys.exit(1)
     db = SqliteDatabase(campari_db)
 else:
-    db = SqliteDatabase(dbpath / dbname)
+    if not campari_db.exists():
+        sys.exit(1)
+    greendale_db = campari_dbpath / greendale_dbname
+    greendale_db.unlink(missing_ok=True)
+    shutil.copy(campari_db, greendale_db)
+    db = SqliteDatabase(greendale_db)
 
 
 class BaseModel(Model):

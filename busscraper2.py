@@ -569,10 +569,12 @@ class Routes:
                               where((Stop.last_scrape_attempt < thresh) | (Stop.last_scrape_attempt.is_null())).
                               where(Stop.predicted_time.is_null()).order_by(Stop.last_scrape_attempt).
                               limit(5))
+        # above is not necessarily disjoint
         models = [x for x in patterns_to_scrape]
         remain = 10 - len(models)
         patterns_to_scrape = ((Stop.select().where(Stop.scrape_state == ScrapeState.ACTIVE).
                                where((Stop.last_scrape_attempt < thresh) | (Stop.last_scrape_attempt.is_null())).
+                               where(Stop.predicted_time.is_null(False)).
                                order_by(Stop.predicted_time).limit(remain)))
         models += [x for x in patterns_to_scrape]
         return models

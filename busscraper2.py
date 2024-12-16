@@ -108,10 +108,11 @@ class Requestor:
     Also: getpredictions()
     """
 
-    def __init__(self, output_dir: Path, api_key: str, debug=False):
+    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, debug=False):
         self.start_time = Util.utcnow()
         self.api_key = api_key
         self.output_dir = output_dir
+        self.rawdatadir = rawdatadir
         self.request_count = 0
         self.last_request = Util.utcnow()
         self.debug = debug
@@ -271,7 +272,7 @@ class Requestor:
 
     def log(self, req_time, command, text_response):
         datestr = req_time.strftime('%Y%m%d%H%M%Sz')
-        filename = self.output_dir / 'raw_data' / f'ttscrape-{command}-{datestr}.json'
+        filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
         with open(filename, 'w') as ofh:
             ofh.write(text_response)
 
@@ -596,7 +597,8 @@ class BusScraper:
         self.dry_run = dry_run
         self.scrape_interval = scrape_interval
         self.night = False
-        self.requestor = Requestor(output_dir, api_key, debug=debug)
+        self.output_dir = output_dir
+        self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
         self.state = RunState.RUNNING
         self.count = 5
@@ -610,16 +612,29 @@ class BusScraper:
         self.metadata_queue = []
         self.last_scraped = None
         self.next_scrape = None
+        self.subdir = 'unknown'
+
+    def daily_action(self, new_day: str):
+        logger.info(f'New day: {new_day}')
+        self.subdir = new_day
+        rawdatadir = self.output_dir / 'raw' / self.subdir
+        rawdatadir.mkdir(parents=True, exist_ok=True)
+        self.requestor.rawdatadir = rawdatadir
 
     def scrape_one(self):
+        scrapetime = Util.utcnow()
+        datestr = scrapetime.strftime('%Y%m%d')
+        if datestr not in self.seen_days:
+            self.daily_action(datestr)
+            self.seen_days.add(datestr)
         # unpause routes after 30 minutes
-        thresh = Util.utcnow() - datetime.timedelta(minutes=30)
+        thresh = scrapetime - datetime.timedelta(minutes=30)
         paused = Route.select().where((Route.scrape_state == ScrapeState.PAUSED)|(Route.scrape_state==ScrapeState.ATTEMPTED)).where(Route.last_scrape_attempt < thresh).order_by(Route.last_scrape_attempt)
         if paused.exists():
             for p in paused:
                 p.scrape_state = ScrapeState.ACTIVE
                 p.save()
-        attempt_thresh = Util.utcnow() - datetime.timedelta(minutes=2)
+        attempt_thresh = scrapetime - datetime.timedelta(minutes=2)
         paused = Route.select().where(Route.scrape_state == ScrapeState.ATTEMPTED).where(Route.last_scrape_attempt < attempt_thresh)
         if paused.exists():
             for p in paused:

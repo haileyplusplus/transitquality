@@ -12,3 +12,9 @@ class Util:
     @staticmethod
     def ctanow():
         return datetime.datetime.now(Util.CTA_TIMEZONE)
+
+    @staticmethod
+    def read_datetime(obj):
+        if isinstance(obj, datetime.datetime):
+            return obj
+        return datetime.datetime.fromisoformat(obj)

@@ -18,9 +18,9 @@ import threading
 
 import requests
 
-from scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
+from backend.scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
 
-from util import Util
+from backend.util import Util
 
 # import pandas as pd
 
@@ -485,7 +485,7 @@ class PredictionTask(ScrapeTask):
                 t = datetime.datetime.strptime(prd.get('prdtm'),
                                                '%Y%m%d %H:%M').astimezone(Util.CTA_TIMEZONE)
                 if isinstance(m.predicted_time, str):
-                    existing_prediction = datetime.datetime.fromisoformat(m.predicted_time)
+                    existing_prediction = Util.read_datetime(m.predicted_time)
                     if t > existing_prediction:
                         continue
                 else:
@@ -510,7 +510,7 @@ class Routes:
         self.requestor = requestor
         self.routes = {}
 
-    def initialize(self, fetch_routes):
+    def initialize(self, fetch_routes=False):
         routes = Route.select()
         for r in routes:
             self.routes[r.route_id] = r
@@ -548,7 +548,7 @@ class Routes:
         #print(models[-1].last_scrape_attempt)
         #print(type(models[-1].last_scrape_attempt))
         if models[-1].last_scrape_attempt is not None:
-            latest_scrape = datetime.datetime.fromisoformat(models[-1].last_scrape_attempt)
+            latest_scrape = Util.read_datetime(models[-1].last_scrape_attempt)
             if latest_scrape + scrape_interval > scrapetime:
                 return None
         #for r in models:
@@ -591,7 +591,7 @@ class BusScraper:
         self.routes = Routes(self.requestor)
         self.count = 5
         self.scrape_predictions = scrape_predictions
-        self.routes.initialize(fetch_routes)
+        #self.routes.initialize(fetch_routes)
         self.consecutive_patterns = 0
         self.fetch_routes = fetch_routes
         self.seen_days: set[str] = set([])
@@ -608,6 +608,9 @@ class BusScraper:
         rawdatadir = self.output_dir / 'raw' / self.subdir
         rawdatadir.mkdir(parents=True, exist_ok=True)
         self.requestor.rawdatadir = rawdatadir
+
+    def initialize(self):
+        self.routes.initialize()
 
     def scrape_one(self):
         scrapetime = Util.utcnow()
@@ -688,6 +691,7 @@ class Runner:
         self.scraper = scraper
         self.state = RunState.STOPPED
         self.mutex = threading.Lock()
+        self.initialized = False
         #self.polling_active = False
         #self.cancellation_requested = False
 
@@ -709,6 +713,9 @@ class Runner:
 
 
     async def loop(self):
+        if not self.initialized:
+            self.scraper.initialize()
+            self.initialized = True
         last_request = Util.utcnow() - datetime.timedelta(hours=1)
         while True:
             next_scrape = last_request + datetime.timedelta(seconds=4)
@@ -780,7 +787,13 @@ if __name__ == "__main__":
                         help='Print debug logging.')
     parser.add_argument('--scrape_predictions', action='store_true',
                         help='Print debug logging.')
-    parser.add_argument('--output_dir', type=str, nargs=1, default=['~/transit/scraping/bustracker'],
+    parser.add_argument('--write_logs', action='store_true', default=False,
+                        help='Print debug logging.')
+    parser.add_argument('--write_files', action='store_true', default=False,
+                        help='Print debug logging.')
+    parser.add_argument('--output_dir', type=str, nargs=1,
+                        #default=['~/transit/scraping/bustracker'],
+                        default=['/transit/scraping/bustracker'],
                         help='Output directory for generated files.')
     parser.add_argument('--api_key', type=str, nargs=1,
                         help='Bus tracker API key.')
@@ -788,7 +801,7 @@ if __name__ == "__main__":
     if not args.api_key:
         print(f'API key required')
     db_initialize()
-    outdir = Path(args.output_dir[0]).expanduser()
+    outdir = Path(args.output_dir[0])
     outdir.mkdir(parents=True, exist_ok=True)
     datadir = outdir / 'raw_data'
     datadir.mkdir(parents=True, exist_ok=True)
@@ -796,6 +809,7 @@ if __name__ == "__main__":
     statedir.mkdir(parents=True, exist_ok=True)
     ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
                     dry_run=args.dry_run, scrape_predictions=args.scrape_predictions, fetch_routes=args.fetch_routes)
+    ts.initialize()
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
     if args.freshen_debug:
         logging.info(f'Artifical freshen debug')

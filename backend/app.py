@@ -5,17 +5,25 @@ from pathlib import Path
 import datetime
 import logging
 
-from busscraper2 import BusScraper, Runner
-from scrapemodels import db_initialize
+from backend.busscraper2 import BusScraper, Runner
+from backend.scrapemodels import db_initialize
 import signal
 import asyncio
+import os
 
 logger = logging.getLogger(__file__)
 
 
 db_initialize()
-outdir = Path('~/transit/scraping/bustracker').expanduser()
-outdir.mkdir(parents=True, exist_ok=True)
+#outdir = Path('~/transit/scraping/bustracker').expanduser()
+#outdir = Path('/transit/scraping/bustracker')
+outdir = Path('/tmp/scraping/bustracker')
+# os.mkdir('/transit/scraping')
+# os.mkdir('/transit/scraping/bustracker')
+# os.mkdir('/transit/scraping/bustracker/logs')
+# outdir.mkdir(parents=True, exist_ok=True)
+# logdir = outdir / 'logs'
+# logdir.mkdir(parents=True, exist_ok=True)
 ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
                 fetch_routes=False)
 runner = Runner(ts)

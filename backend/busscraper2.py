@@ -114,7 +114,6 @@ class Requestor:
         self.output_dir = output_dir
         self.rawdatadir = rawdatadir
         self.request_count = 0
-        self.last_request = Util.utcnow()
         self.debug = debug
         self.shutdown = False
         self.initialize_logging()
@@ -224,12 +223,6 @@ class Requestor:
         else:
             c.requests = c.requests + 1
             c.save()
-        diff = Util.utcnow() - self.last_request
-        if diff < datetime.timedelta(seconds=4):
-            wait = datetime.timedelta(seconds=4) - diff
-            logging.debug(f'Last scrape {self.last_request} waiting {wait}')
-            time.sleep(wait.total_seconds())
-        self.last_request = Util.utcnow()
         params = kwargs
         params['key'] = self.api_key
         params['format'] = 'json'
@@ -662,13 +655,22 @@ class BusScraper:
         models = self.routes.choose_predictions(self.scrape_interval)
         if not models:
             # nothing to scrape right now
-            time.sleep(1)
+            #time.sleep(1)
             return
         scrapetask = PredictionTask(models)
         scrapetask.scrape(self.requestor)
 
     def loop(self):
+        last_request = Util.utcnow() - datetime.timedelta(hours=1)
         while self.state == RunState.RUNNING:
+            next_scrape = last_request + datetime.timedelta(seconds=4)
+            scrape_time = Util.utcnow()
+            if scrape_time < next_scrape:
+                wait = next_scrape - scrape_time
+                logging.debug(f'Request Last scrape {last_request} next_scrape {next_scrape} waiting {wait}')
+                time.sleep(wait.total_seconds())
+            scrape_time = Util.utcnow()
+            last_request = scrape_time
             self.scrape_one()
         self.state = RunState.SHUTDOWN
         logging.info(f'Recorded shutdown')
@@ -685,6 +687,18 @@ class BusScraper:
             r.last_scrape_attempt = scrapetime
             r.last_scrape_success = scrapetime
             r.save()
+
+    def set_api_key(self, api_key):
+        self.requestor.api_key = api_key
+
+    def has_api_key(self):
+        if not self.requestor.api_key:
+            return False
+        return True
+
+
+# move rate limiting out of bowels of make_request and into scrape_one
+# that should make async run easier
 
 
 if __name__ == "__main__":

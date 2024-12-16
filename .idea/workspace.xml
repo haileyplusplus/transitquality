@@ -4,10 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Check cancel every second">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Start and stop controls work. Still need graceful shutdown handler.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/busscraper2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,14 +68,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00021" summary="Add more parameters, handle empty GTFS tables">
-      <option name="closed" value="true" />
-      <created>1733865422228</created>
-      <option name="number" value="00021" />
-      <option name="presentableId" value="LOCAL-00021" />
-      <option name="project" value="LOCAL" />
-      <updated>1733865422228</updated>
     </task>
     <task id="LOCAL-00022" summary="Slightly better matching">
       <option name="closed" value="true" />
@@ -462,7 +453,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734367715261</updated>
     </task>
-    <option name="localTasksCounter" value="70" />
+    <task id="LOCAL-00070" summary="Start and stop controls work. Still need graceful shutdown handler.">
+      <option name="closed" value="true" />
+      <created>1734369958042</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1734369958042</updated>
+    </task>
+    <option name="localTasksCounter" value="71" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -477,7 +476,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Predictions" />
     <MESSAGE value="Predictions not quite working" />
     <MESSAGE value="Update train scraping default" />
     <MESSAGE value="Analyze scraped train info" />
@@ -502,6 +500,7 @@
     <MESSAGE value="Basic async working" />
     <MESSAGE value="Hacky async works. Need finer-grained cancellation" />
     <MESSAGE value="Check cancel every second" />
-    <option name="LAST_COMMIT_MESSAGE" value="Check cancel every second" />
+    <MESSAGE value="Start and stop controls work. Still need graceful shutdown handler." />
+    <option name="LAST_COMMIT_MESSAGE" value="Start and stop controls work. Still need graceful shutdown handler." />
   </component>
 </project>

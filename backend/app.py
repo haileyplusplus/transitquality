@@ -1,14 +1,17 @@
 from fastapi import FastAPI, BackgroundTasks
+from contextlib import asynccontextmanager
 import asyncio
 from pathlib import Path
 import datetime
+import logging
 
 from busscraper2 import BusScraper, Runner
 from scrapemodels import db_initialize
 import signal
 import asyncio
 
-app = FastAPI()
+logger = logging.getLogger(__file__)
+
 
 db_initialize()
 outdir = Path('~/transit/scraping/bustracker').expanduser()
@@ -18,6 +21,18 @@ ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
 runner = Runner(ts)
 #signal.signal(signal.SIGINT, runner.exithandler)
 #signal.signal(signal.SIGTERM, runner.exithandler)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(f'App starting up')
+    yield
+    logger.info(f'App lifespan done')
+    runner.syncstop()
+    logger.info(f'Syncstop done')
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get('/')

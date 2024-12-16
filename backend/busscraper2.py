@@ -677,6 +677,7 @@ class RunState(IntEnum):
     RUNNING = 1
     SHUTDOWN_REQUESTED = 2
     SHUTDOWN = 3
+    STOPPED = 4
 
 
 # move rate limiting out of bowels of make_request and into scrape_one
@@ -685,15 +686,27 @@ class Runner:
     def __init__(self, scraper: BusScraper):
         self.polling_task = None
         self.scraper = scraper
-        self.state = RunState.IDLE
+        self.state = RunState.STOPPED
         self.mutex = threading.Lock()
         #self.polling_active = False
         #self.cancellation_requested = False
+
+    def done_callback(self, task: asyncio.Task):
+        logging.info(f'Task {task} done')
 
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')
         #asyncio.run(self.stop())
         self.stop()
+
+    def syncstart(self):
+        with self.mutex:
+            self.state = RunState.IDLE
+
+    def syncstop(self):
+        with self.mutex:
+            self.state = RunState.STOPPED
+
 
     async def loop(self):
         last_request = Util.utcnow() - datetime.timedelta(hours=1)
@@ -707,25 +720,33 @@ class Runner:
                 try:
                     await asyncio.sleep(min(wait.total_seconds(), 1))
                 except asyncio.CancelledError:
-                    logging.info(f'Polling cancelled 1')
+                    logging.info(f'Polling cancelled 1!')
                     return
             scrape_time = Util.utcnow()
             last_request = scrape_time
             with self.mutex:
+                if self.state != RunState.IDLE and self.state != RunState.RUNNING:
+                    logging.info(f'Polling cancelled 3 {self.state}')
+                    break
                 self.state = RunState.RUNNING
             self.scraper.scrape_one()
             with self.mutex:
-                if self.state == RunState.SHUTDOWN_REQUESTED or self.state == RunState.SHUTDOWN:
-                    logging.info(f'Polling cancelled 2')
+                if self.state != RunState.IDLE and self.state != RunState.RUNNING:
+                    logging.info(f'Polling cancelled 2 {self.state}')
                     break
                 self.state = RunState.IDLE
+            logging.info(f'Iteration done')
         #self.state = RunState.SHUTDOWN
         logging.info(f'Recorded shutdown')
 
     async def start(self):
         self.polling_task = asyncio.create_task(self.loop())
+        self.polling_task.add_done_callback(self.done_callback)
+        logger.info(f'Polling start wait')
+        await self.polling_task
+        logger.info(f'Polling start done')
 
-    def stop(self):
+    async def stop(self):
         logging.info(f'Stop')
         was_running = False
         with self.mutex:

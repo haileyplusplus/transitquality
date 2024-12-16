@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Hacky async works. Need finer-grained cancellation">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Check cancel every second">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/busscraper2.py" afterDir="false" />
@@ -69,14 +69,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00020" summary="Update analysis parameters and filter out invalid stop sequences">
-      <option name="closed" value="true" />
-      <created>1733857693683</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1733857693683</updated>
     </task>
     <task id="LOCAL-00021" summary="Add more parameters, handle empty GTFS tables">
       <option name="closed" value="true" />
@@ -462,7 +454,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734365702571</updated>
     </task>
-    <option name="localTasksCounter" value="69" />
+    <task id="LOCAL-00069" summary="Check cancel every second">
+      <option name="closed" value="true" />
+      <created>1734367715261</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1734367715261</updated>
+    </task>
+    <option name="localTasksCounter" value="70" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -477,7 +477,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix annoying bug" />
     <MESSAGE value="Predictions" />
     <MESSAGE value="Predictions not quite working" />
     <MESSAGE value="Update train scraping default" />
@@ -502,6 +501,7 @@
     <MESSAGE value="Move scraping wait to loop, which was surprisingly difficult" />
     <MESSAGE value="Basic async working" />
     <MESSAGE value="Hacky async works. Need finer-grained cancellation" />
-    <option name="LAST_COMMIT_MESSAGE" value="Hacky async works. Need finer-grained cancellation" />
+    <MESSAGE value="Check cancel every second" />
+    <option name="LAST_COMMIT_MESSAGE" value="Check cancel every second" />
   </component>
 </project>

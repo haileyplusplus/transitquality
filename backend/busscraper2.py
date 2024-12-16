@@ -700,11 +700,12 @@ class Runner:
         while True:
             next_scrape = last_request + datetime.timedelta(seconds=4)
             scrape_time = Util.utcnow()
-            if scrape_time < next_scrape:
+            while scrape_time < next_scrape:
+                scrape_time = Util.utcnow()
                 wait = next_scrape - scrape_time
                 logging.debug(f'Request Last scrape {last_request} next_scrape {next_scrape} waiting {wait}')
                 try:
-                    await asyncio.sleep(wait.total_seconds())
+                    await asyncio.sleep(min(wait.total_seconds(), 1))
                 except asyncio.CancelledError:
                     logging.info(f'Polling cancelled 1')
                     return

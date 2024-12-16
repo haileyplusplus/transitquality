@@ -3,7 +3,7 @@ import asyncio
 from pathlib import Path
 import datetime
 
-from busscraper2 import BusScraper
+from busscraper2 import BusScraper, Runner
 from scrapemodels import db_initialize
 
 app = FastAPI()
@@ -13,11 +13,17 @@ outdir = Path('~/transit/scraping/bustracker').expanduser()
 outdir.mkdir(parents=True, exist_ok=True)
 ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
                 fetch_routes=False)
+runner = Runner(ts)
 
 
 @app.get('/')
 def main():
     return {'appname': 'Bus scraper control'}
+
+
+@app.get('/status')
+def status():
+    return {'status': 'status goes here'}
 
 
 @app.get('/setkey/{key}')

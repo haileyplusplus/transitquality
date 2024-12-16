@@ -65,5 +65,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     outdir = Path(args.output_dir[0]).expanduser()
     datadir = outdir / 'raw_data'
-    vm = VehicleManager(datadir, '2024121518')
+    vm = VehicleManager(datadir, '202412151')
     pm = PatternManager(datadir)

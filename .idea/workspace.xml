@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Remove one-time conversion">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Make daily subdirectories">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bustools.py" beforeDir="false" afterPath="$PROJECT_DIR$/bustools.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -62,14 +62,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00015" summary="Write schedule as zipfile">
-      <option name="closed" value="true" />
-      <created>1733790953780</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1733790953780</updated>
     </task>
     <task id="LOCAL-00016" summary="Fix issues with duplication. Add testing utility.">
       <option name="closed" value="true" />
@@ -455,7 +447,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734314632771</updated>
     </task>
-    <option name="localTasksCounter" value="64" />
+    <task id="LOCAL-00064" summary="Make daily subdirectories">
+      <option name="closed" value="true" />
+      <created>1734315102536</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1734315102536</updated>
+    </task>
+    <option name="localTasksCounter" value="65" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -470,7 +470,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Yet another scraping bug" />
     <MESSAGE value="Schedule and scraping tools" />
     <MESSAGE value="Save pattern last seen time and handle exit gracefully" />
     <MESSAGE value="Add serialization and deserialization, other updates" />
@@ -495,6 +494,7 @@
     <MESSAGE value="Don't duplicate stops" />
     <MESSAGE value="Add very basic bus scrape analysis tools" />
     <MESSAGE value="Remove one-time conversion" />
-    <option name="LAST_COMMIT_MESSAGE" value="Remove one-time conversion" />
+    <MESSAGE value="Make daily subdirectories" />
+    <option name="LAST_COMMIT_MESSAGE" value="Make daily subdirectories" />
   </component>
 </project>

@@ -13,6 +13,7 @@ import sys
 import signal
 from typing import Iterable, Tuple
 from abc import ABC, abstractmethod
+import asyncio
 
 import requests
 
@@ -660,7 +661,7 @@ class BusScraper:
         scrapetask = PredictionTask(models)
         scrapetask.scrape(self.requestor)
 
-    def loop(self):
+    async def loop(self):
         last_request = Util.utcnow() - datetime.timedelta(hours=1)
         while self.state == RunState.RUNNING:
             next_scrape = last_request + datetime.timedelta(seconds=4)
@@ -668,7 +669,7 @@ class BusScraper:
             if scrape_time < next_scrape:
                 wait = next_scrape - scrape_time
                 logging.debug(f'Request Last scrape {last_request} next_scrape {next_scrape} waiting {wait}')
-                time.sleep(wait.total_seconds())
+                await asyncio.sleep(wait.total_seconds())
             scrape_time = Util.utcnow()
             last_request = scrape_time
             self.scrape_one()
@@ -735,5 +736,5 @@ if __name__ == "__main__":
     if args.freshen_debug:
         logging.info(f'Artifical freshen debug')
         ts.freshen_debug()
-    ts.loop()
+    asyncio.run(ts.loop())
     logging.info(f'End of program')

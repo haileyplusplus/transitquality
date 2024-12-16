@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Remove obsolete scraper">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Don't duplicate stops">
+      <change afterPath="$PROJECT_DIR$/bustools.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -62,14 +62,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00012" summary="Make more conversion successful">
-      <option name="closed" value="true" />
-      <created>1733779466113</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1733779466113</updated>
     </task>
     <task id="LOCAL-00013" summary="Slight refactor">
       <option name="closed" value="true" />
@@ -455,7 +447,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734300520082</updated>
     </task>
-    <option name="localTasksCounter" value="61" />
+    <task id="LOCAL-00061" summary="Don't duplicate stops">
+      <option name="closed" value="true" />
+      <created>1734311980464</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1734311980464</updated>
+    </task>
+    <option name="localTasksCounter" value="62" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -470,7 +470,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix schedule summary tools" />
     <MESSAGE value="Allow tools to output daily service span summary" />
     <MESSAGE value="Fix concatenation bug" />
     <MESSAGE value="Yet another scraping bug" />
@@ -495,6 +494,7 @@
     <MESSAGE value="Record pattern scrape time, last seen time, update conversion" />
     <MESSAGE value="Deploy" />
     <MESSAGE value="Remove obsolete scraper" />
-    <option name="LAST_COMMIT_MESSAGE" value="Remove obsolete scraper" />
+    <MESSAGE value="Don't duplicate stops" />
+    <option name="LAST_COMMIT_MESSAGE" value="Don't duplicate stops" />
   </component>
 </project>

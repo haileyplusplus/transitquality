@@ -50,7 +50,7 @@ def main():
 
 @app.get('/status')
 def status():
-    return {'status': 'status goes here'}
+    return runner.status()
 
 
 @app.get('/setkey/{key}')

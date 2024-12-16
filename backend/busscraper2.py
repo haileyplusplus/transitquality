@@ -698,6 +698,12 @@ class Runner:
     def done_callback(self, task: asyncio.Task):
         logging.info(f'Task {task} done')
 
+    def status(self):
+        with self.mutex:
+            state = self.state
+        running = (state == RunState.RUNNING or state == RunState.IDLE)
+        return {'running': running, 'state': state.name}
+
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')
         #asyncio.run(self.stop())

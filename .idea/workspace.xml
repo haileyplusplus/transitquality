@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Don't duplicate stops">
-      <change afterPath="$PROJECT_DIR$/bustools.py" afterDir="false" />
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Add very basic bus scrape analysis tools">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/busscraper2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -62,14 +62,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00013" summary="Slight refactor">
-      <option name="closed" value="true" />
-      <created>1733783940907</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1733783940907</updated>
     </task>
     <task id="LOCAL-00014" summary="Output multiple days with correct service ids">
       <option name="closed" value="true" />
@@ -455,7 +447,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734311980464</updated>
     </task>
-    <option name="localTasksCounter" value="62" />
+    <task id="LOCAL-00062" summary="Add very basic bus scrape analysis tools">
+      <option name="closed" value="true" />
+      <created>1734314448679</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1734314448679</updated>
+    </task>
+    <option name="localTasksCounter" value="63" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -470,7 +470,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Allow tools to output daily service span summary" />
     <MESSAGE value="Fix concatenation bug" />
     <MESSAGE value="Yet another scraping bug" />
     <MESSAGE value="Schedule and scraping tools" />
@@ -495,6 +494,7 @@
     <MESSAGE value="Deploy" />
     <MESSAGE value="Remove obsolete scraper" />
     <MESSAGE value="Don't duplicate stops" />
-    <option name="LAST_COMMIT_MESSAGE" value="Don't duplicate stops" />
+    <MESSAGE value="Add very basic bus scrape analysis tools" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add very basic bus scrape analysis tools" />
   </component>
 </project>

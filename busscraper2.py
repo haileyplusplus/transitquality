@@ -604,41 +604,15 @@ class BusScraper:
         self.routes.initialize(fetch_routes)
         self.consecutive_patterns = 0
         self.fetch_routes = fetch_routes
+        self.seen_days: set[str] = set([])
 
         self.rt_queue = []
         self.metadata_queue = []
         self.last_scraped = None
         self.next_scrape = None
-        self.converted = False
-
-    def convert_once(self):
-        if self.converted:
-            return
-        stopcount = Stop.select().count()
-        if stopcount > 0:
-            return
-        logger.info(f'Doing one-time pattern to stop conversion. {stopcount} stops')
-        self.converted = True
-        patterns: Iterable[Pattern] = Pattern.select().where(Pattern.first_stop.is_null(False))
-        for p in patterns:
-            existing = Stop.get_or_none(Stop.stop_id == p.first_stop)
-            if existing is not None:
-                continue
-            stop_model = Stop(stop_id=p.first_stop,
-                              last_scrape_attempt=p.last_scrape_attempt,
-                              last_scrape_success=p.last_scrape_success,
-                              minutes_predicted=p.minutes_predicted,
-                              predicted_time=p.predicted_time,
-                              scrape_state=ScrapeState.ACTIVE)
-            stop_model.save(force_insert=True)
-        Pattern.update({Pattern.predicted_time: None,
-                        Pattern.minutes_predicted: None,
-                        Pattern.last_scrape_attempt: None,
-                        Pattern.last_scrape_success: None}).execute()
 
     def scrape_one(self):
         # unpause routes after 30 minutes
-        self.convert_once()
         thresh = Util.utcnow() - datetime.timedelta(minutes=30)
         paused = Route.select().where((Route.scrape_state == ScrapeState.PAUSED)|(Route.scrape_state==ScrapeState.ATTEMPTED)).where(Route.last_scrape_attempt < thresh).order_by(Route.last_scrape_attempt)
         if paused.exists():

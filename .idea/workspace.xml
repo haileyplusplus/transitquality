@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Move scraping wait to loop, which was surprisingly difficult">
+    <list default="true" id="9bd3524c-fab7-44a9-a31a-15e17a72e7ff" name="Changes" comment="Basic async working">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/busscraper2.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/busscraper2.py" afterDir="false" />
     </list>
@@ -68,14 +68,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1733192723036</updated>
-    </task>
-    <task id="LOCAL-00018" summary="Don't output duplicate trip ids (maybe renumber?)">
-      <option name="closed" value="true" />
-      <created>1733848573261</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1733848573261</updated>
     </task>
     <task id="LOCAL-00019" summary="Very basic analysis and reporting">
       <option name="closed" value="true" />
@@ -461,7 +453,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734363162293</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="Basic async working">
+      <option name="closed" value="true" />
+      <created>1734363396155</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1734363396155</updated>
+    </task>
+    <option name="localTasksCounter" value="68" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -476,7 +476,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add serialization and deserialization, other updates" />
     <MESSAGE value="Fix pattern latest times, add convenience log symlink" />
     <MESSAGE value="Fix annoying bug" />
     <MESSAGE value="Predictions" />
@@ -501,6 +500,7 @@
     <MESSAGE value="Make daily subdirectories" />
     <MESSAGE value="Load more files in analysis" />
     <MESSAGE value="Move scraping wait to loop, which was surprisingly difficult" />
-    <option name="LAST_COMMIT_MESSAGE" value="Move scraping wait to loop, which was surprisingly difficult" />
+    <MESSAGE value="Basic async working" />
+    <option name="LAST_COMMIT_MESSAGE" value="Basic async working" />
   </component>
 </project>

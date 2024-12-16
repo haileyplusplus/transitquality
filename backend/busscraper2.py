@@ -14,6 +14,7 @@ import signal
 from typing import Iterable, Tuple
 from abc import ABC, abstractmethod
 import asyncio
+import threading
 
 import requests
 
@@ -575,12 +576,6 @@ class Routes:
         return models
 
 
-class RunState(IntEnum):
-    RUNNING = 1
-    SHUTDOWN_REQUESTED = 2
-    SHUTDOWN = 3
-
-
 class BusScraper:
     MAX_CONSECUTIVE_PATTERNS = 3
 
@@ -594,7 +589,6 @@ class BusScraper:
         self.output_dir = output_dir
         self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug)
         self.routes = Routes(self.requestor)
-        self.state = RunState.RUNNING
         self.count = 5
         self.scrape_predictions = scrape_predictions
         self.routes.initialize(fetch_routes)
@@ -661,26 +655,6 @@ class BusScraper:
         scrapetask = PredictionTask(models)
         scrapetask.scrape(self.requestor)
 
-    async def loop(self):
-        last_request = Util.utcnow() - datetime.timedelta(hours=1)
-        while self.state == RunState.RUNNING:
-            next_scrape = last_request + datetime.timedelta(seconds=4)
-            scrape_time = Util.utcnow()
-            if scrape_time < next_scrape:
-                wait = next_scrape - scrape_time
-                logging.debug(f'Request Last scrape {last_request} next_scrape {next_scrape} waiting {wait}')
-                await asyncio.sleep(wait.total_seconds())
-            scrape_time = Util.utcnow()
-            last_request = scrape_time
-            self.scrape_one()
-        self.state = RunState.SHUTDOWN
-        logging.info(f'Recorded shutdown')
-
-    def exithandler(self, *args):
-        logging.info(f'Shutdown requested: {args}')
-        self.requestor.cancel()
-        self.state = RunState.SHUTDOWN_REQUESTED
-
     def freshen_debug(self):
         scrapetime = Util.utcnow()
         routes: Iterable[Route] = Route.select()
@@ -698,8 +672,78 @@ class BusScraper:
         return True
 
 
+class RunState(IntEnum):
+    IDLE = 0
+    RUNNING = 1
+    SHUTDOWN_REQUESTED = 2
+    SHUTDOWN = 3
+
+
 # move rate limiting out of bowels of make_request and into scrape_one
 # that should make async run easier
+class Runner:
+    def __init__(self, scraper: BusScraper):
+        self.polling_task = None
+        self.scraper = scraper
+        self.state = RunState.IDLE
+        self.mutex = threading.Lock()
+        #self.polling_active = False
+        #self.cancellation_requested = False
+
+    def exithandler(self, *args):
+        logging.info(f'Shutdown requested: {args}')
+        #asyncio.run(self.stop())
+        self.stop()
+
+    async def loop(self):
+        last_request = Util.utcnow() - datetime.timedelta(hours=1)
+        while True:
+            next_scrape = last_request + datetime.timedelta(seconds=4)
+            scrape_time = Util.utcnow()
+            if scrape_time < next_scrape:
+                wait = next_scrape - scrape_time
+                logging.debug(f'Request Last scrape {last_request} next_scrape {next_scrape} waiting {wait}')
+                try:
+                    await asyncio.sleep(wait.total_seconds())
+                except asyncio.CancelledError:
+                    logging.info(f'Polling cancelled 1')
+                    return
+            scrape_time = Util.utcnow()
+            last_request = scrape_time
+            with self.mutex:
+                self.state = RunState.RUNNING
+            self.scraper.scrape_one()
+            with self.mutex:
+                if self.state == RunState.SHUTDOWN_REQUESTED or self.state == RunState.SHUTDOWN:
+                    logging.info(f'Polling cancelled 2')
+                    break
+                self.state = RunState.IDLE
+        #self.state = RunState.SHUTDOWN
+        logging.info(f'Recorded shutdown')
+
+    async def start(self):
+        self.polling_task = asyncio.create_task(self.loop())
+
+    def stop(self):
+        logging.info(f'Stop')
+        was_running = False
+        with self.mutex:
+            if self.state == RunState.RUNNING:
+                was_running = True
+            self.state = RunState.SHUTDOWN_REQUESTED
+        if not was_running:
+            self.polling_task.cancel()
+        # if self.polling_task:
+        #     #self.requestor.cancel()
+        #     self.polling_task.cancel()
+        # self.state = RunState.SHUTDOWN_REQUESTED
+        # self.polling_task.cancel()
+
+    async def run_until_done(self):
+        async with asyncio.TaskGroup() as task_group:
+            #await self.polling_task
+            self.polling_task = task_group.create_task(self.loop())
+        logging.info(f'Task group done')
 
 
 if __name__ == "__main__":
@@ -730,11 +774,15 @@ if __name__ == "__main__":
     statedir.mkdir(parents=True, exist_ok=True)
     ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
                     dry_run=args.dry_run, scrape_predictions=args.scrape_predictions, fetch_routes=args.fetch_routes)
-    signal.signal(signal.SIGINT, ts.exithandler)
-    signal.signal(signal.SIGTERM, ts.exithandler)
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
     if args.freshen_debug:
         logging.info(f'Artifical freshen debug')
         ts.freshen_debug()
-    asyncio.run(ts.loop())
+    #asyncio.run(ts.loop())
+    runner = Runner(ts)
+    signal.signal(signal.SIGINT, runner.exithandler)
+    signal.signal(signal.SIGTERM, runner.exithandler)
+    #asyncio.run(runner.start())
+    #asyncio.run(runner.block_until_done())
+    asyncio.run(runner.run_until_done())
     logging.info(f'End of program')

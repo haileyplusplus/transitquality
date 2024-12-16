@@ -38,6 +38,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
     python -m pip install -r requirements.txt
 
+RUN mkdir /transit
+RUN chown appuser /transit
+
 
 #RUN --mount=source=transitquality_transit-data,target=/transit chown 777 /transit
 

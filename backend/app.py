@@ -4,6 +4,9 @@ import asyncio
 from pathlib import Path
 import datetime
 import logging
+import json
+
+import gitinfo
 
 from backend.busscraper2 import BusScraper, Runner
 from backend.scrapemodels import db_initialize
@@ -14,6 +17,7 @@ import os
 
 logger = logging.getLogger(__file__)
 
+LOCALDIR = Path(__file__).parent.parent
 
 db_initialize()
 #outdir = Path('~/transit/scraping/bustracker').expanduser()
@@ -51,7 +55,15 @@ def main():
 
 @app.get('/status')
 def status():
-    return runner.status()
+    d = runner.status()
+    fn = LOCALDIR / 'data' / 'buildinfo.json'
+    if fn.exists():
+        with open(fn) as fh:
+            git = json.load(fh)
+    else:
+        git = {}
+    d['build'] = git
+    return d
 
 
 @app.get('/setkey/{key}')

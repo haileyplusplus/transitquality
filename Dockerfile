@@ -49,6 +49,8 @@ RUN chown appuser /transit
 # Switch to the non-privileged user to run the application.
 USER appuser
 
+#RUN python make_gitinfo.py
+
 # Copy the source code into the container.
 COPY . .
 

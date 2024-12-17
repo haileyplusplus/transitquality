@@ -39,8 +39,11 @@ else:
     #assert dbhost
     DateTimeType = DateTimeTZField
     #db = SqliteDatabase(dbpath / dbname)
-    db = PostgresqlDatabase('busscrapestate', user='postgres', password='mypostgrespassword',
-                            host=dbhost, port=5432)
+    if dbhost:
+        db = PostgresqlDatabase('busscrapestate', user='postgres', password='mypostgrespassword',
+                                host=dbhost, port=5432)
+    else:
+        db = None
 
 
 class BaseModel(Model):
@@ -100,5 +103,7 @@ class ErrorMessage(BaseModel):
 
 
 def db_initialize():
+    if db is None:
+        return
     db.connect()
     db.create_tables([Route, Pattern, Count, ErrorMessage, Stop])

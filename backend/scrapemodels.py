@@ -36,7 +36,7 @@ else:
     #dbpath = Path('/var/transit')
     #dbname = 'scrapestate.sqlite3'
     dbhost = os.getenv('POSTGRES_SERVER')
-    assert dbhost
+    #assert dbhost
     DateTimeType = DateTimeTZField
     #db = SqliteDatabase(dbpath / dbname)
     db = PostgresqlDatabase('busscrapestate', user='postgres', password='mypostgrespassword',

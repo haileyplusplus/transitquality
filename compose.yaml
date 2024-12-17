@@ -28,6 +28,7 @@ services:
       - transit-data:/transit
     secrets:
       - db-password
+      #- cloud-credentials
     develop:
       watch:
         - action: rebuild
@@ -60,3 +61,5 @@ volumes:
 secrets:
  db-password:
    file: db/password.txt
+ #cloud-credentials:
+ #  file: ~/.aws/credentials

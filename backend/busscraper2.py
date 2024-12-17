@@ -110,7 +110,7 @@ class Requestor:
     Also: getpredictions()
     """
 
-    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, debug=False):
+    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, debug=False, write_local=False):
         self.start_time = Util.utcnow()
         self.api_key = api_key
         self.output_dir = output_dir
@@ -118,7 +118,11 @@ class Requestor:
         self.request_count = 0
         self.debug = debug
         self.shutdown = False
-        self.s3client = S3Client()
+        self.write_local = write_local
+        if self.write_local:
+            self.s3client = None
+        else:
+            self.s3client = S3Client()
         self.logfile = None
         self.initialize_logging()
 
@@ -163,6 +167,7 @@ class Requestor:
                             format='%(asctime)s: %(message)s',
                             datefmt='%Y%m%d %H:%M:%S',
                             level=level)
+        logger.info(f'Initialize requestor. Local file mode: {self.write_local}')
 
     @staticmethod
     def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
@@ -290,9 +295,15 @@ class Requestor:
             # TODO: exponential backoff
 
     def log(self, req_time, command, text_response):
-        logging.info(f'Writing {command} to s3')
+        if not self.s3client:
+            datestr = req_time.strftime('%Y%m%d%H%M%Sz')
+            filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
+            with open(filename, 'w') as ofh:
+               ofh.write(text_response)
+            return
+        logging.debug(f'Writing {command} to s3')
         response = self.s3client.write_api_response(req_time, command, text_response)
-        logging.info(f'S3 response: {response}')
+        logging.debug(f'S3 response: {response}')
         #datestr = req_time.strftime('%Y%m%d%H%M%Sz')
         #filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
         #with open(filename, 'w') as ofh:
@@ -614,7 +625,10 @@ class BusScraper:
         self.scrape_interval = scrape_interval
         self.night = False
         self.output_dir = output_dir
-        self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug)
+        write_local = False
+        if os.getenv('TRANSITQUALITY_DEV'):
+            write_local = True
+        self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
         self.count = 5
         self.scrape_predictions = scrape_predictions
@@ -775,7 +789,7 @@ class Runner:
                     logging.info(f'Polling cancelled 2 {self.state}')
                     break
                 self.state = RunState.IDLE
-            logging.info(f'Iteration done')
+            #logging.info(f'Iteration done')
         #self.state = RunState.SHUTDOWN
         logging.info(f'Recorded shutdown')
 
@@ -820,10 +834,8 @@ if __name__ == "__main__":
                         help='Print debug logging.')
     parser.add_argument('--scrape_predictions', action='store_true',
                         help='Print debug logging.')
-    parser.add_argument('--write_logs', action='store_true', default=False,
-                        help='Print debug logging.')
-    parser.add_argument('--write_files', action='store_true', default=False,
-                        help='Print debug logging.')
+    # parser.add_argument('--write_local_files', action='store_true', default=False,
+    #                     help='Print debug logging.')
     parser.add_argument('--output_dir', type=str, nargs=1,
                         #default=['~/transit/scraping/bustracker'],
                         default=['/transit/scraping/bustracker'],
@@ -841,7 +853,8 @@ if __name__ == "__main__":
     statedir = outdir / 'state'
     statedir.mkdir(parents=True, exist_ok=True)
     ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
-                    dry_run=args.dry_run, scrape_predictions=args.scrape_predictions, fetch_routes=args.fetch_routes)
+                    dry_run=args.dry_run, scrape_predictions=args.scrape_predictions,
+                    fetch_routes=args.fetch_routes)
     ts.initialize()
     logging.info(f'Initializing scraping to {outdir} every {ts.scrape_interval.total_seconds()} seconds.')
     if args.freshen_debug:

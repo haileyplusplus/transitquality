@@ -154,7 +154,7 @@ class Requestor:
         self.logfile = logfile
         loglink = logdir / 'latest.log'
         loglink.unlink(missing_ok=True)
-        loglink.symlink_to(logfile)
+        loglink.symlink_to(logfile.name)
         level = logging.INFO
         if self.debug:
             level = logging.DEBUG

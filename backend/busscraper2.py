@@ -72,6 +72,55 @@ class ResponseWrapper:
         return self.json_dict
 
 
+class Bundler:
+    VERSION = '2.0'
+    BATCH_TIME = datetime.timedelta(minutes=5)
+
+    def __init__(self, write_local=False, s3client=None, rawdatadir=None):
+        self.bundles = {}
+        self.write_local = write_local
+        self.s3client = s3client
+        self.rawdatadir = rawdatadir
+        self.last_write_time = Util.utcnow()
+
+    def maybe_write(self):
+        elapsed = Util.utcnow() - self.last_write_time
+        if elapsed < self.BATCH_TIME:
+            return
+        self.output()
+
+    def output(self):
+        if not self.bundles:
+            logger.info(f'No bundles to write')
+            return
+        self.last_write_time = Util.utcnow()
+        commands = ','.join(self.bundles.keys())
+        logger.info(f'Writing bundle with commands {commands}')
+        for command, v in self.bundles.items():
+            if not v:
+                continue
+            req_time = datetime.datetime.fromisoformat(v[0]['request_time'])
+            dumpdict = {'v': self.VERSION, 'command': command, 'requests': v}
+            if not self.s3client:
+                datestr = req_time.strftime('%Y%m%d%H%M%Sz')
+                filename = f'ttscrape-{command}-{datestr}.json'
+                with open(self.rawdatadir / filename, 'w') as ofh:
+                    json.dump(dumpdict, ofh)
+            else:
+                logging.debug(f'Writing {command} to s3')
+                response = self.s3client.write_api_response(req_time, command, json.dumps(dumpdict))
+                logging.debug(f'S3 response: {response}')
+        self.bundles = {}
+
+    def record(self, command: str, request_args: dict, request_time: datetime.datetime,
+               response_time: datetime.datetime, response_dict: dict):
+        bl = self.bundles.setdefault(command, [])
+        latency = response_time - request_time
+        bl.append({'request_args': request_args,
+                   'request_time': request_time.isoformat(),
+                   'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
+
+
 class Requestor:
     """
     Low-level scraper that gets, sends, and logs requests; also handles logging.
@@ -123,6 +172,7 @@ class Requestor:
             self.s3client = None
         else:
             self.s3client = S3Client()
+        self.bundler = Bundler(self.write_local, self.s3client, rawdatadir=self.rawdatadir)
         self.logfile = None
         self.initialize_logging()
 
@@ -246,6 +296,8 @@ class Requestor:
         """
         if self.shutdown:
             return ResponseWrapper.permanent_error()
+        # eventually should probably be in another thread
+        self.bundler.maybe_write()
         req_day = Util.ctanow().date()
         c = Count.get_or_none((Count.day == req_day) & (Count.command == command))
         if c is None:
@@ -259,16 +311,18 @@ class Requestor:
         params['format'] = 'json'
         trunc_response = '(unavailable)'
         self.request_count += 1
-        ac = kwargs.copy()
-        del ac['key']
-        logging.info(f'Request {self.request_count:6d}: cmd {command} args {ac}')
+        request_args = kwargs.copy()
+        del request_args['key']
+        logging.info(f'Request {self.request_count:6d}: cmd {command} args {request_args}')
         try:
-            req_time = Util.utcnow()
+            request_time = Util.utcnow()
             response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
             trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
             result = self.parse_success(response, command)
+            response_time = Util.utcnow()
             if result.ok():
-                self.log(req_time, command, response.text)
+                self.bundler.record(command, request_args, request_time,
+                                    response_time, response.json())
                 if result.get_error_dict():
                     c.partial_errors = c.partial_errors + 1
                     c.save()
@@ -293,21 +347,6 @@ class Requestor:
             time.sleep(30)
             return ResponseWrapper.transient_error()
             # TODO: exponential backoff
-
-    def log(self, req_time, command, text_response):
-        if not self.s3client:
-            datestr = req_time.strftime('%Y%m%d%H%M%Sz')
-            filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
-            with open(filename, 'w') as ofh:
-               ofh.write(text_response)
-            return
-        logging.debug(f'Writing {command} to s3')
-        response = self.s3client.write_api_response(req_time, command, text_response)
-        logging.debug(f'S3 response: {response}')
-        #datestr = req_time.strftime('%Y%m%d%H%M%Sz')
-        #filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
-        #with open(filename, 'w') as ofh:
-        #    ofh.write(text_response)
 
 
 class ScrapeState(IntEnum):
@@ -738,6 +777,11 @@ class Runner:
 
     def done_callback(self, task: asyncio.Task):
         logging.info(f'Task {task} done')
+        self.handle_shutdown()
+
+    def handle_shutdown(self):
+        logger.info(f'Gracefully handling shutdown.')
+        self.scraper.requestor.bundler.output()
 
     def status(self):
         with self.mutex:
@@ -757,7 +801,7 @@ class Runner:
     def syncstop(self):
         with self.mutex:
             self.state = RunState.STOPPED
-
+        self.handle_shutdown()
 
     async def loop(self):
         if not self.initialized:
@@ -819,6 +863,7 @@ class Runner:
         async with asyncio.TaskGroup() as task_group:
             #await self.polling_task
             self.polling_task = task_group.create_task(self.loop())
+        self.handle_shutdown()
         logging.info(f'Task group done')
 
 

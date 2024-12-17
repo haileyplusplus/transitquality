@@ -9,8 +9,9 @@ class S3Client:
     BUCKET_NAME = 'transitquality2024'
 
     def __init__(self):
-        self.client = boto3.client()
+        self.client = boto3.client('s3')
         #self.s3 = boto3.resource('s3')
+        #self.client = self.s3.Client()
         #self.bucket = self.s3.Bucket('transitquality2024')
 
     def write_api_response(self, ts: datetime.datetime, command: str, contents: str):

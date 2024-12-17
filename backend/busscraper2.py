@@ -290,7 +290,9 @@ class Requestor:
             # TODO: exponential backoff
 
     def log(self, req_time, command, text_response):
-        self.s3client.write_api_response(req_time, command, text_response)
+        logging.info(f'Writing {command} to s3')
+        response = self.s3client.write_api_response(req_time, command, text_response)
+        logging.info(f'S3 response: {response}')
         #datestr = req_time.strftime('%Y%m%d%H%M%Sz')
         #filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
         #with open(filename, 'w') as ofh:

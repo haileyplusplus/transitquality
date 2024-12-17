@@ -6,10 +6,12 @@ import datetime
 import logging
 import json
 
+
+from playhouse.shortcuts import model_to_dict
 import gitinfo
 
-from backend.busscraper2 import BusScraper, Runner
-from backend.scrapemodels import db_initialize
+from backend.busscraper2 import BusScraper, Runner, ScrapeState
+from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
 import signal
 import asyncio
@@ -48,9 +50,56 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def sshelper(d: dict):
+    if 'scrape_state' not in d:
+        return
+    ss = d['scrape_state']
+    try:
+        d['scrape_state'] = ScrapeState(ss).name
+    except ValueError:
+        pass
+    return d
+
+
 @app.get('/')
 def main():
     return {'appname': 'Bus scraper control'}
+
+
+@app.get('/routeinfo')
+def routeinfo():
+    routes = Route.select().order_by(['scrape_state', 'last_scrape_attempt', 'route_id'])
+    routeinfos = []
+    for r in routes:
+        routeinfos.append(sshelper(model_to_dict(r)))
+    return {'route_info': routeinfos}
+
+
+@app.get('/patterninfo')
+def patterninfo():
+    items = Pattern.select().order_by(['scrape_state', 'last_scrape_attempt', 'pattern_id'])
+    infos = []
+    for r in items:
+        infos.append(sshelper(model_to_dict(r)))
+    return {'pattern_info': infos}
+
+
+@app.get('/stopinfo')
+def stopinfo():
+    items = Stop.select().order_by(['scrape_state', 'last_scrape_attempt', 'stop_id'])
+    infos = []
+    for r in items:
+        infos.append(sshelper(model_to_dict(r)))
+    return {'stop_info': infos}
+
+
+@app.get('/countinfo')
+def countinfo():
+    items = Count.select().order_by(['day', 'command'])
+    infos = []
+    for r in items:
+        infos.append(model_to_dict(r))
+    return {'count_info': infos}
 
 
 @app.get('/status')

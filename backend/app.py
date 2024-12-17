@@ -7,6 +7,7 @@ import logging
 
 from backend.busscraper2 import BusScraper, Runner
 from backend.scrapemodels import db_initialize
+from backend.s3client import S3Client
 import signal
 import asyncio
 import os
@@ -75,3 +76,9 @@ def stop():
     #asyncio.run(runner.stop())
     runner.syncstop()
     return {'result': 'success'}
+
+
+@app.get('/tests3/{testarg}')
+def tests3(testarg: str):
+    client = S3Client()
+    client.write_api_response(datetime.datetime.now(), 'test', testarg)

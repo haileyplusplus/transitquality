@@ -19,8 +19,8 @@ import threading
 import requests
 
 from backend.scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
-
 from backend.util import Util
+from backend.s3client import S3Client
 
 # import pandas as pd
 
@@ -118,16 +118,40 @@ class Requestor:
         self.request_count = 0
         self.debug = debug
         self.shutdown = False
+        self.s3client = S3Client()
+        self.logfile = None
         self.initialize_logging()
 
     def cancel(self):
         self.shutdown = True
+
+    def readlog(self, tail=False):
+        if self.logfile is None:
+            return 'no log file'
+        if not self.logfile.exists():
+            return f'{self.logfile} does not exist'
+        with open(self.logfile, 'r') as lfh:
+            if tail:
+                lfh.seek(-1000, os.SEEK_END)
+                content = lfh.read()
+                nl = content.find('\n')
+                return content[nl+1:]
+            else:
+                rv = []
+                count = 10
+                for line in lfh:
+                    rv.append(line)
+                    count -= 1
+                    if count <= 0:
+                        break
+                return '\n'.join(rv)
 
     def initialize_logging(self):
         logdir = self.output_dir / 'logs'
         logdir.mkdir(parents=True, exist_ok=True)
         datestr = self.start_time.strftime('%Y%m%d%H%M%Sz')
         logfile = logdir / f'bus-scraper-{datestr}.log'
+        self.logfile = logfile
         loglink = logdir / 'latest.log'
         loglink.unlink(missing_ok=True)
         loglink.symlink_to(logfile)
@@ -266,10 +290,11 @@ class Requestor:
             # TODO: exponential backoff
 
     def log(self, req_time, command, text_response):
-        datestr = req_time.strftime('%Y%m%d%H%M%Sz')
-        filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
-        with open(filename, 'w') as ofh:
-            ofh.write(text_response)
+        self.s3client.write_api_response(req_time, command, text_response)
+        #datestr = req_time.strftime('%Y%m%d%H%M%Sz')
+        #filename = self.rawdatadir / f'ttscrape-{command}-{datestr}.json'
+        #with open(filename, 'w') as ofh:
+        #    ofh.write(text_response)
 
 
 class ScrapeState(IntEnum):

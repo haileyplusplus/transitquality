@@ -82,3 +82,15 @@ def stop():
 def tests3(testarg: str):
     client = S3Client()
     client.write_api_response(datetime.datetime.now(), 'test', testarg)
+
+
+@app.get('/loghead')
+def loghead():
+    v = ts.requestor.readlog(tail=False)
+    return {'log_contents': v}
+
+
+@app.get('/logtail')
+def logtail():
+    v = ts.requestor.readlog(tail=True)
+    return {'log_contents': v}

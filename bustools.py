@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-
+import dataclasses
 import sys
 import argparse
 import datetime
 from pathlib import Path
 import json
+
+from backend.util import Util
 
 import gtfs_kit
 import pendulum
@@ -24,9 +26,12 @@ class PatternManager:
     def __init__(self, datadir: Path):
         self.datadir = datadir
         self.summary_df = None
-        self.pattern_df = None
+        self.df = None
         self.unknown_version = 0
         self.errors = 0
+
+    def initialize(self):
+        self.df['pdist'] = self.df.apply(lambda x: int(x.pdist), axis=1)
 
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['ptr'][0]
@@ -34,7 +39,13 @@ class PatternManager:
         df['pid'] = top['pid']
         del top['pt']
         self.summary_df = pd.concat([self.summary_df, pd.DataFrame([top])], ignore_index=True)
-        self.pattern_df = pd.concat([self.pattern_df, df], ignore_index=True)
+        self.df = pd.concat([self.df, df], ignore_index=True)
+
+    def get(self, pid: int):
+        return self.df[self.df.pid == pid]
+
+    def get_stops(self, pid: int):
+        return self.df[self.df.pid == pid][self.df.typ == 's']
 
     def parse_day(self, day: str):
         pattern_dir = self.datadir / day
@@ -71,18 +82,30 @@ class PredictionManager(PatternManager):
 
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['prd']
-        self.summary_df = pd.concat([self.summary_df, pd.DataFrame(top)], ignore_index=True)
-        #self.pattern_df = pd.concat([self.pattern_df, pd.DataFrame([top])], ignore_index=True)
+        self.df = pd.concat([self.df, pd.DataFrame(top)], ignore_index=True)
+        #self.df = pd.concat([self.df, pd.DataFrame([top])], ignore_index=True)
 
 
 class VehicleManager(PatternManager):
     def __init__(self, *argsz):
         super().__init__(*argsz)
 
+    def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+        # may need work for 24h+
+        df['sched'] = df.apply(
+            lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.stsd, '%Y-%m-%d') + datetime.timedelta(seconds=x.stst)),
+            axis=1)
+        df['tmstmp'] = df.apply(lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M:%S')),
+                                axis=1)
+        df = df.drop(columns=['lat', 'lon', 'hdg', 'origtatripno', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
+        return df
+
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['vehicle']
-        self.summary_df = pd.concat([self.summary_df, pd.DataFrame(top)], ignore_index=True)
-        #self.pattern_df = pd.concat([self.pattern_df, pd.DataFrame([top])], ignore_index=True)
+        this_df = pd.DataFrame(top)
+        this_df = self.preprocess(this_df)
+        self.df = pd.concat([self.df, this_df], ignore_index=True)
+        #self.df = pd.concat([self.df, pd.DataFrame([top])], ignore_index=True)
 
 
 """
@@ -99,19 +122,23 @@ midpoint headway
 arrival headway
 """
 
-class VehicleManager0:
-    def __init__(self, outdir: Path, prefix: str):
-        self.outdir = outdir
-        self.df = pd.DataFrame()
-        self.parse(prefix)
 
-    def parse(self, prefix: str):
-        total = pd.DataFrame()
-        for f in self.outdir.glob(f'ttscrape-getvehicles-{prefix}*.json'):
-            df0 = pd.read_json(f)
-            df = pd.DataFrame.from_records(df0['bustime-response']['vehicle'])
-            total = pd.concat([total, df], ignore_index=True)
-        self.df = total
+@dataclasses.dataclass
+class Managers:
+    vm: VehicleManager
+    pm: PatternManager
+    dm: PredictionManager
+
+    def initialize(self):
+        self.pm.initialize()
+
+
+class SingleTripAnalyzer:
+    def __init__(self, managers: Managers):
+        self.managers = managers
+
+    def analyze_trip(self, tripid):
+        pass
 
 
 if __name__ == "__main__":
@@ -129,9 +156,13 @@ if __name__ == "__main__":
     vm = VehicleManager(datadir / 'getvehicles')
     pm = PatternManager(datadir / 'getpatterns')
     predm = PredictionManager(datadir / 'getpredictions')
+    for day in datadir.glob('202?????'):
+        pm.parse_day(day.name)
     for day in args.day:
         print(f'Parsing day {day}')
-        pm.parse_day(day)
+        #pm.parse_day(day)
         predm.parse_day(day)
         vm.parse_day(day)
     pm.report()
+    m = Managers(vm=vm, pm=pm, dm=predm)
+    m.initialize()

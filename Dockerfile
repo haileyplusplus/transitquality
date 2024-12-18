@@ -16,7 +16,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1
 
-#ENV TRANSITQUALITY_DEV=1
+ENV TRANSITQUALITY_DEV=0
 
 WORKDIR /app
 

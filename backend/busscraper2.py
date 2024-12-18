@@ -665,7 +665,7 @@ class BusScraper:
         self.night = False
         self.output_dir = output_dir
         write_local = False
-        if os.getenv('TRANSITQUALITY_DEV'):
+        if os.getenv('TRANSITQUALITY_DEV') == '1':
             write_local = True
         self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
@@ -681,6 +681,7 @@ class BusScraper:
         self.last_scraped = None
         self.next_scrape = None
         self.subdir = 'unknown'
+        logger.info(f'Starting scraper. Local environment: {os.environ}')
 
     def daily_action(self, new_day: str):
         logger.info(f'New day: {new_day}')

@@ -12,6 +12,14 @@ import pandas as pd
 import tqdm
 
 
+def stst(x: int):
+    s = x % 60
+    tm = x // 60
+    h = tm // 60
+    m = tm % 60
+    return f'{h:02d}:{m:02d}:{s:02d}'
+
+
 class PatternManager:
     def __init__(self, datadir: Path):
         self.datadir = datadir
@@ -76,6 +84,20 @@ class VehicleManager(PatternManager):
         self.summary_df = pd.concat([self.summary_df, pd.DataFrame(top)], ignore_index=True)
         #self.pattern_df = pd.concat([self.pattern_df, pd.DataFrame([top])], ignore_index=True)
 
+
+"""
+Trip analysis (one or dataframe)
+trip predicted start time: prdtm of min value for trip. origtatripno and tatripid both correlate between predictions and vehicles
+
+trip actual start time: 
+vdf[vdf.origtatripno == '259146355'].sort_values('tmstmp')[:50], last value with min pdist
+
+trip average speed
+trip sched vs actual arrival
+departure headway
+midpoint headway
+arrival headway
+"""
 
 class VehicleManager0:
     def __init__(self, outdir: Path, prefix: str):

@@ -207,14 +207,14 @@ class RealtimeConverter:
         pattern = v.iloc[0].pid
         v = v.drop(columns='pid')
         p = self.manager.pm.get_stops(pattern).drop(columns=['typ', 'stpnm', 'lat', 'lon'])
-        return v, p
+        return v, p, pattern
 
     def interpolate(self, tatripid: str):
         # v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid'])
         # v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         # pattern = v.iloc[0].pid
         # p = self.manager.pm.get_stops(pattern)
-        v, p = self.process_trip1(tatripid)
+        v, p, pattern = self.process_trip1(tatripid)
         # single_rt = self.frame_interpolation(v, p)
         # if single_rt is None:
         #     return None
@@ -229,7 +229,8 @@ class RealtimeConverter:
         # combined['stpid'] = combined['stpid'].astype(int)
         # interpolated = combined.interpolate(method='index')[1:].astype(int)
         combined = combined.groupby(combined.index).last()
-        df = p.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        px = self.manager.pm.get_stops(pattern)
+        df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
         return df
 
     def process_trip(self, tatripid: str):

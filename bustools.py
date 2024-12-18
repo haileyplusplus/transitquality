@@ -209,22 +209,36 @@ class RealtimeConverter:
         p = self.manager.pm.get_stops(pattern).drop(columns=['typ', 'stpnm', 'lat', 'lon'])
         return v, p
 
-    def process_trip(self, tatripid: str):
+    def interpolate(self, tatripid: str):
         # v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid'])
         # v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         # pattern = v.iloc[0].pid
         # p = self.manager.pm.get_stops(pattern)
         v, p = self.process_trip1(tatripid)
-        single_rt = self.frame_interpolation(v, p)
-        if single_rt is None:
-            return None
-        single_rt['stpid'] = -1
-        combined = pd.concat([single_rt, p],
-                             ignore_index=True).sort_values(
-            ['pdist']).set_index('pdist')
-        combined['stpid'] = combined['stpid'].astype(int)
-        interpolated = combined.interpolate(method='index')[1:].astype(int)
-        return interpolated
+        # single_rt = self.frame_interpolation(v, p)
+        # if single_rt is None:
+        #     return None
+        pattern_template = pd.DataFrame(index=p.pdist,
+                                        columns={'tmstmp': float('NaN')})
+        combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
+            method='index', limit_direction='both')
+        # #single_rt['stpid'] = -1
+        # combined = pd.concat([single_rt, p],
+        #                      ignore_index=True).sort_values(
+        #     ['pdist']).set_index('pdist')
+        # combined['stpid'] = combined['stpid'].astype(int)
+        # interpolated = combined.interpolate(method='index')[1:].astype(int)
+        combined = combined.groupby(combined.index).last()
+        df = p.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        return df
+
+    def process_trip(self, tatripid: str):
+        return self.interpolate(tatripid).reset_index()
+        #interpolated.
+        #interpolated = interpolated[interpolated.stpid != -1]
+        #z = interpolated.apply(lambda x: str(x.stpid), axis=1).set_index('stpid')
+
+
 
     def apply_to_template(self, sched_stops: pd.DataFrame, trip_pattern_output: pd.DataFrame, rt_trip_id):
         logger.debug(f'apply_to_template {rt_trip_id}')
@@ -364,3 +378,4 @@ if __name__ == "__main__":
     m = Managers(vm=vm, pm=pm, dm=predm)
     m.initialize()
     rtc = RealtimeConverter(m)
+    t = rtc.process_trip('88357800')

@@ -57,7 +57,27 @@ class PatternManager:
         print(f'Errors: {self.errors}, unknown version: {self.unknown_version}')
 
 
-class VehicleManager:
+class PredictionManager(PatternManager):
+    def __init__(self, *argsz):
+        super().__init__(*argsz)
+
+    def parse_bustime_response(self, brdict: dict):
+        top = brdict['bustime-response']['prd']
+        self.summary_df = pd.concat([self.summary_df, pd.DataFrame(top)], ignore_index=True)
+        #self.pattern_df = pd.concat([self.pattern_df, pd.DataFrame([top])], ignore_index=True)
+
+
+class VehicleManager(PatternManager):
+    def __init__(self, *argsz):
+        super().__init__(*argsz)
+
+    def parse_bustime_response(self, brdict: dict):
+        top = brdict['bustime-response']['vehicle']
+        self.summary_df = pd.concat([self.summary_df, pd.DataFrame(top)], ignore_index=True)
+        #self.pattern_df = pd.concat([self.pattern_df, pd.DataFrame([top])], ignore_index=True)
+
+
+class VehicleManager0:
     def __init__(self, outdir: Path, prefix: str):
         self.outdir = outdir
         self.df = pd.DataFrame()
@@ -84,9 +104,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     datadir = Path(args.data_dir[0]).expanduser()
-    #vm = VehicleManager(datadir, '202412151')
+    vm = VehicleManager(datadir / 'getvehicles')
     pm = PatternManager(datadir / 'getpatterns')
+    predm = PredictionManager(datadir / 'getpredictions')
     for day in args.day:
         print(f'Parsing day {day}')
         pm.parse_day(day)
+        predm.parse_day(day)
+        vm.parse_day(day)
     pm.report()

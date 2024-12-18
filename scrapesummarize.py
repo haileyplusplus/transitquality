@@ -9,7 +9,6 @@ class Summarizer:
         self.root = root
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
     parser.add_argument('--debug', action='store_true',
@@ -20,4 +19,4 @@ if __name__ == "__main__":
                         help='Root directory with raw files.')
     args = parser.parse_args()
     root = Path(args.output_dir[0]).expanduser()
-    s = Summarizer(root)
+    s = Summarizer(root, '')

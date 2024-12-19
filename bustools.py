@@ -186,6 +186,43 @@ class Trip:
                 }
 
 
+class RealtimeConverter:
+    EPSILON = 0.001
+
+    def __init__(self, manager: Managers):
+        self.manager = manager
+        self.output_stop_times = pd.DataFrame()
+        self.output_trips = pd.DataFrame()
+        self.errors = []
+        self.trips_attempted = 0
+        self.trips_processed = 0
+        self.trips_seen = set([])
+
+    def process_trip1(self, summary, times):
+        #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
+        #tatripid: str, day: str
+        #summary, times = self.tc.get_trip(tatripid, day)
+        v = times.drop(columns='day').copy()
+        #print(v)
+        v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
+        v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
+        pattern = summary.iloc[0].pid
+        #v = v.drop(columns='pid')
+        stops = self.manager.pm.get_stops(pattern)
+        p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
+        return v, p, pattern
+
+    def process_trip(self, summary, times):
+        v, p, pattern = self.process_trip1(summary, times)
+        pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
+        combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
+            method='index', limit_direction='both')
+        combined = combined.groupby(combined.index).last()
+        px = self.manager.pm.get_stops(pattern)
+        df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        return df.reset_index()
+
+
 class TransitCache:
     CACHE_FILENAME = CACHEDIR / 'transit-cache.json'
     TRIPS_FILENAME = CACHEDIR / 'trips.json'
@@ -196,9 +233,12 @@ class TransitCache:
         self.cache: dict = {'last_updated': None}
         self.new_trip_list = []
         self.new_stop_list = []
+        self.new_rt_list = []
         self.trip_ids = set([])
+        #self.rt_trip_ids = set([])
         self.trips_df = pd.DataFrame()
         self.stops_df = pd.DataFrame()
+        self.rt_trips = pd.DataFrame()
         self.count = 0
         self.load()
 
@@ -265,46 +305,6 @@ class TransitCache:
         print(f'Processed {self.count}')
 
 
-class RealtimeConverter:
-    EPSILON = 0.001
-
-    def __init__(self, manager: Managers, tc: TransitCache):
-        self.manager = manager
-        self.tc = tc
-        self.output_stop_times = pd.DataFrame()
-        self.output_trips = pd.DataFrame()
-        self.errors = []
-        self.trips_attempted = 0
-        self.trips_processed = 0
-        self.trips_seen = set([])
-
-    def process_trip1(self, tatripid: str, day: str):
-        #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
-        summary, times = self.tc.get_trip(tatripid, day)
-        v = times.drop(columns='day').copy()
-        #print(v)
-        v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
-        v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
-        pattern = summary.iloc[0].pid
-        #v = v.drop(columns='pid')
-        stops = self.manager.pm.get_stops(pattern)
-        p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
-        return v, p, pattern
-
-    def interpolate(self, tatripid: str, day: str):
-        v, p, pattern = self.process_trip1(tatripid, day)
-        pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
-        combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
-            method='index', limit_direction='both')
-        combined = combined.groupby(combined.index).last()
-        px = self.manager.pm.get_stops(pattern)
-        df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
-        return df
-
-    def process_trip(self, tatripid: str, day: str):
-        return self.interpolate(tatripid, day).reset_index()
-
-
 class SingleTripAnalyzer:
     def __init__(self, managers: Managers):
         self.managers = managers
@@ -339,6 +339,7 @@ if __name__ == "__main__":
     m = Managers(vm=vm, pm=pm, dm=predm)
     m.initialize()
     tc = TransitCache(m)
-    tc.run()
-    rtc = RealtimeConverter(m, tc)
-    z = rtc.process_trip('88357800', '20241217')
+    #tc.run()
+    rtc = RealtimeConverter(m)
+    summary, times = tc.get_trip('88357800', '20241217')
+    z = rtc.process_trip(summary, times)

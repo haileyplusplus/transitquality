@@ -116,8 +116,8 @@ class VehicleManager(PatternManager):
     def __init__(self, *argsz):
         super().__init__(*argsz)
 
-    def get_trip(self, tatripid: str):
-        return self.df[self.df.tatripid == tatripid].sort_values('tmstmp')
+    def get_trip(self, tatripid: str, day: str):
+        return self.df.query(f'tatripid == "{tatripid}" and day == {day}').sort_values('tmstmp')
 
     def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # may need work for 24h+
@@ -165,14 +165,19 @@ class Managers:
 class Trip:
     def __init__(self, d: dict):
         self.trip_id = d['tatripid']
+        self.day = d['stsd'].replace('-', '')
         self.sched = Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(d['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=d['stst']))
         self.des = d['des']
         self.rt = d['rt']
         self.pattern_id = d['pid']
         self.vehicle_id = d['vid']
 
+    def key(self):
+        return self.day, self.trip_id
+
     def out(self):
-        return {'tatripid': self.trip_id,
+        return {'day': self.day,
+                'tatripid': self.trip_id,
                 'sched': self.sched.isoformat(),
                 'des': self.des,
                 'rt': self.rt,
@@ -197,21 +202,23 @@ class TransitCache:
         self.count = 0
         self.load()
 
-    def get_trip(self, trip_id):
-        return self.trips_df[self.trips_df.tatripid == trip_id], self.stops_df[self.stops_df.tatripid == trip_id]
+    def get_trip(self, trip_id, day):
+        return (self.trips_df.query(f'tatripid == "{trip_id}" and day == {day}'),
+                self.stops_df.query(f'tatripid == "{trip_id}" and day == {day}'))
 
     def new_trips(self):
         return [x.out() for x in self.new_trip_list]
 
     def maybe_add_trip(self, trip_item: dict):
-        id_ = trip_item['tatripid']
+        tt = Trip(trip_item)
         # stop info
         # tmstmp, pdist, dly
-        if id_ not in self.trip_ids:
-            self.trip_ids.add(id_)
-            self.new_trip_list.append(Trip(trip_item))
+        if tt.key() not in self.trip_ids:
+            self.trip_ids.add(tt.key())
+            self.new_trip_list.append(tt)
         self.new_stop_list.append({
-            'tatripid': id_,
+            'day': tt.day,
+            'tatripid': tt.trip_id,
             'tmstmp': Util.CTA_TIMEZONE.localize(
                 datetime.datetime.strptime(trip_item['tmstmp'], '%Y%m%d %H:%M:%S')),
             'pdist': trip_item['pdist'],
@@ -271,10 +278,11 @@ class RealtimeConverter:
         self.trips_processed = 0
         self.trips_seen = set([])
 
-    def process_trip1(self, tatripid: str):
+    def process_trip1(self, tatripid: str, day: str):
         #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
-        summary, times = self.tc.get_trip(tatripid)
-        v = times.copy()
+        summary, times = self.tc.get_trip(tatripid, day)
+        v = times.drop(columns='day').copy()
+        #print(v)
         v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
         v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         pattern = summary.iloc[0].pid
@@ -283,8 +291,8 @@ class RealtimeConverter:
         p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
         return v, p, pattern
 
-    def interpolate(self, tatripid: str):
-        v, p, pattern = self.process_trip1(tatripid)
+    def interpolate(self, tatripid: str, day: str):
+        v, p, pattern = self.process_trip1(tatripid, day)
         pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
@@ -293,8 +301,8 @@ class RealtimeConverter:
         df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
         return df
 
-    def process_trip(self, tatripid: str):
-        return self.interpolate(tatripid).reset_index()
+    def process_trip(self, tatripid: str, day: str):
+        return self.interpolate(tatripid, day).reset_index()
 
 
 class SingleTripAnalyzer:
@@ -333,4 +341,4 @@ if __name__ == "__main__":
     tc = TransitCache(m)
     tc.run()
     rtc = RealtimeConverter(m, tc)
-    t = rtc.process_trip('88357800')
+    z = rtc.process_trip('88357800', '20241217')

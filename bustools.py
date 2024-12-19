@@ -110,7 +110,6 @@ class PredictionManager(PatternManager):
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['prd']
         self.df = pd.concat([self.df, pd.DataFrame(top)], ignore_index=True)
-        #self.df = pd.concat([self.df, pd.DataFrame([top])], ignore_index=True)
 
 
 class VehicleManager(PatternManager):
@@ -184,24 +183,11 @@ class RealtimeConverter:
         return v, p, pattern
 
     def interpolate(self, tatripid: str):
-        # v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid'])
-        # v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
-        # pattern = v.iloc[0].pid
-        # p = self.manager.pm.get_stops(pattern)
         v, p, pattern = self.process_trip1(tatripid)
-        # single_rt = self.frame_interpolation(v, p)
-        # if single_rt is None:
-        #     return None
         pattern_template = pd.DataFrame(index=p.pdist,
                                         columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
-        # #single_rt['stpid'] = -1
-        # combined = pd.concat([single_rt, p],
-        #                      ignore_index=True).sort_values(
-        #     ['pdist']).set_index('pdist')
-        # combined['stpid'] = combined['stpid'].astype(int)
-        # interpolated = combined.interpolate(method='index')[1:].astype(int)
         combined = combined.groupby(combined.index).last()
         px = self.manager.pm.get_stops(pattern)
         df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
@@ -209,9 +195,6 @@ class RealtimeConverter:
 
     def process_trip(self, tatripid: str):
         return self.interpolate(tatripid).reset_index()
-        #interpolated.
-        #interpolated = interpolated[interpolated.stpid != -1]
-        #z = interpolated.apply(lambda x: str(x.stpid), axis=1).set_index('stpid')
 
 
 class SingleTripAnalyzer:
@@ -301,21 +284,10 @@ class TransitCache:
     def process_fn(self, bd):
         self.count += 1
         top = bd['bustime-response']['vehicle']
-        #this_df = pd.DataFrame(top)
         if not top:
             return
         for item in top:
-            #if item['tatripid'] in self.trips():
-            #    continue
-            #self.trips()['tatripid'] = Trip(item['tatripid'], item)
             self.maybe_add_trip(item)
-        # df['sched'] = df.apply(
-        #     lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.stsd, '%Y-%m-%d') + datetime.timedelta(seconds=x.stst)),
-        #     axis=1)
-        # df['tmstmp'] = df.apply(lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M:%S')),
-        #                         axis=1)
-        # df = df.drop(columns=['lat', 'lon', 'hdg', 'origtatripno', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
-
 
     def run(self):
         for day in self.manager.vm.datadir.glob('202?????'):

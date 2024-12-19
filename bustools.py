@@ -202,6 +202,8 @@ class RealtimeConverter:
         #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
         #tatripid: str, day: str
         #summary, times = self.tc.get_trip(tatripid, day)
+        day = times.iloc[0].day
+        tatripid = times.iloc[0].tatripid
         v = times.drop(columns='day').copy()
         #print(v)
         v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
@@ -210,35 +212,39 @@ class RealtimeConverter:
         #v = v.drop(columns='pid')
         stops = self.manager.pm.get_stops(pattern)
         p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
-        return v, p, pattern
+        return v, p, pattern, day, tatripid
 
     def process_trip(self, summary, times):
-        v, p, pattern = self.process_trip1(summary, times)
+        v, p, pattern, day, tatripid = self.process_trip1(summary, times)
         pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
         combined = combined.groupby(combined.index).last()
         px = self.manager.pm.get_stops(pattern)
         df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
-        return df.reset_index()
+        df['day'] = day
+        df['tatripid'] = tatripid
+        df = df.reset_index()
+        df = df[['day', 'tatripid', 'pdist', 'seq', 'stpid', 'stpnm', 'pid', 'tmstmp']]
+        return df
 
 
 class TransitCache:
     CACHE_FILENAME = CACHEDIR / 'transit-cache.json'
     TRIPS_FILENAME = CACHEDIR / 'trips.json'
     STOP_TIMES_FILENAME = CACHEDIR / 'stop_times.csv'
+    RT_TRIPS_FILENAME = CACHEDIR / 'rt_trips.csv'
 
     def __init__(self, managers: Managers):
         self.manager = managers
         self.cache: dict = {'last_updated': None}
         self.new_trip_list = []
         self.new_stop_list = []
-        self.new_rt_list = []
         self.trip_ids = set([])
         #self.rt_trip_ids = set([])
         self.trips_df = pd.DataFrame()
         self.stops_df = pd.DataFrame()
-        self.rt_trips = pd.DataFrame()
+        self.rt_trips_df = pd.DataFrame()
         self.count = 0
         self.load()
 
@@ -265,6 +271,11 @@ class TransitCache:
             'dly': trip_item['dly']
         })
 
+    def process_rt_trips(self):
+        existing_trips = set([])
+        if not self.rt_trips_df.empty:
+            z = list(self.rt_trips_df[['day', 'tatripid']].itertuples(index=False, name=None))
+
     def load(self):
         if not self.CACHE_FILENAME.exists():
             return None
@@ -272,6 +283,8 @@ class TransitCache:
             self.cache = json.load(fh)
         self.trips_df = pd.read_json(self.TRIPS_FILENAME)
         self.stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
+        if self.RT_TRIPS_FILENAME.exists():
+            self.rt_trips_df = pd.read_csv(self.RT_TRIPS_FILENAME, low_memory=False)
         self.trip_ids = set(self.trips_df['pid'])
         u = self.cache.get('last_updated')
         if u:
@@ -287,6 +300,8 @@ class TransitCache:
         new_stops_df = pd.DataFrame(self.new_stop_list)
         self.stops_df = pd.concat([self.stops_df, new_stops_df], ignore_index=True)
         self.stops_df.to_csv(self.STOP_TIMES_FILENAME, index=False)
+        if not self.rt_trips_df.empty:
+            self.rt_trips_df.to_csv(self.RT_TRIPS_FILENAME, index=False)
 
     def process_fn(self, bd):
         self.count += 1

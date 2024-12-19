@@ -162,49 +162,6 @@ class Managers:
         self.pm.initialize()
 
 
-class RealtimeConverter:
-    EPSILON = 0.001
-
-    def __init__(self, manager: Managers):
-        self.manager = manager
-        self.output_stop_times = pd.DataFrame()
-        self.output_trips = pd.DataFrame()
-        self.errors = []
-        self.trips_attempted = 0
-        self.trips_processed = 0
-        self.trips_seen = set([])
-
-    def process_trip1(self, tatripid: str):
-        v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
-        v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
-        pattern = v.iloc[0].pid
-        v = v.drop(columns='pid')
-        p = self.manager.pm.get_stops(pattern).drop(columns=['typ', 'stpnm', 'lat', 'lon'])
-        return v, p, pattern
-
-    def interpolate(self, tatripid: str):
-        v, p, pattern = self.process_trip1(tatripid)
-        pattern_template = pd.DataFrame(index=p.pdist,
-                                        columns={'tmstmp': float('NaN')})
-        combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
-            method='index', limit_direction='both')
-        combined = combined.groupby(combined.index).last()
-        px = self.manager.pm.get_stops(pattern)
-        df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
-        return df
-
-    def process_trip(self, tatripid: str):
-        return self.interpolate(tatripid).reset_index()
-
-
-class SingleTripAnalyzer:
-    def __init__(self, managers: Managers):
-        self.managers = managers
-
-    def analyze_trip(self, tripid):
-        pass
-
-
 class Trip:
     def __init__(self, d: dict):
         self.trip_id = d['tatripid']
@@ -239,6 +196,9 @@ class TransitCache:
         self.stops_df = pd.DataFrame()
         self.count = 0
         self.load()
+
+    def get_trip(self, trip_id):
+        return self.trips_df[self.trips_df.tatripid == trip_id], self.stops_df[self.stops_df.tatripid == trip_id]
 
     def new_trips(self):
         return [x.out() for x in self.new_trip_list]
@@ -298,6 +258,53 @@ class TransitCache:
         print(f'Processed {self.count}')
 
 
+class RealtimeConverter:
+    EPSILON = 0.001
+
+    def __init__(self, manager: Managers, tc: TransitCache):
+        self.manager = manager
+        self.tc = tc
+        self.output_stop_times = pd.DataFrame()
+        self.output_trips = pd.DataFrame()
+        self.errors = []
+        self.trips_attempted = 0
+        self.trips_processed = 0
+        self.trips_seen = set([])
+
+    def process_trip1(self, tatripid: str):
+        #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
+        summary, times = self.tc.get_trip(tatripid)
+        v = times.copy()
+        v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
+        v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
+        pattern = summary.iloc[0].pid
+        #v = v.drop(columns='pid')
+        stops = self.manager.pm.get_stops(pattern)
+        p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
+        return v, p, pattern
+
+    def interpolate(self, tatripid: str):
+        v, p, pattern = self.process_trip1(tatripid)
+        pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
+        combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
+            method='index', limit_direction='both')
+        combined = combined.groupby(combined.index).last()
+        px = self.manager.pm.get_stops(pattern)
+        df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        return df
+
+    def process_trip(self, tatripid: str):
+        return self.interpolate(tatripid).reset_index()
+
+
+class SingleTripAnalyzer:
+    def __init__(self, managers: Managers):
+        self.managers = managers
+
+    def analyze_trip(self, tripid):
+        pass
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
     parser.add_argument('--debug', action='store_true',
@@ -325,5 +332,5 @@ if __name__ == "__main__":
     m.initialize()
     tc = TransitCache(m)
     tc.run()
-    #rtc = RealtimeConverter(m)
-    #t = rtc.process_trip('88357800')
+    rtc = RealtimeConverter(m, tc)
+    t = rtc.process_trip('88357800')

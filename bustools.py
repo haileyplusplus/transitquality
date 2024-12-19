@@ -15,6 +15,10 @@ import pandas as pd
 import tqdm
 
 
+CACHEDIR = Path('~/transit/cache').expanduser()
+CACHEDIR.mkdir(exist_ok=True)
+
+
 def stst(x: int):
     s = x % 60
     tm = x // 60
@@ -30,6 +34,9 @@ class PatternManager:
         self.df = None
         self.unknown_version = 0
         self.errors = 0
+        self.filter_time = None
+        self.filtered_out = 0
+        self.filetime = None
 
     def initialize(self):
         self.df['pdist'] = self.df.apply(lambda x: int(x.pdist), axis=1)
@@ -48,21 +55,40 @@ class PatternManager:
     def get_stops(self, pid: int):
         return self.df.query(f'pid == {pid} and typ =="S"')
 
-    def parse_day(self, day: str):
+    def set_filetime(self, ft):
+        if self.filetime and self.filetime > ft:
+            return
+        self.filetime = ft
+
+    def get_filetime(self):
+        return self.filetime
+
+    def parse_day(self, day: str, process_fn=None):
+        if process_fn is None:
+            process_fn = self.parse_bustime_response
         pattern_dir = self.datadir / day
         for f in pattern_dir.glob('t*.json'):
+            if f.name.startswith('ttscrape'):
+                _, cmd, rawts = f.name.split('-')
+                data_ts = datetime.datetime.strptime(rawts, '%Y%m%d%H%M%Sz.json').replace(tzinfo=datetime.UTC)
+            else:
+                data_ts = datetime.datetime.strptime(f'{day}{f.name}', '%Y%m%dt%H%M%Sz.json').replace(tzinfo=datetime.UTC)
+            self.set_filetime(data_ts)
+            if self.filter_time and data_ts < self.filter_time:
+                self.filtered_out += 1
+                continue
             #print(f'Reading {f}')
             with open(f) as fh:
                 try:
                     p = json.load(fh)
                     if 'bustime-response' in p:
-                        self.parse_bustime_response(p)
+                        process_fn(p)
                     else:
-                        self.parse_v2(p)
+                        self.parse_v2(p, process_fn)
                 except json.JSONDecodeError:
                     continue
 
-    def parse_v2(self, v2dict):
+    def parse_v2(self, v2dict, process_fn):
         if v2dict.get('v') != '2.0':
             self.unknown_version += 1
             return
@@ -71,7 +97,7 @@ class PatternManager:
             if 'bustime-response' not in r:
                 self.errors += 1
                 continue
-            self.parse_bustime_response(r)
+            process_fn(r)
 
     def report(self):
         print(f'Errors: {self.errors}, unknown version: {self.unknown_version}')
@@ -149,58 +175,6 @@ class RealtimeConverter:
         self.trips_processed = 0
         self.trips_seen = set([])
 
-    @staticmethod
-    def frame_interpolation(single_rt1: pd.DataFrame, single_sched: pd.DataFrame) -> pd.DataFrame | None:
-        if single_rt1.empty or len(single_rt1) < 2:
-            return None
-        fakerows = []
-        maxval = single_rt1.pdist.max()
-        beginnings = single_rt1[single_rt1.pdist == 0]
-        endings = single_rt1[single_rt1.pdist == maxval]
-        begin_drop = len(beginnings) - 1
-        end_drop = len(endings) - 1
-        if end_drop > 0:
-            single_rt1.drop(single_rt1.tail(end_drop).index, inplace=True)
-        if begin_drop > 0:
-            single_rt1.drop(single_rt1.head(begin_drop).index, inplace=True)
-        if len(single_rt1) < 2:
-            return None
-        try:
-            if single_rt1.iloc[0].pdist != 0:
-                deltas = single_rt1.iloc[1] - single_rt1.iloc[0]
-                if deltas.tmstmp < RealtimeConverter.EPSILON:
-                    return None
-                v = deltas.pdist / deltas.tmstmp
-                if v < RealtimeConverter.EPSILON:
-                    return None
-                ntf = single_rt1.iloc[0].tmstmp - single_rt1.iloc[0].pdist / v
-                if math.isnan(ntf):
-                    return None
-                nt = int(ntf)
-                #fakerow = pd.DataFrame([{'tmstmp': nt, 'pdist': 0}])
-                fakerows.append({'tmstmp': nt, 'pdist': 0})
-            if single_rt1.iloc[-1].pdist < single_sched.iloc[-1].pdist:
-                deltas = single_rt1.iloc[-1] - single_rt1.iloc[-2]
-                if deltas.tmstmp < RealtimeConverter.EPSILON:
-                    return None
-                v = deltas.pdist / deltas.tmstmp
-                if v < RealtimeConverter.EPSILON:
-                    return None
-                ntf = single_rt1.iloc[-1].tmstmp + single_rt1.iloc[-1].pdist / v
-                if math.isnan(ntf):
-                    return None
-                nt = int(ntf)
-                fakerows.append({'tmstmp': nt, 'pdist': single_sched.iloc[-1].pdist})
-            if fakerows:
-                fdf = pd.DataFrame(fakerows)
-                return pd.concat([fdf, single_rt1]).sort_values(['pdist'], ignore_index=True)
-            else:
-                return single_rt1
-        except OverflowError as e:
-            return None
-            #self.errors.append(e)
-        return None
-
     def process_trip1(self, tatripid: str):
         v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
         v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
@@ -240,117 +214,101 @@ class RealtimeConverter:
         #z = interpolated.apply(lambda x: str(x.stpid), axis=1).set_index('stpid')
 
 
-
-    def apply_to_template(self, sched_stops: pd.DataFrame, trip_pattern_output: pd.DataFrame, rt_trip_id):
-        logger.debug(f'apply_to_template {rt_trip_id}')
-        logger.debug(f'sched stops {sched_stops}')
-        logger.debug(f'trip pattern output {trip_pattern_output}')
-        ndf = sched_stops.sort_values(['stop_sequence']).copy().reset_index()
-        ndf = ndf.drop(columns=['index'])
-        ndf['stop_id'] = ndf['stop_id'].astype(int)
-        if not (ndf['stop_id'] == trip_pattern_output['stop_id']).all():
-            #print(f'Pattern mismatch')
-            return None
-
-        def to_gtfs_time(unix_timestamp: int):
-            ts = datetime.datetime.fromtimestamp(unix_timestamp)
-            hour = ts.hour
-            if hour < 4:
-                hour += 24
-            return f'{hour:02d}:{ts.minute:02d}:{ts.second:02d}'
-
-        times = trip_pattern_output['tmstmp'].apply(to_gtfs_time)
-        logger.debug(times.rename('arrival_time'))
-        logger.debug(ndf['arrival_time'])
-        ndf['arrival_time'] = times.rename('arrival_time')
-        ndf['departure_time'] = times.rename('departure_time')
-        ndf['trip_id'] = rt_trip_id
-        logger.debug(ndf)
-        return ndf
-
-    def process_pattern(self, df: pd.DataFrame, date, route, pid):
-        pdf = df.query(f'rt == "{route}" and pid == {pid}')
-        approx_len = pdf.pdist.max()
-        rt_trips = pdf.tatripid.unique()
-        schedule_patterns = self.fw.get_closest_pattern(route, date.strftime('%Y%m%d'), approx_len)
-        if schedule_patterns.empty:
-            # TODO: log error
-            return
-        # now we need to choose the right direction by looking at which stops the rt ends are closest to
-        rt_begin = pdf.sort_values('pdist').iloc[0]
-        rt_end = pdf.sort_values('pdist').tail(1).iloc[0]
-        dists = []
-        for _, pattern in schedule_patterns.iterrows():
-            dist = 0
-            start = self.fw.get_stop(pattern.start_stop_id).geometry.iloc[0]
-            end = self.fw.get_stop(pattern.end_stop_id).geometry.iloc[0]
-            dist += rt_begin.geometry.distance(start)
-            dist += rt_end.geometry.distance(end)
-            dists.append((dist, pattern.name))
-        dists.sort()
-        representative_trip = schedule_patterns.loc[dists[0][1]].trip_id
-        sched_stops = self.fw.get_trip_stops(representative_trip)
-        logger.debug(f'Scheduled stops: {sched_stops}')
-        sched_trip = self.fw.get_trip(representative_trip)
-        for rt_trip_id in rt_trips:
-            self.trips_attempted += 1
-            logger.debug(f' ==== T ====')
-            single_rt_trip = pdf[pdf.tatripid == rt_trip_id]
-            r = self.process_trip(date, route, pid, sched_stops, single_rt_trip)
-            if r is None:
-                self.errors.append(['process', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
-                continue
-            service_id = self.rt_manager.calc_service_id(date=date)
-            new_trip_id = f'{rt_trip_id}-{service_id}'
-            # TODO: consider renumbering these
-            if new_trip_id in self.trips_seen:
-                self.errors.append(['repeated_trip', date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
-                continue
-            self.trips_seen.add(new_trip_id)
-            output = r[r.stop_id != -1].reset_index()
-            #output.to_csv('/tmp/p1.csv')
-            #print(output)
-            #print()
-            ndf = self.apply_to_template(sched_stops, output, new_trip_id)
-            if ndf is None:
-                sj = json.loads(sched_stops.to_json())
-                self.errors.append(['template', sj, date.strftime('%Y%m%d'), route, str(pid), str(rt_trip_id)])
-                continue
-            # need to rewrite trips too
-            self.output_stop_times = pd.concat([self.output_stop_times, ndf])
-            rewrite_rt_trip = sched_trip.copy().reset_index().drop(columns=['index'])
-            rewrite_rt_trip['service_id'] = service_id
-            rewrite_rt_trip['trip_id'] = new_trip_id
-            rewrite_rt_trip['block_id'] = single_rt_trip.iloc[0].tablockid.replace(' ', '')
-            #print(single_rt_trip)
-            #print(rewrite_rt_trip)
-            self.output_trips = pd.concat([self.output_trips, rewrite_rt_trip])
-            self.trips_processed += 1
-
-    def process_route(self, route, pattern=None):
-        # date = self.start
-        # for x in range(self.)
-        # df: pd.DataFrame = self.days.get(date)
-        work = []
-        for offset, df in self.rt_manager.get_all():
-            date = self.start + datetime.timedelta(days=offset)
-            pdf = df.query(f'rt == "{route}"')
-            patterns = pdf.pid.unique()
-            if pattern is not None:
-                work.append((pdf, date, route, pattern))
-                continue
-            for p in patterns:
-                work.append((pdf, date, route, p))
-        for w in tqdm(work):
-            self.process_pattern(*w)
-
-
 class SingleTripAnalyzer:
     def __init__(self, managers: Managers):
         self.managers = managers
 
     def analyze_trip(self, tripid):
         pass
+
+
+class Trip:
+    def __init__(self, d: dict):
+        self.trip_id = d['tatripid']
+        self.sched = Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(d['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=d['stst']))
+        self.des = d['des']
+        self.rt = d['rt']
+        self.pattern_id = d['pid']
+        self.vehicle_id = d['vid']
+
+    def out(self):
+        return {'tatripid': self.trip_id,
+                'sched': self.sched.isoformat(),
+                'des': self.des,
+                'rt': self.rt,
+                'pid': self.pattern_id,
+                'vid': self.vehicle_id
+                }
+
+
+class TransitCache:
+    CACHE_FILENAME = CACHEDIR / 'transit-cache.json'
+    TRIPS_FILENAME = CACHEDIR / 'trips.json'
+
+    def __init__(self, managers: Managers):
+        self.manager = managers
+        self.cache: dict = {'last_updated': None}
+        self.new_trip_list = []
+        self.trip_ids = set([])
+        self.trips_df = pd.DataFrame()
+        self.count = 0
+        self.load()
+
+    def new_trips(self):
+        return [x.out() for x in self.new_trip_list]
+
+    def maybe_add_trip(self, trip_item: dict):
+        id_ = trip_item['tatripid']
+        if id_ in self.trip_ids:
+            return
+        self.trip_ids.add(id_)
+        self.new_trip_list.append(Trip(trip_item))
+
+    def load(self):
+        if not self.CACHE_FILENAME.exists():
+            return None
+        with open(self.CACHE_FILENAME) as fh:
+            self.cache = json.load(fh)
+        self.trips_df = pd.read_json(self.TRIPS_FILENAME)
+        self.trip_ids = set(self.trips_df['pid'])
+        u = self.cache.get('last_updated')
+        if u:
+            self.manager.vm.filter_time = datetime.datetime.fromisoformat(u)
+            print(f'Loading changes since {u}')
+
+    def store(self):
+        with open(self.CACHE_FILENAME, 'w') as wfh:
+            json.dump(self.cache, wfh)
+        df = pd.DataFrame(self.new_trips())
+        self.trips_df = pd.concat([self.trips_df, df], ignore_index=True)
+        self.trips_df.to_json(self.TRIPS_FILENAME)
+
+    def process_fn(self, bd):
+        self.count += 1
+        top = bd['bustime-response']['vehicle']
+        #this_df = pd.DataFrame(top)
+        if not top:
+            return
+        for item in top:
+            #if item['tatripid'] in self.trips():
+            #    continue
+            #self.trips()['tatripid'] = Trip(item['tatripid'], item)
+            self.maybe_add_trip(item)
+        # df['sched'] = df.apply(
+        #     lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.stsd, '%Y-%m-%d') + datetime.timedelta(seconds=x.stst)),
+        #     axis=1)
+        # df['tmstmp'] = df.apply(lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M:%S')),
+        #                         axis=1)
+        # df = df.drop(columns=['lat', 'lon', 'hdg', 'origtatripno', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
+
+
+    def run(self):
+        for day in self.manager.vm.datadir.glob('202?????'):
+            self.manager.vm.parse_day(day.name, self.process_fn)
+        latest = self.manager.vm.get_filetime()
+        self.cache['last_updated'] = latest.isoformat()
+        self.store()
+        print(f'Processed {self.count}')
 
 
 if __name__ == "__main__":
@@ -370,13 +328,15 @@ if __name__ == "__main__":
     predm = PredictionManager(datadir / 'getpredictions')
     for day in datadir.glob('202?????'):
         pm.parse_day(day.name)
-    for day in args.day:
-        print(f'Parsing day {day}')
-        #pm.parse_day(day)
-        predm.parse_day(day)
-        vm.parse_day(day)
-    pm.report()
+    # for day in args.day:
+    #     print(f'Parsing day {day}')
+    #     #pm.parse_day(day)
+    #     #predm.parse_day(day)
+    #     vm.parse_day(day)
+    #pm.report()
     m = Managers(vm=vm, pm=pm, dm=predm)
     m.initialize()
-    rtc = RealtimeConverter(m)
-    t = rtc.process_trip('88357800')
+    tc = TransitCache(m)
+    tc.run()
+    #rtc = RealtimeConverter(m)
+    #t = rtc.process_trip('88357800')

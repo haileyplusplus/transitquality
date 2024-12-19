@@ -56,7 +56,7 @@ class PatternManager:
         return self.df.query(f'pid == {pid} and typ =="S"')
 
     def set_filetime(self, ft):
-        if self.filetime and self.filetime > ft:
+        if self.filetime and self.filetime >= ft:
             return
         self.filetime = ft
 
@@ -74,7 +74,7 @@ class PatternManager:
             else:
                 data_ts = datetime.datetime.strptime(f'{day}{f.name}', '%Y%m%dt%H%M%Sz.json').replace(tzinfo=datetime.UTC)
             self.set_filetime(data_ts)
-            if self.filter_time and data_ts < self.filter_time:
+            if self.filter_time and data_ts <= self.filter_time:
                 self.filtered_out += 1
                 continue
             #print(f'Reading {f}')
@@ -244,13 +244,16 @@ class Trip:
 class TransitCache:
     CACHE_FILENAME = CACHEDIR / 'transit-cache.json'
     TRIPS_FILENAME = CACHEDIR / 'trips.json'
+    STOP_TIMES_FILENAME = CACHEDIR / 'stop_times.csv'
 
     def __init__(self, managers: Managers):
         self.manager = managers
         self.cache: dict = {'last_updated': None}
         self.new_trip_list = []
+        self.new_stop_list = []
         self.trip_ids = set([])
         self.trips_df = pd.DataFrame()
+        self.stops_df = pd.DataFrame()
         self.count = 0
         self.load()
 
@@ -259,10 +262,18 @@ class TransitCache:
 
     def maybe_add_trip(self, trip_item: dict):
         id_ = trip_item['tatripid']
-        if id_ in self.trip_ids:
-            return
-        self.trip_ids.add(id_)
-        self.new_trip_list.append(Trip(trip_item))
+        # stop info
+        # tmstmp, pdist, dly
+        if id_ not in self.trip_ids:
+            self.trip_ids.add(id_)
+            self.new_trip_list.append(Trip(trip_item))
+        self.new_stop_list.append({
+            'tatripid': id_,
+            'tmstmp': Util.CTA_TIMEZONE.localize(
+                datetime.datetime.strptime(trip_item['tmstmp'], '%Y%m%d %H:%M:%S')),
+            'pdist': trip_item['pdist'],
+            'dly': trip_item['dly']
+        })
 
     def load(self):
         if not self.CACHE_FILENAME.exists():
@@ -270,6 +281,7 @@ class TransitCache:
         with open(self.CACHE_FILENAME) as fh:
             self.cache = json.load(fh)
         self.trips_df = pd.read_json(self.TRIPS_FILENAME)
+        self.stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
         self.trip_ids = set(self.trips_df['pid'])
         u = self.cache.get('last_updated')
         if u:
@@ -282,6 +294,9 @@ class TransitCache:
         df = pd.DataFrame(self.new_trips())
         self.trips_df = pd.concat([self.trips_df, df], ignore_index=True)
         self.trips_df.to_json(self.TRIPS_FILENAME)
+        new_stops_df = pd.DataFrame(self.new_stop_list)
+        self.stops_df = pd.concat([self.stops_df, new_stops_df], ignore_index=True)
+        self.stops_df.to_csv(self.STOP_TIMES_FILENAME, index=False)
 
     def process_fn(self, bd):
         self.count += 1

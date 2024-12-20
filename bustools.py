@@ -430,14 +430,15 @@ class TransitCache:
         return set(df[['origtatripno', 'day']].itertuples(index=False, name=None))
 
     def find_stops(self, *args):
-        candidates = None
+        candidates = set([])
         for x in args:
             key = x.strip().lower()
             val = self.stops_index.get(key)
+            #print(f'Looking for {key}: {len(val)}')
             if not val:
                 return None
-            if candidates is None:
-                candidates = val
+            if not candidates:
+                candidates |= val
             else:
                 candidates &= val
         for c in candidates:

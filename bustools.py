@@ -287,7 +287,7 @@ class TransitCache:
             'dly': trip_item['dly']
         })
 
-    def process_rt_trips(self):
+    def process_rt_trips(self, limit=0):
         existing_rt_trips = set([])
         if not self.rt_trips_df.empty:
             existing_rt_trips = set(self.rt_trips_df[['origtatripno', 'day']].itertuples(index=False, name=None))
@@ -296,6 +296,8 @@ class TransitCache:
             return
         existing_trips = set(self.trips_df[['origtatripno', 'day']].itertuples(index=False, name=None))
         needed = existing_trips - existing_rt_trips
+        if limit > 0:
+            needed = set(list(needed)[:limit])
         for n in tqdm.tqdm(needed):
             summary, times = self.get_trip(*n)
             df = self.rtc.process_trip(summary, times)
@@ -312,6 +314,7 @@ class TransitCache:
         self.trips_df = pd.read_json(self.TRIPS_FILENAME)
         self.trips_df['origtatripno'] = self.trips_df['origtatripno'].astype(str)
         self.stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
+        self.stops_df['origtatripno'] = self.stops_df['origtatripno'].astype(str)
         if self.RT_TRIPS_FILENAME.exists():
             self.rt_trips_df = pd.read_csv(self.RT_TRIPS_FILENAME, low_memory=False)
         self.trip_ids = set(self.trips_df['pid'])
@@ -340,13 +343,13 @@ class TransitCache:
         for item in top:
             self.maybe_add_trip(item)
 
-    def run(self, process=False):
+    def run(self, process=False, limit=0):
         for day in self.manager.vm.datadir.glob('202?????'):
             self.manager.vm.parse_day(day.name, self.process_fn)
         latest = self.manager.vm.get_filetime()
         self.cache['last_updated'] = latest.isoformat()
         if process:
-            self.process_rt_trips()
+            self.process_rt_trips(limit)
         self.store()
         print(f'Processed {self.count}')
 
@@ -388,6 +391,8 @@ if __name__ == "__main__":
                         help='Update cache.')
     parser.add_argument('--process_rt_trips', action='store_true',
                         help='Interpolate rt trips.')
+    parser.add_argument('--limit_rt', type=int, default=0,
+                        help='Limit rt trips.')
     parser.add_argument('--schedule_dir', type=str, nargs=1, default=['~/datasets/transit'],
                         help='Directory containing schedule files.')
     parser.add_argument('--data_dir', type=str, nargs=1, default=['~/transit/bustracker/raw'],
@@ -412,7 +417,7 @@ if __name__ == "__main__":
     rtc = RealtimeConverter(m)
     tc = TransitCache(m, rtc)
     if args.update:
-        tc.run(args.process_rt_trips)
+        tc.run(args.process_rt_trips, args.limit_rt)
     #summary, times = tc.get_trip('20241217', '88357800')
     #z = rtc.process_trip(summary, times)
     #print(z)

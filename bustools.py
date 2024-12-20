@@ -149,6 +149,8 @@ trip sched vs actual arrival
 departure headway
 midpoint headway
 arrival headway
+
+bus 74 has suspiciously low trip ids - maybe use origtatripid
 """
 
 
@@ -333,6 +335,27 @@ class TransitCache:
         self.store()
         print(f'Processed {self.count}')
 
+    def explore_route(self, rt, day=None, dir=None):
+        if day is None:
+            day = datetime.datetime.now().strftime('%Y%m%d')
+        df = (tc.trips_df.query(f'rt == "{rt}" and day == {day}').sort_values('sched').
+              join(m.pm.summary_df.set_index('pid'), on='pid', rsuffix='_pt'))
+        if dir is not None:
+            return df[df.rtdir == dir]
+        return df
+
+    def get_trip_info(self, tatripid, day=None):
+        if day is None:
+            day = datetime.datetime.now().strftime('%Y%m%d')
+        return tc.rt_trips_df.query(f'tatripid == "{tatripid}" and day == {day}').sort_values('tmstmp')
+
+    def get_stop_info(self, stpid, day=None):
+        if day is None:
+            day = datetime.datetime.now().strftime('%Y%m%d')
+        return tc.rt_trips_df.query(f'stpid == "{stpid}" and day == {day}').join(
+            tc.trips_df[['tatripid', 'des', 'rt', 'vid']].set_index(
+                'tatripid'), on='tatripid', rsuffix='_r').sort_values('tmstmp')
+
 
 class SingleTripAnalyzer:
     def __init__(self, managers: Managers):
@@ -346,6 +369,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Scrape CTA Bus Tracker locations and other data.')
     parser.add_argument('--debug', action='store_true',
                         help='Print debug logging.')
+    parser.add_argument('--update', action='store_true',
+                        help='Update cache.')
     parser.add_argument('--schedule_dir', type=str, nargs=1, default=['~/datasets/transit'],
                         help='Directory containing schedule files.')
     parser.add_argument('--data_dir', type=str, nargs=1, default=['~/transit/bustracker/raw'],
@@ -369,9 +394,10 @@ if __name__ == "__main__":
     m.initialize()
     rtc = RealtimeConverter(m)
     tc = TransitCache(m, rtc)
-    tc.run()
-    summary, times = tc.get_trip('20241217', '88357800')
+    if args.update:
+        tc.run()
+    #summary, times = tc.get_trip('20241217', '88357800')
     #z = rtc.process_trip(summary, times)
     #print(z)
-    x = tc.rt_trips_df[tc.rt_trips_df.stpid == 1225].sort_values('tmstmp')
-    print(x)
+    #x = tc.rt_trips_df[tc.rt_trips_df.stpid == 1225].sort_values('tmstmp')
+    #print(x)

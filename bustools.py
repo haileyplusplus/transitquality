@@ -327,6 +327,8 @@ class TransitCache:
         self.stops_df['origtatripno'] = self.stops_df['origtatripno'].astype(str)
         if self.RT_TRIPS_FILENAME.exists():
             self.rt_trips_df = pd.read_csv(self.RT_TRIPS_FILENAME, low_memory=False)
+            self.rt_trips_df['origtatripno'] = self.rt_trips_df['origtatripno'].astype(str)
+            self.rt_trips_df['stpid'] = self.rt_trips_df['stpid'].astype(str)
         self.trip_ids = set(self.trips_df['pid'])
         u = self.cache.get('last_updated')
         if u:
@@ -390,9 +392,9 @@ class TransitCache:
 
     def get_stop_info(self, stpid, day=None):
         if day is None:
-            day = datetime.datetime.now().strftime('%Y%m%d')
+            day = int(datetime.datetime.now().strftime('%Y%m%d'))
         return tc.rt_trips_df.query(f'stpid == "{stpid}" and day == {day}').join(
-            tc.trips_df[['origtatripno', 'des', 'rt', 'vid']].set_index(
+            tc.trips_df[tc.trips_df.day == day][['origtatripno', 'des', 'rt', 'vid']].set_index(
                 'origtatripno'), on='origtatripno', rsuffix='_r').sort_values('tmstmp')
 
 

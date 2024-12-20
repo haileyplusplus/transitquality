@@ -42,6 +42,11 @@ class PatternManager:
     def initialize(self):
         self.df['pdist'] = self.df.apply(lambda x: int(x.pdist), axis=1)
 
+    def all_stops(self):
+        joined = self.df[self.df.typ == 'S'].join(self.summary_df.set_index('pid'), on='pid')
+        for _, x in joined.iterrows():
+            yield x
+
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['ptr'][0]
         df = pd.DataFrame(top['pt'])
@@ -258,6 +263,8 @@ class TransitCache:
     def __init__(self, managers: Managers, rtc):
         self.manager = managers
         self.rtc = rtc
+        self.stops_by_id ={}
+        self.stops_index = {}
         self.cache: dict = {'last_updated': None}
         self.new_trip_list = []
         self.new_stop_list = []
@@ -268,6 +275,15 @@ class TransitCache:
         self.rt_trips_df = pd.DataFrame()
         self.count = 0
         self.load()
+
+    def process_stop_row(self, row: pd.Series):
+        if row.stpid in self.stops_by_id:
+            return
+        self.stops_by_id[row.stpid] = f'{row.stpnm} -> {row.rtdir}'
+        indexable = row.stpnm.lower().replace('&', '').replace('.', '').split(' ')
+        indexable = [x.strip() for x in indexable if x.strip()]
+        for name in indexable:
+            self.stops_index.setdefault(name, set([])).add(row.stpid)
 
     def get_trip(self, trip_id, day):
         return (self.trips_df.query(f'origtatripno == "{trip_id}" and day == {day}'),
@@ -325,6 +341,8 @@ class TransitCache:
         self.trips_df['origtatripno'] = self.trips_df['origtatripno'].astype(str)
         self.stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
         self.stops_df['origtatripno'] = self.stops_df['origtatripno'].astype(str)
+        for stop in self.manager.pm.all_stops():
+            self.process_stop_row(stop)
         if self.RT_TRIPS_FILENAME.exists():
             self.rt_trips_df = pd.read_csv(self.RT_TRIPS_FILENAME, low_memory=False)
             self.rt_trips_df['origtatripno'] = self.rt_trips_df['origtatripno'].astype(str)
@@ -396,6 +414,29 @@ class TransitCache:
         return tc.rt_trips_df.query(f'stpid == "{stpid}" and day == {day}').join(
             tc.trips_df[tc.trips_df.day == day][['origtatripno', 'des', 'rt', 'vid']].set_index(
                 'origtatripno'), on='origtatripno', rsuffix='_r').sort_values('tmstmp')
+
+    def get_trip_keys(self, rt=False):
+        if rt:
+            df = self.rt_trips_df
+        else:
+            df = self.trips_df
+        return set(df[['origtatripno', 'day']].itertuples(index=False, name=None))
+
+    def find_stops(self, *args):
+        candidates = None
+        for x in args:
+            key = x.strip().lower()
+            val = self.stops_index.get(key)
+            if not val:
+                return None
+            if candidates is None:
+                candidates = val
+            else:
+                candidates &= val
+        for c in candidates:
+            nm = self.stops_by_id[c]
+            print(f'{c:7}: {nm}')
+        return candidates
 
 
 class SingleTripAnalyzer:

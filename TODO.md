@@ -6,3 +6,6 @@
   - Validation of assumptions: trip id uniqueness, vid uniqueness, etc
   - Normalize all fields on loading from csv (type mismatches)
   - stop_info join needs to be on day in addition to trip no (filter other df)
+
+  - db as work queue
+  - 

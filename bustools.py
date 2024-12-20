@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import dataclasses
+import itertools
 import sys
 import argparse
 import datetime
 from pathlib import Path
 import json
 import math
+import random
 
 from backend.util import Util
 
@@ -225,7 +227,7 @@ class RealtimeConverter:
             return None
         v = times.drop(columns='day').copy()
         #print(v)
-        v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
+        #v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
         v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         pattern = summary.iloc[0].pid
         #v = v.drop(columns='pid')
@@ -269,6 +271,7 @@ class TransitCache:
         self.new_trip_list = []
         self.new_stop_list = []
         self.trip_ids = set([])
+        self.days = set([])
         #self.rt_trip_ids = set([])
         self.trips_df = pd.DataFrame()
         self.stops_df = pd.DataFrame()
@@ -339,6 +342,7 @@ class TransitCache:
             self.cache = json.load(fh)
         self.trips_df = pd.read_json(self.TRIPS_FILENAME)
         self.trips_df['origtatripno'] = self.trips_df['origtatripno'].astype(str)
+        self.days = set(self.trips_df['day'])
         self.stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
         self.stops_df['origtatripno'] = self.stops_df['origtatripno'].astype(str)
         for stop in self.manager.pm.all_stops():
@@ -347,6 +351,9 @@ class TransitCache:
             self.rt_trips_df = pd.read_csv(self.RT_TRIPS_FILENAME, low_memory=False)
             self.rt_trips_df['origtatripno'] = self.rt_trips_df['origtatripno'].astype(str)
             self.rt_trips_df['stpid'] = self.rt_trips_df['stpid'].astype(str)
+            self.rt_trips_df['tmstmp'] = self.rt_trips_df.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp),
+                                                                axis=1)
+
         self.trip_ids = set(self.trips_df['pid'])
         u = self.cache.get('last_updated')
         if u:
@@ -437,6 +444,51 @@ class TransitCache:
             nm = self.stops_by_id[c]
             print(f'{c:7}: {nm}')
         return candidates
+
+    def make_travel_df(self, orig, dest, day=None):
+        src_df = self.get_stop_info(orig, day=day)
+        if src_df.empty:
+            return {}, pd.DataFrame()
+        dest_df = self.get_stop_info(dest, day=day)
+        if dest_df.empty:
+            return {}, pd.DataFrame()
+        ddf = dest_df[dest_df.day == day].set_index('origtatripno')[['pdist', 'seq', 'stpid', 'stpnm', 'tmstmp']]
+        joined = src_df.join(ddf, on='origtatripno', rsuffix='_dest')
+        joined['travel_dist'] = joined['pdist_dest'] - joined['pdist']
+        joined['travel_time'] = joined['tmstmp_dest'] - joined['tmstmp']
+        head = joined.iloc[0]
+        if head.seq > head.seq_dest:
+            print(f'Out of order')
+            return {}, pd.DataFrame()
+        d = {'dist': head.travel_dist, 'rt': head.rt, 'vid': head.vid, 'pid': head.pid,
+             'stpid': head.stpid, 'stpid_dest': head.stpid_dest, 'orig': head.stpnm, 'dest': head.stpnm_dest}
+        return d, joined[['tmstmp', 'tmstmp_dest', 'travel_time']]
+
+    def simulate(self, orig, dest, start_hour, iters=100):
+        THRESH = datetime.timedelta(hours=2)
+        df = pd.DataFrame()
+        for d in self.days:
+            _, tdf = self.make_travel_df(orig, dest, day=d)
+            df = pd.concat([df, tdf], ignore_index=True)
+        days = set(self.rt_trips_df['day'])
+        p = [x for x in itertools.product(list(days), range(60))]
+        random.shuffle(p)
+        outcomes = []
+        for x in p[:iters]:
+            d, m = x
+            ts = datetime.datetime.strptime(f'{d}{start_hour:02d}{m:02d}', '%Y%m%d%H%M')
+            trips = df[df.tmstmp >= ts]
+            if trips.empty:
+                continue
+            next_trip = trips.iloc[0]
+            wait = next_trip.tmstmp - ts
+            travel = next_trip.travel_time
+            total = wait + travel
+            if total > THRESH:
+                continue
+            outcomes.append({'start': ts, 'board': next_trip.tmstmp, 'wait': wait, 'travel': travel, 'total': total})
+        out_df = pd.DataFrame(outcomes)
+        return out_df
 
 
 class SingleTripAnalyzer:

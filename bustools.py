@@ -35,6 +35,7 @@ class PatternManager:
         self.unknown_version = 0
         self.errors = 0
         self.filter_time = None
+        self.filter_end = None
         self.filtered_out = 0
         self.filetime = None
 
@@ -63,6 +64,10 @@ class PatternManager:
     def get_filetime(self):
         return self.filetime
 
+    def parse_all_days(self, process_fn=None):
+        for day in self.datadir.glob('202?????'):
+            self.parse_day(day.name, process_fn)
+
     def parse_day(self, day: str, process_fn=None):
         if process_fn is None:
             process_fn = self.parse_bustime_response
@@ -74,6 +79,9 @@ class PatternManager:
             else:
                 data_ts = datetime.datetime.strptime(f'{day}{f.name}', '%Y%m%dt%H%M%Sz.json').replace(tzinfo=datetime.UTC)
             self.set_filetime(data_ts)
+            if self.filter_end and data_ts >= self.filter_end:
+                self.filtered_out += 1
+                continue
             if self.filter_time and data_ts <= self.filter_time:
                 self.filtered_out += 1
                 continue
@@ -126,7 +134,8 @@ class VehicleManager(PatternManager):
             axis=1)
         df['tmstmp'] = df.apply(lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M:%S')),
                                 axis=1)
-        df = df.drop(columns=['lat', 'lon', 'hdg', 'origtatripno', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
+        # 'origtatripno',
+        df = df.drop(columns=['lat', 'lon', 'hdg', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
         return df
 
     def parse_bustime_response(self, brdict: dict):

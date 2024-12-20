@@ -72,7 +72,7 @@ class PatternManager:
         if process_fn is None:
             process_fn = self.parse_bustime_response
         pattern_dir = self.datadir / day
-        for f in pattern_dir.glob('t*.json'):
+        for f in tqdm.tqdm(pattern_dir.glob('t*.json')):
             if f.name.startswith('ttscrape'):
                 _, cmd, rawts = f.name.split('-')
                 data_ts = datetime.datetime.strptime(rawts, '%Y%m%d%H%M%Sz.json').replace(tzinfo=datetime.UTC)
@@ -209,14 +209,15 @@ class RealtimeConverter:
         self.trips_processed = 0
         self.trips_seen = set([])
 
-    def process_trip1(self, summary, times):
-        #v = self.manager.vm.get_trip(tatripid).drop(columns=['sched', 'dly', 'des', 'vid', 'tatripid', 'rt'])
-        #tatripid: str, day: str
-        #summary, times = self.tc.get_trip(tatripid, day)
+    def process_trip(self, summary, times):
+        if summary.empty:
+            return None
+        day = summary.iloc[0].day
+        origtatripno = summary.iloc[0].origtatripno
         if times.empty:
-            return None, None, None, None, None
-        day = times.iloc[0].day
-        origtatripno = times.iloc[0].origtatripno
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
+                                'msg': 'Missing raw times'})
+            return None
         v = times.drop(columns='day').copy()
         #print(v)
         v['tmstmp'] = v.apply(lambda x: datetime.datetime.fromisoformat(x.tmstmp), axis=1)
@@ -224,12 +225,12 @@ class RealtimeConverter:
         pattern = summary.iloc[0].pid
         #v = v.drop(columns='pid')
         stops = self.manager.pm.get_stops(pattern)
+        if stops.empty:
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip', 'msg': 'Missing stops'})
+            return None
         p = stops.drop(columns=['typ', 'stpnm', 'lat', 'lon'])
-        return v, p, pattern, day, origtatripno
-
-    def process_trip(self, summary, times):
-        v, p, pattern, day, origtatripno = self.process_trip1(summary, times)
         if v is None:
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip', 'msg': 'Missing times'})
             return None
         pattern_template = pd.DataFrame(index=p.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, v.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
@@ -237,6 +238,10 @@ class RealtimeConverter:
         combined = combined.groupby(combined.index).last()
         px = self.manager.pm.get_stops(pattern)
         df = px.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        if df.empty:
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
+                                'msg': 'Missing interpolation'})
+            return None
         df['day'] = day
         df['origtatripno'] = origtatripno
         df = df.reset_index()
@@ -292,17 +297,22 @@ class TransitCache:
         if not self.rt_trips_df.empty:
             existing_rt_trips = set(self.rt_trips_df[['origtatripno', 'day']].itertuples(index=False, name=None))
         if self.trips_df.empty:
-            print(f'No trips to process')
+            print(f'No previously existing trips to process')
             return
         existing_trips = set(self.trips_df[['origtatripno', 'day']].itertuples(index=False, name=None))
         needed = existing_trips - existing_rt_trips
         if limit > 0:
             needed = set(list(needed)[:limit])
         for n in tqdm.tqdm(needed):
-            summary, times = self.get_trip(*n)
+            origtatripno, day = n
+            summary, times = self.get_trip(origtatripno, day)
+            if summary.empty:
+                rtc.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_rt_trips',
+                                   'msg': 'Missing trip summary'})
+                continue
             df = self.rtc.process_trip(summary, times)
             if df is None:
-                print(f'Skipped {n}')
+                #print(f'Skipped {n}')
                 continue
             self.rt_trips_df = pd.concat([self.rt_trips_df, df], ignore_index=True)
 
@@ -329,11 +339,21 @@ class TransitCache:
         df = pd.DataFrame(self.new_trips())
         self.trips_df = pd.concat([self.trips_df, df], ignore_index=True)
         self.trips_df.to_json(self.TRIPS_FILENAME)
-        new_stops_df = pd.DataFrame(self.new_stop_list)
-        self.stops_df = pd.concat([self.stops_df, new_stops_df], ignore_index=True)
-        self.stops_df.to_csv(self.STOP_TIMES_FILENAME, index=False)
+        if self.new_stop_list:
+            stops_df = pd.DataFrame(self.new_stop_list)
+            if self.STOP_TIMES_FILENAME.exists():
+                prev_stops_df = pd.read_csv(self.STOP_TIMES_FILENAME, low_memory=False)
+                stops_df = pd.concat([prev_stops_df, stops_df], ignore_index=True)
+            stops_df.to_csv(self.STOP_TIMES_FILENAME, index=False)
+            self.stops_df = stops_df
+
+    def store_rt(self):
         if not self.rt_trips_df.empty:
             self.rt_trips_df.to_csv(self.RT_TRIPS_FILENAME, index=False)
+        ts = Util.utcnow().strftime('%Y%m%d%H%M%Sz')
+        errors_fn = CACHEDIR / f'errors-{ts}.csv'
+        error_df = pd.DataFrame(self.rtc.errors)
+        error_df.to_csv(errors_fn)
 
     def process_fn(self, bd):
         self.count += 1
@@ -348,9 +368,10 @@ class TransitCache:
             self.manager.vm.parse_day(day.name, self.process_fn)
         latest = self.manager.vm.get_filetime()
         self.cache['last_updated'] = latest.isoformat()
+        self.store()
         if process:
             self.process_rt_trips(limit)
-        self.store()
+            self.store_rt()
         print(f'Processed {self.count}')
 
     def explore_route(self, rt, day=None, dir=None):

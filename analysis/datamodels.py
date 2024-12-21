@@ -116,9 +116,10 @@ class StopInterpolation(BaseModel):
 class File(BaseModel):
     file_id = AutoField()
     relative_path = CharField()
+    filename = CharField()
     command = CharField()
     start_time = DateTimeTZField()
-    end_time = DateTimeTZField()
+    end_time = DateTimeTZField(null=True)
 
 
 class FileParse(BaseModel):

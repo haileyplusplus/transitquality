@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import dataclasses
 import itertools
 import sys

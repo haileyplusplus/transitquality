@@ -466,7 +466,7 @@ class TransitCache:
         return d, joined[['tmstmp', 'tmstmp_dest', 'travel_time']]
 
     def simulate(self, orig, dest, start_hour, iters=100):
-        THRESH = datetime.timedelta(hours=2)
+        THRESH = datetime.timedelta(hours=1)
         df = pd.DataFrame()
         for d in self.days:
             _, tdf = self.make_travel_df(orig, dest, day=d)

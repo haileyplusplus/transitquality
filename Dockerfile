@@ -43,6 +43,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN mkdir /transit
 RUN chown appuser /transit
 
+RUN mkdir /transitdata
+RUN chown appuser /transitdata
+
 
 #RUN --mount=source=transitquality_transit-data,target=/transit chown 777 /transit
 

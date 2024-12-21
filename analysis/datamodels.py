@@ -63,8 +63,8 @@ class PatternStop(BaseModel):
     In the API response, lat and lon can be a check on stop id consistency
     """
     pattern_stop_id = AutoField()
-    pattern = ForeignKeyField(Pattern, 'stops')
-    stop = ForeignKeyField(Stop, 'route_patterns')
+    pattern = ForeignKeyField(Pattern, backref='stops')
+    stop = ForeignKeyField(Stop, backref='route_patterns')
     sequence_no = IntegerField()
     pattern_distance = IntegerField()
 
@@ -72,7 +72,7 @@ class PatternStop(BaseModel):
 class Waypoint(BaseModel):
     waypoint_id = AutoField()
     sequence_no = IntegerField()
-    pattern = ForeignKeyField(Pattern, 'waypoints')
+    pattern = ForeignKeyField(Pattern, backref='waypoints')
     lat = CharField()
     lon = CharField()
     distance = IntegerField()
@@ -96,7 +96,7 @@ class Trip(BaseModel):
 
 class VehiclePosition(BaseModel):
     position_id = AutoField()
-    trip = ForeignKeyField(Trip, 'positions')
+    trip = ForeignKeyField(Trip, backref='positions')
     lat = CharField()
     lon = CharField()
     heading = IntegerField()
@@ -107,7 +107,7 @@ class VehiclePosition(BaseModel):
 
 class StopInterpolation(BaseModel):
     interpolation_id = AutoField()
-    trip = ForeignKeyField(Trip, 'interpolated_stop_times')
+    trip = ForeignKeyField(Trip, backref='interpolated_stop_times')
     position = ForeignKeyField(VehiclePosition)
     pattern_stop = ForeignKeyField(PatternStop)
     interpolated_timestamp = DateTimeTZField()
@@ -146,6 +146,7 @@ def db_initialize():
         db = PostgresqlDatabase('busdata', user='postgres', password='mypostgrespassword',
                                 host=dbhost, port=5432)
     else:
+        print(f'Warning! No db host')
         db = None
     database_proxy.initialize(db)
     db.connect()

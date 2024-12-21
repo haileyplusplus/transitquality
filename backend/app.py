@@ -13,6 +13,7 @@ import gitinfo
 from backend.busscraper2 import BusScraper, Runner, ScrapeState
 from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
+from analysis.processor import Processor
 import signal
 import asyncio
 import os
@@ -155,3 +156,10 @@ def loghead():
 def logtail():
     v = ts.requestor.readlog(tail=True)
     return {'log_contents': v}
+
+
+@app.get('/runprocessor')
+def runprocessor():
+    p = Processor(data_dir=Path('/transitdata'))
+    p, i = p.update()
+    return {'processed': p, 'inserted': i}

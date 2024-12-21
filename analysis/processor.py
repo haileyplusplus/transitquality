@@ -7,27 +7,23 @@ import argparse
 import datetime
 from pathlib import Path
 import json
-import math
-import random
 
 from backend.util import Util
-from analysis.datamodels import Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
-
-import pandas as pd
-import tqdm
+from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
 
 
 class Processor:
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
-        self.summary_df = None
-        self.df = None
-        self.unknown_version = 0
-        self.errors = 0
-        self.filter_time = None
-        self.filter_end = None
-        self.filtered_out = 0
-        self.filetime = None
+        db_initialize()
+        self.processed = 0
+        self.inserted = 0
+
+    def update(self):
+        self.find_files('getvehicles', self.data_dir / 'getvehicles')
+        self.find_files('getvehicles', self.data_dir / 'chnghostbuses')
+        self.find_files('getpatterns', self.data_dir / 'getpatterns')
+        return self.processed, self.inserted
 
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():
@@ -35,14 +31,16 @@ class Processor:
             for f in files:
                 relative_path_str = relative_path.as_posix()
                 if f.endswith('.json') and f.startswith('t'):
+                    self.processed += 1
                     previous = File.select().where(File.relative_path == relative_path_str).where(File.filename == f)
                     if previous.exists():
                         continue
                     start_timestr = f'{root.name}{f}'
                     data_ts = datetime.datetime.strptime(start_timestr,
                                                          '%Y%m%dt%H%M%Sz.json').replace(tzinfo=datetime.UTC)
-                elif f.endswith('.json') and f.startswith('20'):
+                elif f.endswith('.csv') and f.startswith('20'):
                     previous = File.select().where(File.relative_path == relative_path_str).where(File.filename == f)
+                    self.processed += 1
                     if previous.exists():
                         continue
                     data_ts = datetime.datetime.strptime('%Y-%m-%d.csv',
@@ -55,33 +53,14 @@ class Processor:
                                   command=command,
                                   start_time=data_ts)
                 file_model.save(force_insert=True)
+                self.inserted += 1
 
-
-    def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        # may need work for 24h+
-        df['sched'] = df.apply(
-            lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.stsd, '%Y-%m-%d') + datetime.timedelta(seconds=x.stst)),
-            axis=1)
-        df['tmstmp'] = df.apply(lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.strptime(x.tmstmp, '%Y%m%d %H:%M:%S')),
-                                axis=1)
-        # 'origtatripno',
-        df = df.drop(columns=['lat', 'lon', 'hdg', 'tablockid', 'zone', 'mode', 'psgld', 'stst', 'stsd'])
-        return df
 
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['vehicle']
-        this_df = pd.DataFrame(top)
-        this_df = self.preprocess(this_df)
-        self.df = pd.concat([self.df, this_df], ignore_index=True)
-        #self.df = pd.concat([self.df, pd.DataFrame([top])], ignore_index=True)
 
     def parse_bustime_response(self, brdict: dict):
         top = brdict['bustime-response']['ptr'][0]
-        df = pd.DataFrame(top['pt'])
-        df['pid'] = top['pid']
-        del top['pt']
-        self.summary_df = pd.concat([self.summary_df, pd.DataFrame([top])], ignore_index=True)
-        self.df = pd.concat([self.df, df], ignore_index=True)
 
 
     def parse_all_days(self, process_fn=None):
@@ -92,7 +71,7 @@ class Processor:
         if process_fn is None:
             process_fn = self.parse_bustime_response
         pattern_dir = self.datadir / day
-        for f in tqdm.tqdm(pattern_dir.glob('t*.json')):
+        for f in pattern_dir.glob('t*.json'):
             if f.name.startswith('ttscrape'):
                 _, cmd, rawts = f.name.split('-')
                 data_ts = datetime.datetime.strptime(rawts, '%Y%m%d%H%M%Sz.json').replace(tzinfo=datetime.UTC)

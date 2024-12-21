@@ -9,6 +9,16 @@
 # https://github.com/docker/awesome-compose
 services:
   server:
+    volumes:
+      - type: volume
+        source: transit-data
+        target: /transit
+      - type: bind
+        source: ~/transit/bustracker/raw
+        target: /transitdata
+      - type: bind
+        source: ../../forkedcode/docker-postgresql-multiple-databases
+        target: /docker-entrypoint-initdb.d
     build:
       context: .
     ports:
@@ -22,10 +32,8 @@ services:
     environment:
       - POSTGRES_SERVER=db
       - POSTGRES_USER=postgres
-      - POSTGRES_DB=example
+      - POSTGRES_DB=busdata
       - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
-    volumes:
-      - transit-data:/transit
     secrets:
       - db-password
       #- cloud-credentials
@@ -46,7 +54,8 @@ services:
        - db-data:/var/lib/postgresql/data
      environment:
        - POSTGRES_SERVER=db
-       - POSTGRES_DB=busscrapestate
+       - POSTGRES_DB=busdata
+       #- POSTGRES_MULTIPLE_DATABASES=busscrapestate,postgres\:\ busdata,postgres
        - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
      expose:
        - 5432

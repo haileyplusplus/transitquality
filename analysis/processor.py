@@ -20,9 +20,9 @@ class Processor:
         self.inserted = 0
 
     def update(self):
+        self.find_files('getpatterns', self.data_dir / 'getpatterns')
         self.find_files('getvehicles', self.data_dir / 'getvehicles')
         self.find_files('getvehicles', self.data_dir / 'chnghostbuses')
-        self.find_files('getpatterns', self.data_dir / 'getpatterns')
         return self.processed, self.inserted
 
     def find_files(self, command: str, start_dir: Path):
@@ -30,7 +30,15 @@ class Processor:
             relative_path = root.relative_to(self.data_dir)
             for f in files:
                 relative_path_str = relative_path.as_posix()
-                if f.endswith('.json') and f.startswith('t'):
+                if f.endswith('.json') and f.startswith('tt'):
+                    self.processed += 1
+                    previous = File.select().where(File.relative_path == relative_path_str).where(File.filename == f)
+                    if previous.exists():
+                        continue
+                    start_timestr = f
+                    data_ts = datetime.datetime.strptime(start_timestr,
+                                                         'ttscrape-getpatterns-%Y%m%d%H%M%Sz.json').replace(tzinfo=datetime.UTC)
+                elif f.endswith('.json') and f.startswith('t'):
                     self.processed += 1
                     previous = File.select().where(File.relative_path == relative_path_str).where(File.filename == f)
                     if previous.exists():
@@ -43,8 +51,8 @@ class Processor:
                     self.processed += 1
                     if previous.exists():
                         continue
-                    data_ts = datetime.datetime.strptime('%Y-%m-%d.csv',
-                                                         '%Y%m%dt%H%M%Sz.json'
+                    data_ts = datetime.datetime.strptime(f,
+                                                         '%Y-%m-%d.csv',
                                                          ).replace(tzinfo=Util.CTA_TIMEZONE)
                 else:
                     continue
@@ -88,7 +96,10 @@ class Processor:
             with open(f) as fh:
                 try:
                     p = json.load(fh)
-                    self.parse_v2(p, process_fn)
+                    if 'bustime-response' in p:
+                        process_fn(p)
+                    else:
+                        self.parse_v2(p, process_fn)
                 except json.JSONDecodeError:
                     continue
 

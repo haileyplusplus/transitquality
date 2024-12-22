@@ -77,8 +77,73 @@ class Processor:
         patterns = Pattern.select().count()
         return {'files': len(files), 'previous': previous, 'patterns': patterns}
 
+    def parse_new_vehicles(self, limit=None):
+        existing = FileParse.select(FileParse.file_id).where(FileParse.parse_success)
+        files = File.select().where(File.command == 'getvehicles')
+        previous = VehiclePosition.select().count()
+        count = 0
+        for f in files:
+            if limit and count >= limit:
+                break
+            if f in existing:
+                continue
+            self.parse_file(f)
+            count += 1
+        v = VehiclePosition.select().count()
+        return {'files': len(files), 'previous': previous, 'vehicles': v}
+
+    def add_trip(self, v):
+        r = Route.get_or_none(Route.route_id == v['rt'])
+        if r is None:
+            r = Route.create(route_id=v['rt'], timestamp=Util.utcnow(), active=True)
+        pid = int(v['pid'])
+        p = Pattern.get_or_none(Pattern.pattern_id == pid)
+        if p is None:
+            p = Pattern.create(pattern_id=pid, route=r)
+        schedule_time = Util.CTA_TIMEZONE.localize(
+            datetime.datetime.strptime(
+                v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst'])),
+        t = Trip.create(
+            vehicle_id=v['vid'],
+            route=r,
+            pattern=p,
+            destination=v['des'],
+            ta_block_id=v['tablockid'],
+            ta_trip_id=v['tatripid'],
+            origtatripno=v['origtatripno'],
+            zone=v['zone'],
+            mode=v['mode'],
+            passenger_load=v['psgld'],
+            schedule_local_day=v['stsd'],
+            schedule_time=schedule_time
+        )
+        return t
+
     def parse_getvehicles_response(self, file_ts: datetime.datetime, brdict: dict):
         top = brdict['bustime-response']['vehicle']
+        trips = set([v['origtatripno'] for v in top])
+        existing = Trip.select(Trip.origtatripno).where(Trip.origtatripno << trips)
+        #trips = trips - set([x.origtatripno for x in existing])
+        existing_tripids = {x.origtatripno: x for x in existing}
+        positions = []
+        for v in top:
+            ota = v['origtatripno']
+            if ota not in existing_tripids:
+                t = self.add_trip(v)
+                existing_tripids[ota] = t
+            else:
+                t = existing_tripids[ota]
+            positions.append(VehiclePosition(
+                trip=t,
+                lat=v['lat'],
+                lon=v['lon'],
+                heading=int(v['hdg']),
+                timestamp=Util.CTA_TIMEZONE.localize(
+                    datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
+                pattern_distance=int(v['pdist']),
+                delay=v['dly']
+            ))
+        VehiclePosition.bulk_create(positions, batch_size=100)
 
     @staticmethod
     def get_direction(dirname):

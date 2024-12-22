@@ -38,6 +38,8 @@ runner = Runner(ts)
 #signal.signal(signal.SIGINT, runner.exithandler)
 #signal.signal(signal.SIGTERM, runner.exithandler)
 
+START_TIME = datetime.datetime.now(datetime.UTC)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -113,6 +115,7 @@ def status():
     else:
         git = {}
     d['build'] = git
+    d['started'] = START_TIME.isoformat()
     return d
 
 
@@ -170,6 +173,16 @@ def parsepatterns():
     p = Processor(data_dir=Path('/transitdata'))
     start = datetime.datetime.now(datetime.UTC)
     d = p.parse_new_patterns()
+    finish = datetime.datetime.now(datetime.UTC)
+    d['finish'] = finish.isoformat()
+    d['elapsed'] = int((finish - start).total_seconds() * 1000)
+    return d
+
+@app.get('/parsevehicles/{limit}')
+def parsepatterns(limit: int):
+    p = Processor(data_dir=Path('/transitdata'))
+    start = datetime.datetime.now(datetime.UTC)
+    d = p.parse_new_vehicles(limit=limit)
     finish = datetime.datetime.now(datetime.UTC)
     d['finish'] = finish.isoformat()
     d['elapsed'] = int((finish - start).total_seconds() * 1000)

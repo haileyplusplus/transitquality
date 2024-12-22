@@ -46,8 +46,8 @@ class Direction(BaseModel):
 class Pattern(BaseModel):
     pattern_id = IntegerField(primary_key=True)
     route = ForeignKeyField(Route, null=True, backref='patterns')
-    direction = ForeignKeyField(Direction)
-    timestamp = DateTimeTZField()
+    direction = ForeignKeyField(Direction, null=True)
+    timestamp = DateTimeTZField(null=True)
     length = IntegerField(null=True)
 
 

@@ -2,6 +2,7 @@
 
 import dataclasses
 import itertools
+from functools import partial
 import sys
 import argparse
 import datetime
@@ -63,56 +64,126 @@ class Processor:
                 file_model.save(force_insert=True)
                 self.inserted += 1
 
+    def parse_new_patterns(self):
+        existing = FileParse.select(FileParse.file_id).where(FileParse.parse_success)
+        files = File.select().where(File.command == 'getpatterns')
+        previous = Pattern.select().count()
+        for f in files:
+            if f in existing:
+                continue
+            self.parse_file(f)
+        patterns = Pattern.select().count()
+        return {'files': len(files), 'previous': previous, 'patterns': patterns}
 
-    def parse_bustime_response(self, brdict: dict):
+    @staticmethod
+    def parse_getvehicles_response(file_ts: datetime.datetime, brdict: dict):
         top = brdict['bustime-response']['vehicle']
 
-    def parse_bustime_response(self, brdict: dict):
+    @staticmethod
+    def get_direction(dirname):
+        dir_ = Direction.get_or_none(Direction.direction_id == dirname)
+        if dir_ is None:
+            dir_ = Direction(direction_id=dirname)
+            dir_.save(force_insert=True)
+        return dir_
+
+    @staticmethod
+    def parse_getpatterns_response(file_ts: datetime.datetime, brdict: dict):
         top = brdict['bustime-response']['ptr'][0]
-
-
-    def parse_all_days(self, process_fn=None):
-        for day in self.datadir.glob('202?????'):
-            self.parse_day(day.name, process_fn)
-
-    def parse_day(self, day: str, process_fn=None):
-        if process_fn is None:
-            process_fn = self.parse_bustime_response
-        pattern_dir = self.datadir / day
-        for f in pattern_dir.glob('t*.json'):
-            if f.name.startswith('ttscrape'):
-                _, cmd, rawts = f.name.split('-')
-                data_ts = datetime.datetime.strptime(rawts, '%Y%m%d%H%M%Sz.json').replace(tzinfo=datetime.UTC)
-            else:
-                data_ts = datetime.datetime.strptime(f'{day}{f.name}', '%Y%m%dt%H%M%Sz.json').replace(tzinfo=datetime.UTC)
-            self.set_filetime(data_ts)
-            if self.filter_end and data_ts >= self.filter_end:
-                self.filtered_out += 1
-                continue
-            if self.filter_time and data_ts <= self.filter_time:
-                self.filtered_out += 1
-                continue
-            #print(f'Reading {f}')
-            with open(f) as fh:
-                try:
-                    p = json.load(fh)
-                    if 'bustime-response' in p:
-                        process_fn(p)
-                    else:
-                        self.parse_v2(p, process_fn)
-                except json.JSONDecodeError:
-                    continue
-
-    def parse_v2(self, v2dict, process_fn):
-        if v2dict.get('v') != '2.0':
-            self.unknown_version += 1
+        pid = int(top['pid'])
+        existing = Pattern.get_or_none(Pattern.pattern_id == pid)
+        if existing is not None:
             return
-        for req in v2dict.get('requests', []):
-            r = req.get('response', {})
-            if 'bustime-response' not in r:
-                self.errors += 1
-                continue
-            process_fn(r)
+        p = Pattern(pattern_id=pid,
+                    direction=Processor.get_direction(top['rtdir']),
+                    timestamp=file_ts,
+                    length=int(top['ln']))
+        p.save(force_insert=True)
+        for d in top['pt']:
+            typ = d['typ']
+            if typ == 'W':
+                w = Waypoint(
+                    pattern=p,
+                    sequence_no=int(d['seq']),
+                    lat=d['lat'],
+                    lon=d['lon'],
+                    distance=int(d['pdist'])
+                )
+                w.save(force_insert=True)
+            elif typ == 'S':
+                stop_id = str(d['stpid'])
+                stop = Stop.get_or_none(Stop.stop_id == stop_id)
+                if stop is None:
+                    stop = Stop(stop_id=stop_id,
+                                stop_name=d['stpnm'],
+                                lat=d['lat'],
+                                lon=d['lon']
+                                )
+                    stop.save(force_insert=True)
+                pattern_stop = PatternStop(
+                    pattern=p,
+                    stop=stop,
+                    sequence_no=int(d['seq']),
+                    pattern_distance=int(d['pdist'])
+                )
+                pattern_stop.save(force_insert=True)
+            else:
+                raise ValueError(f'Unexpected pattern type {typ}')
+
+    def parse_file(self, file_model: File):
+        f: Path = self.data_dir / file_model.relative_path / file_model.filename
+        attempt = FileParse(file_id=file_model,
+                            parse_time=Util.utcnow(),
+                            parse_stage='first',
+                            parse_success=False)
+        attempt.save(force_insert=True)
+        if not f.exists():
+            error = Error(parse_attempt=attempt,
+                          error_class='Missing file')
+            error.save(force_insert=True)
+            return False
+        process_fn = getattr(self, f'parse_{file_model.command}_response')
+        success = False
+        with open(f) as fh:
+            try:
+                p = json.load(fh)
+                if 'bustime-response' in p:
+                    applied = partial(process_fn, file_model.start_time, p)
+                    success = self.parse_single(applied, attempt)
+                else:
+                    if p.get('v') != '2.0':
+                        error = Error(parse_attempt=attempt,
+                                      error_class='Version error')
+                        error.save(force_insert=True)
+                        return False
+                    reqno = 0
+                    for req in p.get('requests', []):
+                        r = req['response']
+                        request_time = datetime.datetime.fromisoformat(req['request_time'])
+                        applied = partial(process_fn, request_time, r)
+                        if self.parse_single(applied, attempt):
+                            success = True
+                        reqno += 1
+            except (json.JSONDecodeError, ValueError, KeyError) as e:
+                error = Error(parse_attempt=attempt,
+                              error_class='Parse error',
+                              error_content=str(e))
+                error.save(force_insert=True)
+                return False
+        attempt.parse_success = success
+        attempt.save()
+        return True
+
+    def parse_single(self, applied, attempt):
+        try:
+            applied()
+        except (ValueError, KeyError) as e:
+            error = Error(parse_attempt=attempt,
+                          error_class='Parse error',
+                          error_content=str(e))
+            error.save(force_insert=True)
+            return False
+        return True
 
     def report(self):
         print(f'Errors: {self.errors}, unknown version: {self.unknown_version}')

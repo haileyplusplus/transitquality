@@ -163,3 +163,11 @@ def runprocessor():
     p = Processor(data_dir=Path('/transitdata'))
     p, i = p.update()
     return {'processed': p, 'inserted': i}
+
+
+@app.get('/parsepatterns')
+def parsepatterns():
+    p = Processor(data_dir=Path('/transitdata'))
+    d = p.parse_new_patterns()
+    d['finish'] = datetime.datetime.now(datetime.UTC).isoformat()
+    return d

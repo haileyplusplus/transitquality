@@ -45,7 +45,7 @@ class Direction(BaseModel):
 
 class Pattern(BaseModel):
     pattern_id = IntegerField(primary_key=True)
-    route = ForeignKeyField(Route, backref='patterns')
+    route = ForeignKeyField(Route, null=True, backref='patterns')
     direction = ForeignKeyField(Direction)
     timestamp = DateTimeTZField()
     length = IntegerField(null=True)
@@ -128,6 +128,7 @@ class FileParse(BaseModel):
     parse_time = DateTimeTZField()
     parse_stage = CharField()
     parse_iteration = IntegerField(null=True)
+    parse_success = BooleanField(null=True)
 
 
 class Error(BaseModel):

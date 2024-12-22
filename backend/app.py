@@ -168,6 +168,9 @@ def runprocessor():
 @app.get('/parsepatterns')
 def parsepatterns():
     p = Processor(data_dir=Path('/transitdata'))
+    start = datetime.datetime.now(datetime.UTC)
     d = p.parse_new_patterns()
-    d['finish'] = datetime.datetime.now(datetime.UTC).isoformat()
+    finish = datetime.datetime.now(datetime.UTC)
+    d['finish'] = finish.isoformat()
+    d['elapsed'] = int((finish - start).total_seconds() * 1000)
     return d

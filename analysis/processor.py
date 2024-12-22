@@ -9,6 +9,8 @@ import datetime
 from pathlib import Path
 import json
 
+import peewee
+
 from backend.util import Util
 from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
 
@@ -16,7 +18,7 @@ from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, 
 class Processor:
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
-        db_initialize()
+        self.db = db_initialize()
         self.processed = 0
         self.inserted = 0
 
@@ -75,30 +77,32 @@ class Processor:
         patterns = Pattern.select().count()
         return {'files': len(files), 'previous': previous, 'patterns': patterns}
 
-    @staticmethod
-    def parse_getvehicles_response(file_ts: datetime.datetime, brdict: dict):
+    def parse_getvehicles_response(self, file_ts: datetime.datetime, brdict: dict):
         top = brdict['bustime-response']['vehicle']
 
     @staticmethod
     def get_direction(dirname):
         dir_ = Direction.get_or_none(Direction.direction_id == dirname)
         if dir_ is None:
-            dir_ = Direction(direction_id=dirname)
-            dir_.save(force_insert=True)
+            dir_ = Direction.create(direction_id=dirname)
         return dir_
 
-    @staticmethod
-    def parse_getpatterns_response(file_ts: datetime.datetime, brdict: dict):
+    def parse_getpatterns_response(self, file_ts: datetime.datetime, brdict: dict):
         top = brdict['bustime-response']['ptr'][0]
         pid = int(top['pid'])
-        existing = Pattern.get_or_none(Pattern.pattern_id == pid)
-        if existing is not None:
+        try:
+            # existing = Pattern.get_or_none(Pattern.pattern_id == pid)
+            # if existing is not None:
+            #     return
+            p = Pattern.create(
+                pattern_id=pid,
+                direction=Processor.get_direction(top['rtdir']),
+                timestamp=file_ts,
+                length=int(top['ln']))
+        except peewee.IntegrityError:
             return
-        p = Pattern(pattern_id=pid,
-                    direction=Processor.get_direction(top['rtdir']),
-                    timestamp=file_ts,
-                    length=int(top['ln']))
-        p.save(force_insert=True)
+        waypoints = []
+        pattern_stops = []
         for d in top['pt']:
             typ = d['typ']
             if typ == 'W':
@@ -109,7 +113,8 @@ class Processor:
                     lon=d['lon'],
                     distance=int(d['pdist'])
                 )
-                w.save(force_insert=True)
+                #w.save(force_insert=True)
+                waypoints.append(w)
             elif typ == 'S':
                 stop_id = str(d['stpid'])
                 stop = Stop.get_or_none(Stop.stop_id == stop_id)
@@ -126,9 +131,12 @@ class Processor:
                     sequence_no=int(d['seq']),
                     pattern_distance=int(d['pdist'])
                 )
-                pattern_stop.save(force_insert=True)
+                #pattern_stop.save(force_insert=True)
+                pattern_stops.append(pattern_stop)
             else:
                 raise ValueError(f'Unexpected pattern type {typ}')
+        Waypoint.bulk_create(waypoints, batch_size=100)
+        PatternStop.bulk_create(pattern_stops, batch_size=100)
 
     def parse_file(self, file_model: File):
         f: Path = self.data_dir / file_model.relative_path / file_model.filename
@@ -176,7 +184,8 @@ class Processor:
 
     def parse_single(self, applied, attempt):
         try:
-            applied()
+            with self.db.atomic():
+                applied()
         except (ValueError, KeyError) as e:
             error = Error(parse_attempt=attempt,
                           error_class='Parse error',

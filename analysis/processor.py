@@ -15,7 +15,169 @@ from backend.util import Util
 from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
 
 
+class BaseParser:
+    def __init__(self, db, attempt):
+        self.attempt = attempt
+        self.db = db
+        self.iter = 0
+        self.data_time = None
+
+    def set_data_time(self, data_time: datetime.datetime):
+        self.data_time = data_time
+
+    def set_iter(self, iter_no: int):
+        self.iter = iter_no
+
+    def finalize(self):
+        pass
+
+    def parse_inner(self, brdict):
+        pass
+
+    def parse_single(self, brdict):
+        try:
+            with self.db.atomic():
+                self.parse_inner(brdict)
+        except (ValueError, KeyError) as e:
+            error = Error(parse_attempt=self.attempt,
+                          error_class='Parse error',
+                          error_content=str(e))
+            error.save(force_insert=True)
+            return False
+        return True
+
+
+class PatternParser(BaseParser):
+    def __init__(self, db, attempt):
+        super().__init__(db, attempt)
+
+    @staticmethod
+    def get_direction(dirname):
+        dir_ = Direction.get_or_none(Direction.direction_id == dirname)
+        if dir_ is None:
+            dir_ = Direction.create(direction_id=dirname)
+        return dir_
+
+    def parse(self, brdict):
+        self.parse_single(brdict)
+
+    def parse_inner(self, brdict):
+        top = brdict['bustime-response']['ptr'][0]
+        pid = int(top['pid'])
+        try:
+            # existing = Pattern.get_or_none(Pattern.pattern_id == pid)
+            # if existing is not None:
+            #     return
+            p = Pattern.create(
+                pattern_id=pid,
+                direction=self.get_direction(top['rtdir']),
+                timestamp=self.data_time,
+                length=int(top['ln']))
+        except peewee.IntegrityError:
+            return
+        waypoints = []
+        pattern_stops = []
+        for d in top['pt']:
+            typ = d['typ']
+            if typ == 'W':
+                w = Waypoint(
+                    pattern=p,
+                    sequence_no=int(d['seq']),
+                    lat=d['lat'],
+                    lon=d['lon'],
+                    distance=int(d['pdist'])
+                )
+                #w.save(force_insert=True)
+                waypoints.append(w)
+            elif typ == 'S':
+                stop_id = str(d['stpid'])
+                stop = Stop.get_or_none(Stop.stop_id == stop_id)
+                if stop is None:
+                    stop = Stop(stop_id=stop_id,
+                                stop_name=d['stpnm'],
+                                lat=d['lat'],
+                                lon=d['lon']
+                                )
+                    stop.save(force_insert=True)
+                pattern_stop = PatternStop(
+                    pattern=p,
+                    stop=stop,
+                    sequence_no=int(d['seq']),
+                    pattern_distance=int(d['pdist'])
+                )
+                #pattern_stop.save(force_insert=True)
+                pattern_stops.append(pattern_stop)
+            else:
+                raise ValueError(f'Unexpected pattern type {typ}')
+        Waypoint.bulk_create(waypoints, batch_size=100)
+        PatternStop.bulk_create(pattern_stops, batch_size=100)
+
+
+class VehicleParser(BaseParser):
+    def __init__(self, db, attempt):
+        super().__init__(db, attempt)
+
+    def add_trip(self, v):
+        r = Route.get_or_none(Route.route_id == v['rt'])
+        if r is None:
+            r = Route.create(route_id=v['rt'], timestamp=Util.utcnow(), active=True)
+        pid = int(v['pid'])
+        p = Pattern.get_or_none(Pattern.pattern_id == pid)
+        if p is None:
+            p = Pattern.create(pattern_id=pid, route=r)
+        schedule_time = Util.CTA_TIMEZONE.localize(
+            datetime.datetime.strptime(
+                v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst'])),
+        t = Trip.create(
+            vehicle_id=v['vid'],
+            route=r,
+            pattern=p,
+            destination=v['des'],
+            ta_block_id=v['tablockid'],
+            ta_trip_id=v['tatripid'],
+            origtatripno=v['origtatripno'],
+            zone=v['zone'],
+            mode=v['mode'],
+            passenger_load=v['psgld'],
+            schedule_local_day=v['stsd'],
+            schedule_time=schedule_time
+        )
+        return t
+
+    def parse(self, brdict):
+        top = brdict['bustime-response']['vehicle']
+        trips = set([v['origtatripno'] for v in top])
+        existing = Trip.select(Trip.origtatripno).where(Trip.origtatripno << trips)
+        #trips = trips - set([x.origtatripno for x in existing])
+        existing_tripids = {x.origtatripno: x for x in existing}
+        positions = []
+        for v in top:
+            ota = v['origtatripno']
+            if ota not in existing_tripids:
+                t = self.add_trip(v)
+                existing_tripids[ota] = t
+            else:
+                t = existing_tripids[ota]
+            positions.append(VehiclePosition(
+                trip=t,
+                lat=v['lat'],
+                lon=v['lon'],
+                heading=int(v['hdg']),
+                timestamp=Util.CTA_TIMEZONE.localize(
+                    datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
+                pattern_distance=int(v['pdist']),
+                delay=v['dly']
+            ))
+        VehiclePosition.bulk_create(positions, batch_size=100)
+
+    def finalize(self):
+        pass
+
+
 class Processor:
+    PARSERS = {'getvehicles': VehicleParser,
+               'getpatterns': PatternParser}
+
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
         self.db = db_initialize()
@@ -92,117 +254,6 @@ class Processor:
         v = VehiclePosition.select().count()
         return {'files': len(files), 'previous': previous, 'vehicles': v}
 
-    def add_trip(self, v):
-        r = Route.get_or_none(Route.route_id == v['rt'])
-        if r is None:
-            r = Route.create(route_id=v['rt'], timestamp=Util.utcnow(), active=True)
-        pid = int(v['pid'])
-        p = Pattern.get_or_none(Pattern.pattern_id == pid)
-        if p is None:
-            p = Pattern.create(pattern_id=pid, route=r)
-        schedule_time = Util.CTA_TIMEZONE.localize(
-            datetime.datetime.strptime(
-                v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst'])),
-        t = Trip.create(
-            vehicle_id=v['vid'],
-            route=r,
-            pattern=p,
-            destination=v['des'],
-            ta_block_id=v['tablockid'],
-            ta_trip_id=v['tatripid'],
-            origtatripno=v['origtatripno'],
-            zone=v['zone'],
-            mode=v['mode'],
-            passenger_load=v['psgld'],
-            schedule_local_day=v['stsd'],
-            schedule_time=schedule_time
-        )
-        return t
-
-    def parse_getvehicles_response(self, file_ts: datetime.datetime, brdict: dict):
-        top = brdict['bustime-response']['vehicle']
-        trips = set([v['origtatripno'] for v in top])
-        existing = Trip.select(Trip.origtatripno).where(Trip.origtatripno << trips)
-        #trips = trips - set([x.origtatripno for x in existing])
-        existing_tripids = {x.origtatripno: x for x in existing}
-        positions = []
-        for v in top:
-            ota = v['origtatripno']
-            if ota not in existing_tripids:
-                t = self.add_trip(v)
-                existing_tripids[ota] = t
-            else:
-                t = existing_tripids[ota]
-            positions.append(VehiclePosition(
-                trip=t,
-                lat=v['lat'],
-                lon=v['lon'],
-                heading=int(v['hdg']),
-                timestamp=Util.CTA_TIMEZONE.localize(
-                    datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
-                pattern_distance=int(v['pdist']),
-                delay=v['dly']
-            ))
-        VehiclePosition.bulk_create(positions, batch_size=100)
-
-    @staticmethod
-    def get_direction(dirname):
-        dir_ = Direction.get_or_none(Direction.direction_id == dirname)
-        if dir_ is None:
-            dir_ = Direction.create(direction_id=dirname)
-        return dir_
-
-    def parse_getpatterns_response(self, file_ts: datetime.datetime, brdict: dict):
-        top = brdict['bustime-response']['ptr'][0]
-        pid = int(top['pid'])
-        try:
-            # existing = Pattern.get_or_none(Pattern.pattern_id == pid)
-            # if existing is not None:
-            #     return
-            p = Pattern.create(
-                pattern_id=pid,
-                direction=Processor.get_direction(top['rtdir']),
-                timestamp=file_ts,
-                length=int(top['ln']))
-        except peewee.IntegrityError:
-            return
-        waypoints = []
-        pattern_stops = []
-        for d in top['pt']:
-            typ = d['typ']
-            if typ == 'W':
-                w = Waypoint(
-                    pattern=p,
-                    sequence_no=int(d['seq']),
-                    lat=d['lat'],
-                    lon=d['lon'],
-                    distance=int(d['pdist'])
-                )
-                #w.save(force_insert=True)
-                waypoints.append(w)
-            elif typ == 'S':
-                stop_id = str(d['stpid'])
-                stop = Stop.get_or_none(Stop.stop_id == stop_id)
-                if stop is None:
-                    stop = Stop(stop_id=stop_id,
-                                stop_name=d['stpnm'],
-                                lat=d['lat'],
-                                lon=d['lon']
-                                )
-                    stop.save(force_insert=True)
-                pattern_stop = PatternStop(
-                    pattern=p,
-                    stop=stop,
-                    sequence_no=int(d['seq']),
-                    pattern_distance=int(d['pdist'])
-                )
-                #pattern_stop.save(force_insert=True)
-                pattern_stops.append(pattern_stop)
-            else:
-                raise ValueError(f'Unexpected pattern type {typ}')
-        Waypoint.bulk_create(waypoints, batch_size=100)
-        PatternStop.bulk_create(pattern_stops, batch_size=100)
-
     def parse_file(self, file_model: File):
         f: Path = self.data_dir / file_model.relative_path / file_model.filename
         attempt = FileParse(file_id=file_model,
@@ -215,14 +266,18 @@ class Processor:
                           error_class='Missing file')
             error.save(force_insert=True)
             return False
-        process_fn = getattr(self, f'parse_{file_model.command}_response')
+        #process_fn = getattr(self, f'parse_{file_model.command}_response')
+        parser_class = self.PARSERS[file_model.command]
+        parser = parser_class(self.db, attempt)
         success = False
         with open(f) as fh:
             try:
                 p = json.load(fh)
                 if 'bustime-response' in p:
-                    applied = partial(process_fn, file_model.start_time, p)
-                    success = self.parse_single(applied, attempt)
+                    parser.set_data_time(file_model.start_time)
+                    #applied = partial(process_fn, file_model.start_time, p)
+                    #success = self.parse_single(applied, attempt)
+                    parser.parse(p)
                 else:
                     if p.get('v') != '2.0':
                         error = Error(parse_attempt=attempt,
@@ -233,9 +288,12 @@ class Processor:
                     for req in p.get('requests', []):
                         r = req['response']
                         request_time = datetime.datetime.fromisoformat(req['request_time'])
-                        applied = partial(process_fn, request_time, r)
-                        if self.parse_single(applied, attempt):
-                            success = True
+                        parser.set_data_time(request_time)
+                        parser.set_iter(reqno)
+                        parser.parse(r)
+                        #applied = partial(process_fn, request_time, r)
+                        #if self.parse_single(applied, attempt):
+                        #    success = True
                         reqno += 1
             except (json.JSONDecodeError, ValueError, KeyError) as e:
                 error = Error(parse_attempt=attempt,
@@ -243,20 +301,9 @@ class Processor:
                               error_content=str(e))
                 error.save(force_insert=True)
                 return False
+        parser.finalize()
         attempt.parse_success = success
         attempt.save()
-        return True
-
-    def parse_single(self, applied, attempt):
-        try:
-            with self.db.atomic():
-                applied()
-        except (ValueError, KeyError) as e:
-            error = Error(parse_attempt=attempt,
-                          error_class='Parse error',
-                          error_content=str(e))
-            error.save(force_insert=True)
-            return False
         return True
 
     def report(self):

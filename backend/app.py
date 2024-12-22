@@ -179,7 +179,7 @@ def parsepatterns():
     return d
 
 @app.get('/parsevehicles/{limit}')
-def parsepatterns(limit: int):
+def parsevehicles(limit: int):
     p = Processor(data_dir=Path('/transitdata'))
     start = datetime.datetime.now(datetime.UTC)
     d = p.parse_new_vehicles(limit=limit)

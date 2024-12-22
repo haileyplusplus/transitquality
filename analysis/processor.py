@@ -8,6 +8,7 @@ import argparse
 import datetime
 from pathlib import Path
 import json
+from typing import Iterable
 
 import peewee
 
@@ -113,25 +114,15 @@ class PatternParser(BaseParser):
         PatternStop.bulk_create(pattern_stops, batch_size=100)
 
 
-class VehicleParser(BaseParser):
-    def __init__(self, db, attempt):
-        super().__init__(db, attempt)
-
-    def add_trip(self, v):
-        r = Route.get_or_none(Route.route_id == v['rt'])
-        if r is None:
-            r = Route.create(route_id=v['rt'], timestamp=Util.utcnow(), active=True)
-        pid = int(v['pid'])
-        p = Pattern.get_or_none(Pattern.pattern_id == pid)
-        if p is None:
-            p = Pattern.create(pattern_id=pid, route=r)
+class WorkingTrip:
+    def __init__(self, ota: str, v):
+        self.ota = ota
+        self.template = v
         schedule_time = Util.CTA_TIMEZONE.localize(
             datetime.datetime.strptime(
                 v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst'])),
-        t = Trip.create(
+        self.trip_model = Trip(
             vehicle_id=v['vid'],
-            route=r,
-            pattern=p,
             destination=v['des'],
             ta_block_id=v['tablockid'],
             ta_trip_id=v['tatripid'],
@@ -142,36 +133,79 @@ class VehicleParser(BaseParser):
             schedule_local_day=v['stsd'],
             schedule_time=schedule_time
         )
-        return t
+        self.positions = []
+        self.needs_insert = True
+        self.add_position(v)
+
+    def replace_model(self, new_model: Trip):
+        self.needs_insert = False
+        self.trip_model = new_model
+
+    def insert_trip_model(self):
+        if not self.needs_insert:
+            return
+        v = self.template
+        r = Route.get_or_none(Route.route_id == v['rt'])
+        if r is None:
+            r = Route.create(route_id=v['rt'], timestamp=Util.utcnow(), active=True)
+        pid = int(v['pid'])
+        p = Pattern.get_or_none(Pattern.pattern_id == pid)
+        if p is None:
+            p = Pattern.create(pattern_id=pid, route=r)
+        self.trip_model.route = r
+        self.trip_model.pattern = p
+        self.trip_model.save(force_insert=True)
+        self.needs_insert = False
+
+    def finalize(self):
+        for position in self.positions:
+            position.trip = self.trip_model
+
+    def add_position(self, v):
+        self.positions.append(VehiclePosition(
+            lat=v['lat'],
+            lon=v['lon'],
+            heading=int(v['hdg']),
+            timestamp=Util.CTA_TIMEZONE.localize(
+                datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
+            pattern_distance=int(v['pdist']),
+            delay=v['dly']
+        ))
+
+    def __lt__(self, other):
+        return self.ota < other.ota
+
+    def __eq__(self, other):
+        return self.ota == other.ota
+
+    def __hash__(self):
+        return hash(self.ota)
+
+
+class VehicleParser(BaseParser):
+    def __init__(self, db, attempt):
+        super().__init__(db, attempt)
+        self.by_trip: dict[str, WorkingTrip] = {}
 
     def parse(self, brdict):
         top = brdict['bustime-response']['vehicle']
-        trips = set([v['origtatripno'] for v in top])
-        existing = Trip.select(Trip.origtatripno).where(Trip.origtatripno << trips)
-        #trips = trips - set([x.origtatripno for x in existing])
-        existing_tripids = {x.origtatripno: x for x in existing}
-        positions = []
         for v in top:
             ota = v['origtatripno']
-            if ota not in existing_tripids:
-                t = self.add_trip(v)
-                existing_tripids[ota] = t
-            else:
-                t = existing_tripids[ota]
-            positions.append(VehiclePosition(
-                trip=t,
-                lat=v['lat'],
-                lon=v['lon'],
-                heading=int(v['hdg']),
-                timestamp=Util.CTA_TIMEZONE.localize(
-                    datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
-                pattern_distance=int(v['pdist']),
-                delay=v['dly']
-            ))
-        VehiclePosition.bulk_create(positions, batch_size=100)
+            self.by_trip.setdefault(ota, WorkingTrip(ota, v)).add_position(v)
 
     def finalize(self):
-        pass
+        all_ids = list(self.by_trip.keys())
+        existing: Iterable[Trip] = Trip.select().where(Trip.origtatripno << all_ids)
+        for existing_trip_model in existing:
+            trip: WorkingTrip | None = self.by_trip.get(existing_trip_model.origtatripno)
+            if trip is not None:
+                trip.replace_model(existing_trip_model)
+        positions = []
+        for v in self.by_trip.values():
+            v.insert_trip_model()
+            v.finalize()
+            positions += v.positions
+        VehiclePosition.bulk_create(positions, batch_size=100)
 
 
 class Processor:

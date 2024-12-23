@@ -9,11 +9,15 @@ import datetime
 from pathlib import Path
 import json
 from typing import Iterable
+import logging
 
 import peewee
 
 from backend.util import Util
 from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
+
+
+logger = logging.getLogger(__file__)
 
 
 class BaseParser:
@@ -22,6 +26,7 @@ class BaseParser:
         self.db = db
         self.iter = 0
         self.data_time = None
+        self.success = False
 
     def set_data_time(self, data_time: datetime.datetime):
         self.data_time = data_time
@@ -61,6 +66,9 @@ class PatternParser(BaseParser):
 
     def parse(self, brdict):
         self.parse_single(brdict)
+
+    def finalize(self):
+        return self.success
 
     def parse_inner(self, brdict):
         top = brdict['bustime-response']['ptr'][0]
@@ -109,9 +117,11 @@ class PatternParser(BaseParser):
                 #pattern_stop.save(force_insert=True)
                 pattern_stops.append(pattern_stop)
             else:
+                self.success = False
                 raise ValueError(f'Unexpected pattern type {typ}')
         Waypoint.bulk_create(waypoints, batch_size=100)
         PatternStop.bulk_create(pattern_stops, batch_size=100)
+        self.success = True
 
 
 class WorkingTrip:
@@ -206,6 +216,7 @@ class VehicleParser(BaseParser):
             v.finalize()
             positions += v.positions
         VehiclePosition.bulk_create(positions, batch_size=100)
+        return True
 
 
 class Processor:
@@ -274,19 +285,32 @@ class Processor:
         return {'files': len(files), 'previous': previous, 'patterns': patterns}
 
     def parse_new_vehicles(self, limit=None):
-        existing = FileParse.select(FileParse.file_id).where(FileParse.parse_success)
-        files = File.select().where(File.command == 'getvehicles')
+        #existing = FileParse.select(FileParse.file_id).where(FileParse.parse_success)
+        #files = File.select().join(FileParse).where(File.command == 'getvehicles')
+        # never_attempted = (File.select().join(FileParse).where(File.file_id == FileParse.file_id).
+        #                    where(File.command == 'getvehicles').where(FileParse.parse_time.is_null()))
+        # print(never_attempted)
+        # succeeded = (File.select(File.file_id).join(FileParse).where(File.file_id == FileParse.file_id).
+        #              where(File.command == 'getvehicles').where(FileParse.parse_stage == 'first').
+        #              where(FileParse.parse_success))
         previous = VehiclePosition.select().count()
+        # sql_retry = "select file.file_id from file left join fileparse on file.file_id = fileparse.file_id where file.command = 'getvehicles' and fileparse.parse_stage = 'first' and not fileparse.parse_success and file.file_id not in (select distinct file_id from fileparse where parse_stage = 'first' and parse_success);"
+        success = FileParse.select(FileParse.file_id).where(FileParse.parse_stage == 'first').where(FileParse.parse_success)
+        print(f'success {success}')
+        needed = File.select().where(File.command == 'getvehicles').where(File.file_id.not_in(success))
+        print(f'needed {needed}')
         count = 0
-        for f in files:
+        #existing_ids = set([x.file_id for x in existing])
+        #logger.info(f'Existing ids for files: {existing_ids}')
+        for f in needed:
             if limit and count >= limit:
                 break
-            if f in existing:
-                continue
+            # if f.file_id in existing_ids:
+            #     continue
             self.parse_file(f)
             count += 1
         v = VehiclePosition.select().count()
-        return {'files': len(files), 'previous': previous, 'vehicles': v}
+        return {'needed': len(needed), 'previous': previous, 'vehicles': v, 'prev_success': len(success)}
 
     def parse_file(self, file_model: File):
         f: Path = self.data_dir / file_model.relative_path / file_model.filename
@@ -335,10 +359,8 @@ class Processor:
                               error_content=str(e))
                 error.save(force_insert=True)
                 return False
-        parser.finalize()
-        attempt.parse_success = success
+        attempt.parse_success = parser.finalize()
         attempt.save()
-        return True
 
     def report(self):
         print(f'Errors: {self.errors}, unknown version: {self.unknown_version}')

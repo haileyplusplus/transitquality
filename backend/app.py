@@ -205,3 +205,16 @@ def interpolate(tripid: int):
     rtc = RealtimeConverter()
     success = rtc.process_trip(tripid)
     return {'trip': tripid, 'success': success}
+
+
+@app.get('/interpolate_route/{routeid}')
+def interpolate(routeid: str):
+    processor.open()
+    rtc = RealtimeConverter()
+    start = datetime.datetime.now(datetime.UTC)
+    d = rtc.process_trips_for_route(routeid)
+    finish = datetime.datetime.now(datetime.UTC)
+    d['route'] = routeid
+    d['finish'] = finish.isoformat()
+    d['elapsed'] = int((finish - start).total_seconds() * 1000)
+    return d

@@ -435,6 +435,17 @@ class RealtimeConverter:
         self.trips_processed = 0
         self.trips_seen = set([])
 
+    def process_trips_for_route(self, route_id: str):
+        route_trips = Trip.select(Trip.trip_id).where(Trip.route == route_id)
+        attempted = 0
+        converted = 0
+        for t in route_trips:
+            result = self.process_trip(t.trip_id)
+            attempted += 1
+            if result:
+                converted += 1
+        return {'attempted': attempted, 'converted': converted}
+
     def process_trip(self, trip_id: int):
         #summary, times
         trip: Trip | None = Trip.get_or_none(Trip.trip_id == trip_id)
@@ -452,7 +463,7 @@ class RealtimeConverter:
             self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
                                 'msg': 'Missing raw times'})
             return False
-        print(f'Ts: {positions[0].timestamp}')
+        #print(f'Ts: {positions[0].timestamp}')
         stops = []
         stop_index = {}
         for ps in trip.pattern.stops:
@@ -468,18 +479,18 @@ class RealtimeConverter:
         #v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         #pattern = summary.iloc[0].pid
         stops_df = pd.DataFrame(stops)
-        print(f'Stops: {stops_df}')
+        #print(f'Stops: {stops_df}')
         vehicles_df = pd.DataFrame([{'pdist': x.pattern_distance, 'tmstmp': int(x.timestamp.timestamp())} for x in positions])
-        print(f'Vehicles: {vehicles_df}')
+        #print(f'Vehicles: {vehicles_df}')
         pattern_template = pd.DataFrame(index=stops_df.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, vehicles_df.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
         combined = combined.groupby(combined.index).last()
-        print(combined)
+        #print(combined)
 
         #px = self.manager.pm.get_stops(pattern)
         df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
-        print('return df', df)
+        #print('return df', df)
         stop_interpolation = []
         for _, row in df.iterrows():
             stop_interpolation.append(SimpleNamespace(

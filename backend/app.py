@@ -212,9 +212,12 @@ def interpolate(routeid: str):
     processor.open()
     rtc = RealtimeConverter()
     start = datetime.datetime.now(datetime.UTC)
-    d = rtc.process_trips_for_route(routeid)
+    d = {'routes': {}}
+    for route in routeid.split(','):
+        rd = rtc.process_trips_for_route(route)
+        d['routes'][route] = rd
     finish = datetime.datetime.now(datetime.UTC)
-    d['route'] = routeid
+    routes = [routeid]
     d['finish'] = finish.isoformat()
     d['elapsed'] = int((finish - start).total_seconds() * 1000)
     return d

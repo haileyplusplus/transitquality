@@ -40,6 +40,8 @@ runner = Runner(ts)
 
 START_TIME = datetime.datetime.now(datetime.UTC)
 
+processor = Processor(data_dir=Path('/transitdata'))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -163,27 +165,35 @@ def logtail():
 
 @app.get('/runprocessor')
 def runprocessor():
-    p = Processor(data_dir=Path('/transitdata'))
-    p, i = p.update()
+    processor.open()
+    p, i = processor.update()
     return {'processed': p, 'inserted': i}
 
 
 @app.get('/parsepatterns')
 def parsepatterns():
-    p = Processor(data_dir=Path('/transitdata'))
+    processor.open()
     start = datetime.datetime.now(datetime.UTC)
-    d = p.parse_new_patterns()
+    d = processor.parse_new_patterns()
     finish = datetime.datetime.now(datetime.UTC)
     d['finish'] = finish.isoformat()
     d['elapsed'] = int((finish - start).total_seconds() * 1000)
     return d
 
+
 @app.get('/parsevehicles/{limit}')
 def parsevehicles(limit: int):
-    p = Processor(data_dir=Path('/transitdata'))
+    processor.open()
     start = datetime.datetime.now(datetime.UTC)
-    d = p.parse_new_vehicles(limit=limit)
+    d = processor.parse_new_vehicles(limit=limit)
     finish = datetime.datetime.now(datetime.UTC)
     d['finish'] = finish.isoformat()
     d['elapsed'] = int((finish - start).total_seconds() * 1000)
     return d
+
+
+@app.get('/close')
+def close():
+    closed = processor.close()
+    finish = datetime.datetime.now(datetime.UTC)
+    return {'closed': closed, 'finish': finish.isoformat()}

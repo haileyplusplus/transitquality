@@ -249,9 +249,20 @@ class Processor:
 
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
-        self.db = db_initialize()
+        self.db = None
         self.processed = 0
         self.inserted = 0
+
+    def open(self):
+        if self.db is None:
+            self.db = db_initialize()
+
+    def close(self):
+        if self.db is None:
+            return False
+        self.db.close()
+        self.db = None
+        return True
 
     def update(self):
         self.find_files('getpatterns', self.data_dir / 'getpatterns')

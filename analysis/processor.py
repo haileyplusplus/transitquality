@@ -480,7 +480,18 @@ class RealtimeConverter:
         #pattern = summary.iloc[0].pid
         stops_df = pd.DataFrame(stops)
         #print(f'Stops: {stops_df}')
-        vehicles_df = pd.DataFrame([{'pdist': x.pattern_distance, 'tmstmp': int(x.timestamp.timestamp())} for x in positions])
+        vehicles_df = pd.DataFrame([{'pdist': x.pattern_distance, 'tmstmp': int(x.timestamp.timestamp())} for x in positions]).sort_values('tmstmp')
+        # The tracker gives us updates while waiting to depart and after arrival, so just ignore these
+        minval = vehicles_df.pdist.min()
+        maxval = vehicles_df.pdist.max()
+        beginnings = vehicles_df[vehicles_df.pdist == minval]
+        endings = vehicles_df[vehicles_df.pdist == maxval]
+        begin_drop = len(beginnings) - 1
+        end_drop = len(endings) - 1
+        if end_drop > 0:
+            vehicles_df.drop(vehicles_df.tail(end_drop).index, inplace=True)
+        if begin_drop > 0:
+            vehicles_df.drop(vehicles_df.head(begin_drop).index, inplace=True)
         #print(f'Vehicles: {vehicles_df}')
         pattern_template = pd.DataFrame(index=stops_df.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, vehicles_df.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(

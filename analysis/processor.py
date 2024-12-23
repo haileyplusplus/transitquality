@@ -11,6 +11,7 @@ import json
 from types import SimpleNamespace
 from typing import Iterable
 import logging
+import pandas as pd
 
 import peewee
 from playhouse.shortcuts import model_to_dict
@@ -421,6 +422,84 @@ class Processor:
 
     def report(self):
         print(f'Errors: {self.errors}, unknown version: {self.unknown_version}')
+
+
+class RealtimeConverter:
+    EPSILON = 0.001
+
+    def __init__(self):
+        self.output_stop_times = pd.DataFrame()
+        self.output_trips = pd.DataFrame()
+        self.errors = []
+        self.trips_attempted = 0
+        self.trips_processed = 0
+        self.trips_seen = set([])
+
+    def process_trip(self, trip_id: int):
+        #summary, times
+        trip: Trip | None = Trip.get_or_none(Trip.trip_id == trip_id)
+        if trip is None:
+            return False
+        if trip.has_interpolation:
+            return False
+        day = trip.schedule_local_day
+        origtatripno = trip.origtatripno
+        positions = VehiclePosition.select(
+            VehiclePosition.timestamp,
+            VehiclePosition.pattern_distance
+        ).where(VehiclePosition.trip == trip).order_by(VehiclePosition.timestamp)
+        if not positions.exists():
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
+                                'msg': 'Missing raw times'})
+            return False
+        print(f'Ts: {positions[0].timestamp}')
+        stops = []
+        stop_index = {}
+        for ps in trip.pattern.stops:
+            stop_index[ps.stop.stop_id] = ps
+            stops.append({
+                'stpid': ps.stop.stop_id,
+                'seq': ps.sequence_no,
+                'pdist': ps.pattern_distance,
+            })
+        if not stops:
+            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip', 'msg': 'Missing stops'})
+            return False
+        #v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
+        #pattern = summary.iloc[0].pid
+        stops_df = pd.DataFrame(stops)
+        print(f'Stops: {stops_df}')
+        vehicles_df = pd.DataFrame([{'pdist': x.pattern_distance, 'tmstmp': int(x.timestamp.timestamp())} for x in positions])
+        print(f'Vehicles: {vehicles_df}')
+        pattern_template = pd.DataFrame(index=stops_df.pdist, columns={'tmstmp': float('NaN')})
+        combined = pd.concat([pattern_template, vehicles_df.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
+            method='index', limit_direction='both')
+        combined = combined.groupby(combined.index).last()
+        print(combined)
+
+        #px = self.manager.pm.get_stops(pattern)
+        df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        print('return df', df)
+        stop_interpolation = []
+        for _, row in df.iterrows():
+            stop_interpolation.append(SimpleNamespace(
+                trip=trip,
+                pattern_stop=stop_index[row.stpid],
+                interpolated_timestamp=row.tmstmp
+            ))
+        StopInterpolation.insert_many([vars(x) for x in stop_interpolation]).on_conflict_ignore().execute()
+        trip.has_interpolation = True
+        trip.save()
+        return True
+        # if df.empty:
+        #     self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
+        #                         'msg': 'Missing interpolation'})
+        #     return None
+        # df['day'] = day
+        # df['origtatripno'] = origtatripno
+        # df = df.reset_index()
+        # df = df[['day', 'origtatripno', 'pdist', 'seq', 'stpid', 'stpnm', 'pid', 'tmstmp']]
+        # return df
 
 
 if __name__ == "__main__":

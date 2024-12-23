@@ -13,7 +13,7 @@ import gitinfo
 from backend.busscraper2 import BusScraper, Runner, ScrapeState
 from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
-from analysis.processor import Processor
+from analysis.processor import Processor, RealtimeConverter
 import signal
 import asyncio
 import os
@@ -197,3 +197,11 @@ def close():
     closed = processor.close()
     finish = datetime.datetime.now(datetime.UTC)
     return {'closed': closed, 'finish': finish.isoformat()}
+
+
+@app.get('/interpolate/{tripid}')
+def interpolate(tripid: int):
+    processor.open()
+    rtc = RealtimeConverter()
+    success = rtc.process_trip(tripid)
+    return {'trip': tripid, 'success': success}

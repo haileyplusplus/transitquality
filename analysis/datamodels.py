@@ -121,7 +121,6 @@ class VehiclePosition(Model):
 class StopInterpolation(BaseModel):
     interpolation_id = AutoField()
     trip = ForeignKeyField(Trip, backref='interpolated_stop_times')
-    position = ForeignKeyField(VehiclePosition)
     pattern_stop = ForeignKeyField(PatternStop)
     interpolated_timestamp = DateTimeTZField()
 

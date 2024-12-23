@@ -8,3 +8,4 @@ requests==2.32.3
 psycopg2-binary==2.9.10
 boto3==1.35.82
 python-git-info==0.8.3
+pandas==2.2.3

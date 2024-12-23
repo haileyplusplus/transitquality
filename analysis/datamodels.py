@@ -178,7 +178,32 @@ class TimetableView(BaseModel):
         db_table = 'timetable'
 
 
-VIEWS = {'timetable': TimetableView}
+class VehicleView(BaseModel):
+    SQL = (
+        'select trip.trip_id, schedule_local_day, origtatripno, vehicle_id, route_id, pattern_id, destination, '
+        'schedule_time, lat, lon, heading, timestamp, pattern_distance, delay '
+        'from trip inner join vehicleposition on trip.trip_id = vehicleposition.trip_id;'
+    )
+    trip_id = IntegerField()
+    schedule_local_day = CharField()
+    schedule_time = DateTimeTZField()
+    origtatripno = CharField()
+    vehicle_id = CharField()
+    route_id = CharField()
+    pattern_id = CharField()
+    destination = CharField()
+    lat = CharField()
+    lon = CharField()
+    heading = IntegerField()
+    timestamp = DateTimeTZField()
+    pattern_distance = IntegerField()
+    delay = BooleanField()
+
+    class Meta:
+        db_table = 'vehicles'
+
+
+VIEWS = {'timetable': TimetableView, 'vehicles': VehicleView}
 
 
 def create_views(db: peewee.Database):

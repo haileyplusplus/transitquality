@@ -446,6 +446,14 @@ class RealtimeConverter:
                 converted += 1
         return {'attempted': attempted, 'converted': converted}
 
+    def record_error(self, trip_id=None, msg=None):
+        # TODO: fix this
+        error = Error(parse_attempt=1,
+                      error_class='Process interpolation',
+                      error_message=msg,
+                      error_key=trip_id)
+        error.save(force_insert=True)
+
     def process_trip(self, trip_id: int):
         #summary, times
         trip: Trip | None = Trip.get_or_none(Trip.trip_id == trip_id)
@@ -460,8 +468,7 @@ class RealtimeConverter:
             VehiclePosition.pattern_distance
         ).where(VehiclePosition.trip == trip).order_by(VehiclePosition.timestamp)
         if not positions.exists():
-            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip',
-                                'msg': 'Missing raw times'})
+            self.record_error(trip_id=trip_id, msg='Missing raw times')
             return False
         #print(f'Ts: {positions[0].timestamp}')
         stops = []
@@ -474,7 +481,7 @@ class RealtimeConverter:
                 'pdist': ps.pattern_distance,
             })
         if not stops:
-            self.errors.append({'day': day, 'origtatripno': origtatripno, 'fn': 'process_trip', 'msg': 'Missing stops'})
+            self.record_error(trip_id=trip_id, msg='Missing stops')
             return False
         #v['tmstmp'] = v.apply(lambda x: int(x.tmstmp.timestamp()), axis=1)
         #pattern = summary.iloc[0].pid
@@ -492,6 +499,9 @@ class RealtimeConverter:
             vehicles_df.drop(vehicles_df.tail(end_drop).index, inplace=True)
         if begin_drop > 0:
             vehicles_df.drop(vehicles_df.head(begin_drop).index, inplace=True)
+        if vehicles_df.empty:
+            self.record_error(trip_id=trip_id, msg='Interpolated vehicle error')
+            return False
         #print(f'Vehicles: {vehicles_df}')
         pattern_template = pd.DataFrame(index=stops_df.pdist, columns={'tmstmp': float('NaN')})
         combined = pd.concat([pattern_template, vehicles_df.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(

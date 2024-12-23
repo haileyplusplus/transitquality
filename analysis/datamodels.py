@@ -1,3 +1,4 @@
+import peewee
 from peewee import CharField, BooleanField, DateField, ForeignKeyField, IntegerField, Model, SqliteDatabase, \
     DateTimeField, PostgresqlDatabase, DatabaseProxy, AutoField
 from playhouse.postgres_ext import DateTimeTZField
@@ -153,6 +154,41 @@ class Error(BaseModel):
     error_content = CharField(null=True)
 
 
+class TimetableView(BaseModel):
+    SQL = ('select trip.trip_id, schedule_time, trip.route_id, direction_id, destination, interpolated_timestamp, '
+           'sequence_no, pattern_distance, stop_name, patternstop.stop_id from trip '
+           'inner join stopinterpolation on trip.trip_id = stopinterpolation.trip_id '
+           'inner join patternstop on stopinterpolation.pattern_stop_id = patternstop.pattern_stop_id '
+           'inner join stop on patternstop.stop_id = stop.stop_id '
+           'inner join pattern on patternstop.pattern_id = pattern.pattern_id '
+           'order by route_id, schedule_time, sequence_no;')
+
+    trip_id = IntegerField()
+    schedule_time = DateTimeTZField()
+    route_id = CharField()
+    direction_id = CharField()
+    destination = CharField()
+    interpolated_timestamp = DateTimeTZField()
+    sequence_no = IntegerField()
+    pattern_distance = IntegerField()
+    stop_name = CharField()
+    stop_id = CharField()
+
+    class Meta:
+        db_table = 'timetable'
+
+
+VIEWS = {'timetable': TimetableView}
+
+
+def create_views(db: peewee.Database):
+    existing_views = [x.name for x in db.get_views()]
+    print(existing_views)
+    for k, v in VIEWS.items():
+        if k not in existing_views:
+            db.execute_sql(f'CREATE VIEW {k} AS {v.SQL}', commit=True)
+
+
 def db_initialize():
     dbhost = os.getenv('POSTGRES_SERVER')
     if dbhost:
@@ -167,5 +203,6 @@ def db_initialize():
         Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip,
         VehiclePosition, StopInterpolation, File, FileParse, Error
     ])
+    create_views(db)
     #print(f'Initialized {db} in {self.catalog.name}')
     return db

@@ -12,3 +12,8 @@
 
 - Matching days in ghost bus data
   - some trips span midnight boundary; nontrival to put them together for now so return to it later
+
+
+- Use multiple Docker containers
+- Route start times missing: start scraping based on scheduled departure
+- 

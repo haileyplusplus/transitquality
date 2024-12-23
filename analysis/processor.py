@@ -13,6 +13,7 @@ from typing import Iterable
 import logging
 
 import peewee
+from playhouse.shortcuts import model_to_dict
 
 from backend.util import Util
 from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
@@ -169,7 +170,19 @@ class WorkingTrip:
             p = Pattern.create(pattern_id=pid, route=r)
         self.trip_model.route = r
         self.trip_model.pattern = p
-        self.trip_model.save(force_insert=True)
+        m = model_to_dict(self.trip_model, recurse=False)
+        del m['trip_id']
+        #print(m)
+        new_trip_model = Trip.insert(**m).on_conflict_ignore().execute()
+        if new_trip_model is None:
+            new_trip_model = Trip.get(Trip.schedule_local_day == self.trip_model.schedule_local_day,
+                                      Trip.origtatripno == self.trip_model.origtatripno)
+        self.trip_model = new_trip_model
+        # try:
+        #     self.trip_model.save(force_insert=True)
+        # except peewee.IntegrityError:
+        #     self.trip_model = Trip.get(Trip.schedule_local_day == self.trip_model.schedule_local_day,
+        #                                Trip.origtatripno == self.trip_model.origtatripno)
         self.needs_insert = False
 
     def finalize(self):
@@ -225,7 +238,7 @@ class VehicleParser(BaseParser):
             v.insert_trip_model()
             v.finalize()
             positions += v.positions
-        VehiclePosition.insert_many([vars(x) for x in positions]).on_conflict_ignore()
+        VehiclePosition.insert_many([vars(x) for x in positions]).on_conflict_ignore().execute()
         #VehiclePosition.bulk_create(positions, batch_size=100)
         return True
 
@@ -350,6 +363,8 @@ class Processor:
                         tmstmp = row['tmstmp']
                         row['tmstmp'] = f'{tmstmp}:00'
                         row['pdist'] = float(row['pdist'])
+                        row['pid'] = float(row['pid'])
+
                         try:
                             parser.parse(None, override=[row])
                         except (KeyError, ValueError) as e:

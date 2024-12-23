@@ -78,21 +78,27 @@ class Waypoint(BaseModel):
     distance = IntegerField()
 
 
-class Trip(BaseModel):
+class Trip(Model):
     trip_id = AutoField()
+    schedule_local_day = CharField()
+    origtatripno = CharField()
     vehicle_id = CharField()
     route = ForeignKeyField(Route, backref='trips')
     pattern = ForeignKeyField(Pattern, backref='patterns')
     destination = CharField(null=True)
     ta_block_id = CharField(null=True)
     ta_trip_id = CharField(null=True)
-    origtatripno = CharField()
     zone = CharField()
     mode = IntegerField(null=True)
     passenger_load = CharField(null=True)
-    schedule_local_day = CharField()
     schedule_time = DateTimeTZField(null=True)
     has_interpolation = BooleanField(null=True)
+
+    class Meta:
+        database = database_proxy
+        indexes = (
+            (('schedule_local_day', 'origtatripno'), True),
+        )
 
 
 class VehiclePosition(Model):

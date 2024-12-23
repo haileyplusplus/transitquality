@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import csv
 import dataclasses
 import itertools
 from functools import partial
@@ -128,9 +128,14 @@ class WorkingTrip:
     def __init__(self, ota: str, v):
         self.ota = ota
         self.template = v
-        schedule_time = Util.CTA_TIMEZONE.localize(
-            datetime.datetime.strptime(
-                v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst'])),
+        if 'stst' in v:
+            schedule_time = Util.CTA_TIMEZONE.localize(
+                datetime.datetime.strptime(
+                    v['stsd'], '%Y-%m-%d') + datetime.timedelta(seconds=v['stst']))
+            schedule_local_day = v['stsd']
+        else:
+            schedule_time = None
+            schedule_local_day = v['data_date']
         self.trip_model = Trip(
             vehicle_id=v['vid'],
             destination=v['des'],
@@ -138,9 +143,9 @@ class WorkingTrip:
             ta_trip_id=v['tatripid'],
             origtatripno=v['origtatripno'],
             zone=v['zone'],
-            mode=v['mode'],
-            passenger_load=v['psgld'],
-            schedule_local_day=v['stsd'],
+            mode=v.get('mode'),
+            passenger_load=v.get('psgld'),
+            schedule_local_day=schedule_local_day,
             schedule_time=schedule_time
         )
         self.positions = []
@@ -197,8 +202,11 @@ class VehicleParser(BaseParser):
         super().__init__(db, attempt)
         self.by_trip: dict[str, WorkingTrip] = {}
 
-    def parse(self, brdict):
-        top = brdict['bustime-response']['vehicle']
+    def parse(self, brdict, override=None):
+        if override is not None:
+            top = override
+        else:
+            top = brdict['bustime-response']['vehicle']
         for v in top:
             ota = v['origtatripno']
             self.by_trip.setdefault(ota, WorkingTrip(ota, v)).add_position(v)
@@ -330,6 +338,26 @@ class Processor:
         success = False
         with open(f) as fh:
             try:
+                # csv reader
+                if file_model.filename.endswith('.csv'):
+                    print(f'Reading csv file {file_model.filename}')
+                    reader = csv.DictReader(fh)
+                    parser.set_data_time(file_model.start_time)
+                    for row in reader:
+                        tmstmp = row['tmstmp']
+                        row['tmstmp'] = f'{tmstmp}:00'
+                        row['pdist'] = float(row['pdist'])
+                        try:
+                            parser.parse(None, override=[row])
+                        except (KeyError, ValueError) as e:
+                            error = Error(parse_attempt=attempt,
+                                          error_class='Parse error',
+                                          error_key=str(row)[:250],
+                                          error_content=str(e))
+                            error.save(force_insert=True)
+                    attempt.parse_success = parser.finalize()
+                    attempt.save()
+                    return
                 p = json.load(fh)
                 if 'bustime-response' in p:
                     parser.set_data_time(file_model.start_time)

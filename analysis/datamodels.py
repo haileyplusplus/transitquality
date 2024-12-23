@@ -88,10 +88,10 @@ class Trip(BaseModel):
     ta_trip_id = CharField(null=True)
     origtatripno = CharField()
     zone = CharField()
-    mode = IntegerField()
-    passenger_load = CharField()
+    mode = IntegerField(null=True)
+    passenger_load = CharField(null=True)
     schedule_local_day = CharField()
-    schedule_time = DateTimeTZField()
+    schedule_time = DateTimeTZField(null=True)
 
 
 class VehiclePosition(BaseModel):

@@ -92,9 +92,10 @@ class Trip(BaseModel):
     passenger_load = CharField(null=True)
     schedule_local_day = CharField()
     schedule_time = DateTimeTZField(null=True)
+    has_interpolation = BooleanField(null=True)
 
 
-class VehiclePosition(BaseModel):
+class VehiclePosition(Model):
     position_id = AutoField()
     trip = ForeignKeyField(Trip, backref='positions')
     lat = CharField()
@@ -103,6 +104,12 @@ class VehiclePosition(BaseModel):
     timestamp = DateTimeTZField()
     pattern_distance = IntegerField()
     delay = BooleanField()
+
+    class Meta:
+        database = database_proxy
+        indexes = (
+            (('trip', 'timestamp'), True),
+        )
 
 
 class StopInterpolation(BaseModel):

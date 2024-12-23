@@ -8,4 +8,7 @@
   - stop_info join needs to be on day in addition to trip no (filter other df)
 
   - db as work queue
-  - 
+
+
+- Matching days in ghost bus data
+  - some trips span midnight boundary; nontrival to put them together for now so return to it later

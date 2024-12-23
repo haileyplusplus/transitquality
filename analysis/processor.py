@@ -8,6 +8,7 @@ import argparse
 import datetime
 from pathlib import Path
 import json
+from types import SimpleNamespace
 from typing import Iterable
 import logging
 
@@ -150,7 +151,6 @@ class WorkingTrip:
         )
         self.positions = []
         self.needs_insert = True
-        self.add_position(v)
 
     def replace_model(self, new_model: Trip):
         self.needs_insert = False
@@ -177,14 +177,15 @@ class WorkingTrip:
             position.trip = self.trip_model
 
     def add_position(self, v):
-        self.positions.append(VehiclePosition(
+        self.positions.append(SimpleNamespace(
             lat=v['lat'],
             lon=v['lon'],
             heading=int(v['hdg']),
             timestamp=Util.CTA_TIMEZONE.localize(
                 datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')),
             pattern_distance=int(v['pdist']),
-            delay=v['dly']
+            delay=v['dly'],
+            trip=None
         ))
 
     def __lt__(self, other):
@@ -213,7 +214,8 @@ class VehicleParser(BaseParser):
 
     def finalize(self):
         all_ids = list(self.by_trip.keys())
-        existing: Iterable[Trip] = Trip.select().where(Trip.origtatripno << all_ids)
+        day = self.data_time.strftime('%Y-%m-%d')
+        existing: Iterable[Trip] = Trip.select().where(Trip.schedule_local_day == day).where(Trip.origtatripno << all_ids)
         for existing_trip_model in existing:
             trip: WorkingTrip | None = self.by_trip.get(existing_trip_model.origtatripno)
             if trip is not None:
@@ -223,7 +225,8 @@ class VehicleParser(BaseParser):
             v.insert_trip_model()
             v.finalize()
             positions += v.positions
-        VehiclePosition.bulk_create(positions, batch_size=100)
+        VehiclePosition.insert_many([vars(x) for x in positions]).on_conflict_ignore()
+        #VehiclePosition.bulk_create(positions, batch_size=100)
         return True
 
 

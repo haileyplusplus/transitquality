@@ -310,6 +310,10 @@ class Processor:
         days = Trip.select(Trip.schedule_local_day).distinct().order_by(Trip.schedule_local_day)
         return [x.schedule_local_day for x in days]
 
+    def get_daily_trips_json(self, route_id: str, day: str):
+        trips = Trip.select().where(Trip.route == route_id).where(Trip.schedule_local_day == day).order_by(Trip.schedule_time)
+        return [model_to_dict(x) for x in trips]
+
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():
             relative_path = root.relative_to(self.data_dir)

@@ -163,7 +163,7 @@ class TimetableView(BaseModel):
            'inner join pattern on patternstop.pattern_id = pattern.pattern_id '
            'order by route_id, schedule_time, sequence_no;')
 
-    trip_id = IntegerField()
+    trip_id = IntegerField(primary_key=True)
     schedule_time = DateTimeTZField()
     route_id = CharField()
     direction_id = CharField()
@@ -213,6 +213,12 @@ def create_views(db: peewee.Database):
         if k not in existing_views:
             db.execute_sql(f'CREATE VIEW {k} AS {v.SQL}', commit=True)
 
+
+"""
+Headway calculation:
+select trip_id, schedule_time, route_id, direction_id, destination, interpolated_timestamp, stop_name, interpolated_timestamp - headway as hw from (select *, lag(interpolated_timestamp) over trip_window as headway from timetable where stop_id = '6601' window trip_window as (partition by stop_id order by interpolated_timestamp)  order by interpolated_timestamp);
+or just do it in pandas?
+"""
 
 def db_initialize():
     dbhost = os.getenv('POSTGRES_SERVER')

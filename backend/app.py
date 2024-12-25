@@ -221,3 +221,19 @@ def interpolate(routeid: str):
     d['finish'] = finish.isoformat()
     d['elapsed'] = int((finish - start).total_seconds() * 1000)
     return d
+
+
+@app.get('/trip/{tripid}')
+def trip(tripid: int):
+    processor.open()
+    finish = datetime.datetime.now(datetime.UTC)
+    return {'trips': processor.get_trip_json(tripid),
+            'finish': finish.isoformat()}
+
+
+@app.get('/stops/{stop_id}')
+def get_stop(stop_id: str, route_id: str, day: str):
+    processor.open()
+    finish = datetime.datetime.now(datetime.UTC)
+    return {'stops': processor.get_stop_json(stop_id, route_id, day),
+            'finish': finish.isoformat()}

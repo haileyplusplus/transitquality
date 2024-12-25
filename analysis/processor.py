@@ -17,7 +17,7 @@ import peewee
 from playhouse.shortcuts import model_to_dict
 
 from backend.util import Util
-from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error
+from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error, TimetableView
 
 
 logger = logging.getLogger(__file__)
@@ -270,6 +270,28 @@ class Processor:
         self.find_files('getvehicles', self.data_dir / 'getvehicles')
         self.find_files('getvehicles', self.data_dir / 'chnghostbuses')
         return self.processed, self.inserted
+
+    def get_trip_json(self, tripid: int):
+        #date = datetime.datetime.strptime(datestr, '%Y-%m-%d')
+        trips = TimetableView.select().where(TimetableView.trip_id == tripid).order_by(TimetableView.interpolated_timestamp)
+                 #.where(TimetableView.schedule_time.date() == date))
+        def upd(x):
+            d = model_to_dict(x)
+            d.update({'day': x.interpolated_timestamp.strftime('%Y-%m-%d')})
+            return d
+        return [upd(x) for x in trips]
+
+    def get_stop_json(self, stop_id: str, route_id: str, day: str):
+        date = datetime.datetime.strptime(day, '%Y-%m-%d').astimezone(Util.CTA_TIMEZONE)
+        tomorrow = date + datetime.timedelta(days=1)
+        trips = (TimetableView.select().where(TimetableView.stop_id == stop_id).
+                 where(TimetableView.route_id == route_id).
+                 where(TimetableView.interpolated_timestamp >= date).
+                 where(TimetableView.interpolated_timestamp < tomorrow).
+                 order_by(TimetableView.interpolated_timestamp))
+        return [model_to_dict(x) for x in trips]
+        #.where(TimetableView.schedule_time.date() == date))
+
 
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():

@@ -237,3 +237,17 @@ def get_stop(stop_id: str, route_id: str, day: str):
     finish = datetime.datetime.now(datetime.UTC)
     return {'stops': processor.get_stop_json(stop_id, route_id, day),
             'finish': finish.isoformat()}
+
+
+@app.get('/routes')
+def get_routes():
+    finish = datetime.datetime.now(datetime.UTC)
+    return {'routes': processor.get_route_json(),
+            'finish': finish.isoformat()}
+
+@app.get('/days')
+def get_routes():
+    processor.open()
+    finish = datetime.datetime.now(datetime.UTC)
+    return {'days': processor.get_day_json(),
+            'finish': finish.isoformat()}

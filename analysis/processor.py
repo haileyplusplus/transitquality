@@ -23,6 +23,9 @@ from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, 
 logger = logging.getLogger(__file__)
 
 
+PROJROOT = Path(__file__).parent.parent
+
+
 class BaseParser:
     def __init__(self, db, attempt):
         self.attempt = attempt
@@ -292,6 +295,20 @@ class Processor:
         return [model_to_dict(x) for x in trips]
         #.where(TimetableView.schedule_time.date() == date))
 
+    def get_route_json(self):
+        # TODO: properly integrate with database
+        routes_df = pd.read_csv(PROJROOT / 'data' / 'routes.txt')
+        rv = []
+        for _, row in routes_df.iterrows():
+            if row.route_type == 3:
+                rv.append({'route_id': row.route_id,
+                           'name': row.route_long_name
+                           })
+        return rv
+
+    def get_day_json(self):
+        days = Trip.select(Trip.schedule_local_day).distinct().order_by(Trip.schedule_local_day)
+        return [x.schedule_local_day for x in days]
 
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():

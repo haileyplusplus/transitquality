@@ -285,7 +285,9 @@ class Processor:
         return [upd(x) for x in trips]
 
     def get_stop_json(self, stop_id: str, route_id: str, day: str):
-        date = datetime.datetime.strptime(day, '%Y-%m-%d').astimezone(Util.CTA_TIMEZONE)
+        date = datetime.datetime.strptime(day, '%Y-%m-%d').replace(tzinfo=Util.CTA_TIMEZONE)
+        # Use 3am as cutover time
+        date += datetime.timedelta(hours=3)
         tomorrow = date + datetime.timedelta(days=1)
         trips = (TimetableView.select().where(TimetableView.stop_id == stop_id).
                  where(TimetableView.route_id == route_id).

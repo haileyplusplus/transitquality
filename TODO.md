@@ -16,4 +16,12 @@
 
 - Use multiple Docker containers
 - Route start times missing: start scraping based on scheduled departure
-- 
+
+- Train tracker scrape fix:
+  - generalize runner to do arbitrary scraping
+  - create a scraper interface
+
+New way to start server:
+ - TRACKERWRITE=local docker compose up --build
+ - or s3
+

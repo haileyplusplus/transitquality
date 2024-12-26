@@ -664,9 +664,14 @@ class BusScraper:
         self.scrape_interval = scrape_interval
         self.night = False
         self.output_dir = output_dir
-        write_local = False
-        if os.getenv('TRANSITQUALITY_DEV') == '1':
+        tracker_env = os.getenv('TRACKERWRITE')
+        if tracker_env == 's3':
+            write_local = False
+        elif tracker_env == 'local':
             write_local = True
+        else:
+            print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
+            sys.exit(1)
         self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
         self.count = 5
@@ -788,7 +793,8 @@ class Runner:
         with self.mutex:
             state = self.state
         running = (state == RunState.RUNNING or state == RunState.IDLE)
-        return {'running': running, 'state': state.name}
+        write_local = self.scraper.requestor.write_local
+        return {'running': running, 'state': state.name, 'write_local': write_local}
 
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')

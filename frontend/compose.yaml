@@ -1,0 +1,25 @@
+services:
+  web:
+    build:
+      context: app
+      target: development
+    ports:
+      - 8085:5173
+    volumes:
+      - ./app:/project
+      - /project/node_modules
+    networks:
+      - transitquality
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /project
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+networks:
+  transitquality:
+    external:
+      name: transitquality

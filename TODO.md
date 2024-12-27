@@ -28,5 +28,8 @@ New way to start server:
 Schedule scraper
  - only get new schedules
 
+Ordering
+https://github.com/coleifer/peewee/issues/600
+
 
 

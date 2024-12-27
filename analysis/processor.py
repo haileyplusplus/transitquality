@@ -313,15 +313,23 @@ class Processor:
         return [x.schedule_local_day for x in days]
 
     def get_daily_trips_json(self, route_id: str, day: str):
-        trips = Trip.select().where(Trip.route == route_id).where(Trip.schedule_local_day == day).order_by(Trip.schedule_time)
+        trips: Iterable[Trip] = Trip.select().where(Trip.route == route_id).where(Trip.schedule_local_day == day).order_by(Trip.schedule_time)
         directions = set([])
+        models = []
         for t in trips:
+            rt = t.interpolated_stop_times.order_by(StopInterpolation.interpolated_timestamp).limit(1)
+            rt2 = t.interpolated_stop_times.order_by(StopInterpolation.interpolated_timestamp.desc()).limit(1)
             p = t.pattern
             if p:
                 d = p.direction
                 if d:
                     directions.add(d.direction_id)
-        return {'trips': [model_to_dict(x) for x in trips], 'directions': list(directions)}
+            d = model_to_dict(t)
+            if rt:
+                d.update({'first': model_to_dict(rt[0], recurse=False)})
+                d.update({'last': model_to_dict(rt2[0], recurse=False)})
+            models.append(d)
+        return {'trips': models, 'directions': list(directions)}
 
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():

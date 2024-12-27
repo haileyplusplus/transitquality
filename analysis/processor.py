@@ -350,6 +350,15 @@ class Processor:
             if rt:
                 d.update({'first': model_to_dict(rt[0], recurse=False)})
                 d.update({'last': model_to_dict(rt2[0], recurse=False)})
+            self.flatten(d)
+            if 'first_interpolated_timestamp' not in d:
+                d['rt'] = False
+            else:
+                d['rt'] = True
+                duration = (d['last_interpolated_timestamp'] - d['first_interpolated_timestamp']).total_seconds()
+                delay = (d['first_interpolated_timestamp'] - d['schedule_time']).total_seconds()
+                d['duration'] = round(duration / 60, 2)
+                d['delay'] = int(delay / 60)
             models.append(d)
         return {'trips': models, 'directions': list(directions)}
 

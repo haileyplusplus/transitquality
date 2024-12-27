@@ -81,7 +81,7 @@ export default {
             return this.tripData['trips']
         }
         return this.tripData['trips'].filter((item) => {
-            if (item.pattern.direction.direction_id == this.direction) {
+            if (item.pattern_direction_id == this.direction) {
                 return item    
             }
             return null
@@ -133,10 +133,13 @@ export default {
       <tr v-for="trip in getTrips()" :key="trip.trip_id">
         <td>{{ trip.origtatripno }}</td>
         <td>{{ new Date(trip.schedule_time).toLocaleString() }}</td>
-        <td v-if="trip.route">{{ trip.route.route_id }}</td>
-        <td v-if="trip.pattern.direction">{{ trip.pattern.direction.direction_id }}</td>
-        <td v-if="trip.pattern">{{ (trip.pattern.length / 5280.0).toFixed(2) }}mi</td>
+        <td v-if="trip.rt">{{ new Date(trip.first_interpolated_timestamp).toLocaleTimeString() }}</td>
+        <td v-if="trip.route_id">{{ trip.route_id }}</td>
+        <td v-if="trip.pattern_direction_id">{{ trip.pattern_direction_id }}</td>
+        <td v-if="trip.pattern_id">{{ (trip.pattern_length / 5280.0).toFixed(2) }}mi</td>
         <td>{{ trip.destination }}</td>
+        <td v-if="trip.rt">{{ trip.delay }}</td>
+        <td v-if="trip.rt">{{ trip.duration }}</td>
         <td><button @click="selectTrip(trip.trip_id)">Show trip</button></td>
       </tr>
     </table>

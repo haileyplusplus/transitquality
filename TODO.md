@@ -31,5 +31,7 @@ Schedule scraper
 Ordering
 https://github.com/coleifer/peewee/issues/600
 
+Seeing actual discrepancies such as trips 22936, 20448 vid 1923
+Need to validate input better
 
 

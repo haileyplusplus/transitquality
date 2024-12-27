@@ -14,7 +14,8 @@ export default {
       day: '2024-12-20',
       stopData: {"stops": []},
       dayData: {"days": []},
-      tripData: {"trips": []}
+      tripData: {"trips": [], "directions": []},
+      direction: null
     }
   },
   methods: {
@@ -41,7 +42,8 @@ export default {
       const res = await fetch(
         `http://localhost:8085/api/trips/${this.routeId}?day=${this.day}`
       )
-      this.tripData = await res.json()
+      let tripData = await res.json()
+      this.tripData = tripData
     },
     fetchSingleTrip() {
       this.fetchData()
@@ -73,6 +75,17 @@ export default {
       console.log(`Selected trip ${trip_id}`)
       this.tripId = trip_id
       this.fetchData()
+    },
+    getTrips() {
+        if (this.direction == null) {
+            return this.tripData['trips']
+        }
+        return this.tripData['trips'].filter((item) => {
+            if (item.pattern.direction.direction_id == this.direction) {
+                return item    
+            }
+            return null
+        })
     }
 },
   mounted() {
@@ -112,8 +125,12 @@ export default {
     <h1>Trips</h1>
     <div v-if="tripData['trips'].length > 0">
     <form @submit.prevent="">
+        <ul>
+            <li v-for="direction in tripData['directions']"><button @click="this.direction = direction">{{  direction  }}</button></li>
+            <li><button @click="this.direction = null">All</button></li>
+        </ul>
     <table>      
-      <tr v-for="trip in tripData['trips']" :key="trip.trip_id">
+      <tr v-for="trip in getTrips()" :key="trip.trip_id">
         <td>{{ trip.origtatripno }}</td>
         <td>{{ new Date(trip.schedule_time).toLocaleString() }}</td>
         <td v-if="trip.route">{{ trip.route.route_id }}</td>

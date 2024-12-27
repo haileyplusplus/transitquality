@@ -25,3 +25,8 @@ New way to start server:
  - TRACKERWRITE=local docker compose up --build
  - or s3
 
+Schedule scraper
+ - only get new schedules
+
+
+

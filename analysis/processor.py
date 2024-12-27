@@ -314,7 +314,14 @@ class Processor:
 
     def get_daily_trips_json(self, route_id: str, day: str):
         trips = Trip.select().where(Trip.route == route_id).where(Trip.schedule_local_day == day).order_by(Trip.schedule_time)
-        return [model_to_dict(x) for x in trips]
+        directions = set([])
+        for t in trips:
+            p = t.pattern
+            if p:
+                d = p.direction
+                if d:
+                    directions.add(d.direction_id)
+        return {'trips': [model_to_dict(x) for x in trips], 'directions': list(directions)}
 
     def find_files(self, command: str, start_dir: Path):
         for root, directories, files in start_dir.walk():

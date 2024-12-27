@@ -252,9 +252,11 @@ def get_routes():
     return {'days': processor.get_day_json(),
             'finish': finish.isoformat()}
 
+
 @app.get('/trips/{route_id}')
 def get_daily_trips(route_id: str, day: str):
     processor.open()
     finish = datetime.datetime.now(datetime.UTC)
-    return {'trips': processor.get_daily_trips_json(route_id, day),
-            'finish': finish.isoformat()}
+    d = processor.get_daily_trips_json(route_id, day)
+    d.update({'finish': finish.isoformat()})
+    return d

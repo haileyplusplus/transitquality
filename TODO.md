@@ -34,4 +34,16 @@ https://github.com/coleifer/peewee/issues/600
 Seeing actual discrepancies such as trips 22936, 20448 vid 1923
 Need to validate input better
 
+Cookies for favorite stops
 
+Service counts:
+
+https://stackoverflow.com/questions/7299342/what-is-the-fastest-way-to-truncate-timestamps-to-5-minutes-in-postgres
+select date_trunc('hour', timestamp) at time zone 'America/Chicago' + date_part('minute', timestamp)::int / 5 * interval '5 min' as ts, count(vehicle_id) from vehicles group by ts order by ts;
+
+Aggregating headways:
+weekdays
+- 6:30 - 10
+- 10 - 2
+- 2 - 7
+- 7 - 10

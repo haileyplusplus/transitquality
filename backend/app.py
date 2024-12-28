@@ -260,3 +260,9 @@ def get_daily_trips(route_id: str, day: str):
     d = processor.get_daily_trips_json(route_id, day)
     d.update({'finish': finish.isoformat()})
     return d
+
+
+@app.get('/rawstop/{stop_id}')
+def get_raw_stop(stop_id: str, route_id: str):
+    processor.open()
+    return processor.get_raw_stop(stop_id, route_id)

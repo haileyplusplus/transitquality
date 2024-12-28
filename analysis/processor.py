@@ -284,6 +284,41 @@ class Processor:
             return d
         return [upd(x) for x in trips]
 
+    def get_raw_stop(self, stop_id: str, route_id: str):
+        trips = (TimetableView.select().where(TimetableView.stop_id == stop_id).
+                 where(TimetableView.route_id == route_id))
+        return [model_to_dict(x) for x in trips]
+
+    def analyze_stop(self, stop_id: str, route_id: str):
+        def bucket(x: datetime.datetime):
+            h = x.hour + (x.minute / 60.0)
+            if h < 4:
+                return 'ON'
+            if h < 6.5:
+                return 'EM'
+            if h < 10:
+                return 'AM rush'
+            if h < 14:
+                return 'Midday'
+            if h < 19:
+                return 'PM rush'
+            if h < 22:
+                return 'eve'
+            return 'ON'
+        raw = self.get_raw_stop(stop_id, route_id)
+        df = pd.DataFrame(raw)
+        fi = lambda x: datetime.datetime.fromisoformat(x)
+        df['headway'] = df['interpolated_timestamp'].apply(fi) - df['interpolated_timestamp'].apply(fi).shift(1)
+        df['hour'] = df['interpolated_timestamp'].apply(
+            lambda x: (datetime.datetime.fromisoformat(x)).astimezone(Util.CTA_TIMEZONE).hour)
+        df['bucket'] = df['interpolated_timestamp'].apply(
+            lambda x: bucket(datetime.datetime.fromisoformat(x).astimezone(Util.CTA_TIMEZONE)))
+        df['weekday'] = df['interpolated_timestamp'].apply(
+            lambda x: (datetime.datetime.fromisoformat(x) + datetime.timedelta(hours=3)).astimezone(
+                Util.CTA_TIMEZONE).weekday())
+        filtered = df[df.weekday <= 4]
+        return filtered.groupby('bucket').agg({'headway': lambda x: x.quantile(0.95)})
+
     def get_stop_json(self, stop_id: str, route_id: str, day: str):
         date = datetime.datetime.strptime(day, '%Y-%m-%d').replace(tzinfo=Util.CTA_TIMEZONE)
         # Use 3am as cutover time

@@ -266,3 +266,9 @@ def get_daily_trips(route_id: str, day: str):
 def get_raw_stop(stop_id: str, route_id: str):
     processor.open()
     return processor.get_raw_stop(stop_id, route_id)
+
+
+@app.get('/headways/{stop_id}')
+def get_stop_headways(stop_id: str, route_id: str):
+    processor.open()
+    return processor.analyze_stop(stop_id, route_id)

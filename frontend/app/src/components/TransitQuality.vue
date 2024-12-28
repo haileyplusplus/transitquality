@@ -15,6 +15,7 @@ export default {
       stopData: {"stops": []},
       dayData: {"days": []},
       tripData: {"trips": [], "directions": []},
+      headwayData: {"headways": []},
       direction: null
     }
   },
@@ -55,6 +56,10 @@ export default {
         `http://localhost:8085/api/stops/${this.stopId}?route_id=${this.routeId}&day=${this.day}`
       )
       this.stopData = await res.json()
+      const res2 = await fetch(
+        `http://localhost:8085/api/headways/${this.stopId}?route_id=${this.routeId}`
+      )
+      this.headwayData = await res2.json()
     },
     selectStop(stop_id, route_id, day) {
       this.stopId = stop_id
@@ -181,6 +186,15 @@ export default {
         </tr>
     </form>
     </div>
+    <h1>Headways</h1>
+    <table>
+        <tr><th>Time of day</th><th>Median</th><th>Worst (95th %ile)</th></tr>
+        <tr v-for="headway in headwayData['headways']" :key="headway.bucket">
+            <td>{{ headway.bucket }}</td>
+            <td>{{ Math.round(headway.median) }}</td>
+            <td>{{ Math.round(headway.worst) }}</td>
+        </tr>
+    </table>
   </div>
 </template>
 

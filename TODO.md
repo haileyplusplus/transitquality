@@ -47,3 +47,5 @@ weekdays
 - 10 - 2
 - 2 - 7
 - 7 - 10
+
+Combine ridership stats with service provided to get riders per bus

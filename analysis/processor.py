@@ -285,17 +285,19 @@ class Processor:
         return [upd(x) for x in trips]
 
     def get_raw_stop(self, stop_id: str, route_id: str):
+        thresh = Util.utcnow() - datetime.timedelta(days=8)
         trips = (TimetableView.select().where(TimetableView.stop_id == stop_id).
-                 where(TimetableView.route_id == route_id))
+                 where(TimetableView.route_id == route_id).
+                 where(TimetableView.interpolated_timestamp >= thresh))
         return [model_to_dict(x) for x in trips]
 
     def analyze_stop(self, stop_id: str, route_id: str):
         def bucket(x: datetime.datetime):
             h = x.hour + (x.minute / 60.0)
             if h < 4:
-                return 'ON'
+                return 'Overnight'
             if h < 6.5:
-                return 'EM'
+                return 'Early morning'
             if h < 10:
                 return 'AM rush'
             if h < 14:
@@ -303,21 +305,36 @@ class Processor:
             if h < 19:
                 return 'PM rush'
             if h < 22:
-                return 'eve'
-            return 'ON'
+                return 'Late Evening'
+            return 'Overnight'
+        keys = ['Overnight', 'Early morning', 'AM rush', 'Midday', 'PM rush', 'Late Evening']
         raw = self.get_raw_stop(stop_id, route_id)
         df = pd.DataFrame(raw)
-        fi = lambda x: datetime.datetime.fromisoformat(x)
+        #fi = lambda x: datetime.datetime.fromisoformat(x)
+        fi = lambda x: x
         df['headway'] = df['interpolated_timestamp'].apply(fi) - df['interpolated_timestamp'].apply(fi).shift(1)
         df['hour'] = df['interpolated_timestamp'].apply(
-            lambda x: (datetime.datetime.fromisoformat(x)).astimezone(Util.CTA_TIMEZONE).hour)
+            lambda x: x.astimezone(Util.CTA_TIMEZONE).hour)
         df['bucket'] = df['interpolated_timestamp'].apply(
-            lambda x: bucket(datetime.datetime.fromisoformat(x).astimezone(Util.CTA_TIMEZONE)))
+            lambda x: bucket(x.astimezone(Util.CTA_TIMEZONE)))
         df['weekday'] = df['interpolated_timestamp'].apply(
-            lambda x: (datetime.datetime.fromisoformat(x) + datetime.timedelta(hours=3)).astimezone(
+            lambda x: (x + datetime.timedelta(hours=3)).astimezone(
                 Util.CTA_TIMEZONE).weekday())
         filtered = df[df.weekday <= 4]
-        return filtered.groupby('bucket').agg({'headway': lambda x: x.quantile(0.95)})
+        median = filtered.groupby('bucket').agg({'headway': lambda x: x.quantile(0.5)}).apply(lambda x: x/60).round(decimals=0).to_dict()
+        worst = filtered.groupby('bucket').agg({'headway': lambda x: x.quantile(0.95)}).apply(lambda x: x/60).round(decimals=0).to_dict()
+        headways = {
+            'headways': [],
+            'stop': stop_id,
+            'route': route_id,
+        }
+        for k in keys:
+            headways['headways'].append({
+                'bucket': k,
+                'median': median['headway'].get(k),
+                'worst': worst['headway'].get(k)
+            })
+        return headways
 
     def get_stop_json(self, stop_id: str, route_id: str, day: str):
         date = datetime.datetime.strptime(day, '%Y-%m-%d').replace(tzinfo=Util.CTA_TIMEZONE)

@@ -6,11 +6,11 @@ export default {
   },
   data() {
     return {
-      tripId: 74250,
+      tripId: 36330,
       singleTripData: {"trips": []},
       routeData: {"routes": []},
       stopId: null,
-      routeId: '1',
+      routeId: '72',
       day: '2024-12-20',
       stopData: {"stops": []},
       dayData: {"days": []},
@@ -86,6 +86,12 @@ export default {
             }
             return null
         })
+    },
+    switchDay(x) {
+        var d = new Date(this.day)
+        d.setDate(d.getDate() + x)
+        this.day = d.toISOString().split('T')[0]
+        this.fetchStop()
     }
 },
   mounted() {
@@ -163,13 +169,17 @@ export default {
       </form>
     </div>
     <div v-if="stopData['stops'].length > 0">
+    <form @submit.prevent="">
     <h1>Stops</h1>
+      <button @click="switchDay(-1)">Prev day</button> |
+      <button @click="switchDay(1)">Next day</button>
       <tr v-for="stop in stopData['stops']" :key="stop.trip_id">
           <td>{{ stop.trip_id }}</td>
           <td>{{ new Date(stop.interpolated_timestamp).toLocaleString() }}</td>
           <td>{{ stop.stop_name }}</td>
           <td v-if="stop.headway">{{ stop.headway }}</td>
         </tr>
+    </form>
     </div>
   </div>
 </template>

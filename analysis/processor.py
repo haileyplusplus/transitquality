@@ -294,7 +294,16 @@ class Processor:
                  where(TimetableView.interpolated_timestamp >= date).
                  where(TimetableView.interpolated_timestamp < tomorrow).
                  order_by(TimetableView.interpolated_timestamp))
-        return [model_to_dict(x) for x in trips]
+        rv = sorted([model_to_dict(x) for x in trips], key=lambda x: x['interpolated_timestamp'])
+        prev = None
+        for x in rv:
+            if prev:
+                headway = (x['interpolated_timestamp'] - prev).total_seconds()
+                x['headway'] = int(headway / 60)
+            else:
+                x['headway'] = None
+            prev = x['interpolated_timestamp']
+        return rv
         #.where(TimetableView.schedule_time.date() == date))
 
     def get_route_json(self):

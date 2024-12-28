@@ -168,6 +168,7 @@ export default {
           <td>{{ stop.trip_id }}</td>
           <td>{{ new Date(stop.interpolated_timestamp).toLocaleString() }}</td>
           <td>{{ stop.stop_name }}</td>
+          <td v-if="stop.headway">{{ stop.headway }}</td>
         </tr>
     </div>
   </div>

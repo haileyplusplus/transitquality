@@ -354,6 +354,8 @@ class Processor:
             if 'first_interpolated_timestamp' not in d:
                 d['rt'] = False
             else:
+                if not d['schedule_time']:
+                    d['schedule_time'] = d['first_interpolated_timestamp']
                 d['rt'] = True
                 duration = (d['last_interpolated_timestamp'] - d['first_interpolated_timestamp']).total_seconds()
                 delay = (d['first_interpolated_timestamp'] - d['schedule_time']).total_seconds()

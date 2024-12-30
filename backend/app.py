@@ -10,7 +10,9 @@ import json
 from playhouse.shortcuts import model_to_dict
 import gitinfo
 
-from backend.busscraper2 import BusScraper, Runner, ScrapeState
+from backend.busscraper2 import BusScraper
+from backend.scraper_interface import ScrapeState
+from backend.runner import Runner
 from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
 from analysis.processor import Processor, RealtimeConverter

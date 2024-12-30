@@ -358,6 +358,27 @@ class ScrapeState(IntEnum):
     NEEDS_SCRAPING = 5
 
 
+class ScraperInterface(ABC):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def do_shutdown(self):
+        pass
+
+    @abstractmethod
+    def get_write_local(self):
+        pass
+
+    @abstractmethod
+    def initialize(self):
+        pass
+
+    @abstractmethod
+    def scrape_one(self):
+        pass
+
+
 class ScrapeTask(ABC):
     def __init__(self, models):
         self.model_dict = {}
@@ -653,12 +674,13 @@ class Routes:
         return models
 
 
-class BusScraper:
+class BusScraper(ScraperInterface):
     MAX_CONSECUTIVE_PATTERNS = 3
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
                  api_key: str, debug=False, dry_run=False, scrape_predictions=False,
                  fetch_routes=False):
+        super().__init__()
         self.start_time = Util.utcnow()
         self.dry_run = dry_run
         self.scrape_interval = scrape_interval
@@ -697,6 +719,12 @@ class BusScraper:
 
     def initialize(self):
         self.routes.initialize()
+
+    def do_shutdown(self):
+        self.requestor.bundler.output()
+
+    def get_write_local(self):
+        return self.requestor.write_local
 
     def scrape_one(self):
         scrapetime = Util.utcnow()
@@ -772,14 +800,12 @@ class RunState(IntEnum):
 # move rate limiting out of bowels of make_request and into scrape_one
 # that should make async run easier
 class Runner:
-    def __init__(self, scraper: BusScraper):
+    def __init__(self, scraper: ScraperInterface):
         self.polling_task = None
         self.scraper = scraper
         self.state = RunState.STOPPED
         self.mutex = threading.Lock()
         self.initialized = False
-        #self.polling_active = False
-        #self.cancellation_requested = False
 
     def done_callback(self, task: asyncio.Task):
         logging.info(f'Task {task} done')
@@ -787,13 +813,15 @@ class Runner:
 
     def handle_shutdown(self):
         logger.info(f'Gracefully handling shutdown.')
-        self.scraper.requestor.bundler.output()
+        #self.scraper.requestor.bundler.output()
+        self.scraper.do_shutdown()
 
     def status(self):
         with self.mutex:
             state = self.state
         running = (state == RunState.RUNNING or state == RunState.IDLE)
-        write_local = self.scraper.requestor.write_local
+        #write_local = self.scraper.requestor.write_local
+        write_local = self.scraper.get_write_local()
         return {'running': running, 'state': state.name, 'write_local': write_local}
 
     def exithandler(self, *args):

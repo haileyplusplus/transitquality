@@ -21,56 +21,12 @@ import requests
 from backend.scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
 from backend.util import Util
 from backend.s3client import S3Client
-from backend.scraper_interface import ScraperInterface, ScrapeState
+from backend.scraper_interface import ScraperInterface, ScrapeState, ResponseWrapper, ParserInterface
 
 # import pandas as pd
 
 
 logger = logging.getLogger(__file__)
-
-
-class ResponseWrapper:
-    """
-    Simple wrapper to encapsulate response return values
-    """
-    TRANSIENT_ERROR = -1
-    PERMANENT_ERROR = -2
-    RATE_LIMIT_ERROR = -3
-    PARTIAL_ERROR = -4
-
-    def __init__(self, json_dict=None, error_code=None, error_dict=None):
-        self.json_dict = json_dict
-        self.error_code = error_code
-        self.error_dict = error_dict
-
-    def __str__(self):
-        jds = str(self.json_dict)[:300]
-        return f'ResponseWrapper: dict {jds} code {self.error_code} dict {self.error_dict}'
-
-    @classmethod
-    def transient_error(cls):
-        return ResponseWrapper(error_code=ResponseWrapper.TRANSIENT_ERROR)
-
-    @classmethod
-    def permanent_error(cls):
-        return ResponseWrapper(error_code=ResponseWrapper.PERMANENT_ERROR)
-
-    @classmethod
-    def rate_limit_error(cls):
-        return ResponseWrapper(error_code=ResponseWrapper.RATE_LIMIT_ERROR)
-
-    def ok(self):
-        # return isinstance(self.json_dict, dict)
-        return self.json_dict is not None
-
-    def get_error_dict(self):
-        return self.error_dict
-
-    def get_error_code(self):
-        return self.error_code
-
-    def payload(self):
-        return self.json_dict
 
 
 class Bundler:
@@ -122,14 +78,7 @@ class Bundler:
                    'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
 
 
-class Requestor:
-    """
-    Low-level scraper that gets, sends, and logs requests; also handles logging.
-    Handling periodic scraping is done elsewhere.
-    """
-    BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
-    ERROR_REST = datetime.timedelta(minutes=30)
-    LOG_PAYLOAD_LIMIT = 200
+class BusParser(ParserInterface):
     COMMAND_RESPONSE_SCHEMA = {
         'gettime': ('tm', str),
         # 'getvehicles': ('vehicle', list[dict[str, str | int | bool]]),
@@ -147,6 +96,84 @@ class Requestor:
         'getpredictions': ('prd', list),
     }
 
+    @staticmethod
+    def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
+        trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
+        if response.status_code != 200:
+            logging.error(f'Non-successful status code: {response.status_code}. Response: {trunc_response}')
+            if response.status_code == 429:
+                # too many requests
+                return ResponseWrapper.rate_limit_error()
+            return ResponseWrapper.permanent_error()
+        json_response = response.json()
+        if not isinstance(json_response, dict):
+            logging.error(f'Received invalid JSON response: {trunc_response}')
+            return ResponseWrapper.permanent_error()
+        bustime_response = json_response.get('bustime-response')
+        if not isinstance(bustime_response, dict) or not bustime_response:
+            logging.error(f'Unexpected response format: {trunc_response}')
+        expected, _ = BusParser.COMMAND_RESPONSE_SCHEMA.get(command, (None, None))
+        if expected in bustime_response:
+            # partial errors are possible
+            app_error = bustime_response.get('error')
+            error_dict = BusParser.parse_error(bustime_response)
+            return ResponseWrapper(json_dict=bustime_response[expected],
+                                   error_dict=error_dict)
+        if 'error' in bustime_response:
+            error_dict = BusParser.parse_error(bustime_response)
+            app_error = bustime_response['error']
+            errorstr = str(app_error)
+            logging.error(f'Application error: {trunc_response}')
+            if 'transaction limit' in errorstr.lower():
+                return ResponseWrapper.rate_limit_error()
+            if 'API' in errorstr:
+                return ResponseWrapper.permanent_error()
+            if 'internal server error' in errorstr.lower():
+                return ResponseWrapper.permanent_error()
+            return ResponseWrapper(error_dict=error_dict)
+        logging.error(f'Unexpected response schema: {trunc_response}')
+        return ResponseWrapper.permanent_error()
+
+    @staticmethod
+    def parse_error(bustime_response: dict):
+        if 'error' not in bustime_response:
+            return None
+        error_list = bustime_response.get('error', [])
+        rv = {'rt': [], 'stpid': [], 'other': []}
+        if not isinstance(error_list, list):
+            return {'other': [str(error_list)]}
+        errortime = Util.utcnow()
+        for e in error_list:
+            msg = e.get('msg')
+            model = ErrorMessage.get_or_none(ErrorMessage.text == msg)
+            if model is None:
+                model = ErrorMessage(text=msg, last_seen=errortime)
+                model.count = model.count + 1
+                #model.insert()
+                model.save(force_insert=True)
+            else:
+                model.count = model.count + 1
+                model.save()
+            rt = e.get('rt')
+            stpid = e.get('stpid')
+            if rt:
+                rv['rt'].append(rt)
+            elif stpid:
+                rv['stpid'].append(stpid)
+            else:
+                rv['other'].append(msg)
+        return rv
+
+
+class Requestor:
+    """
+    Low-level scraper that gets, sends, and logs requests; also handles logging.
+    Handling periodic scraping is done elsewhere.
+    """
+    BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
+    ERROR_REST = datetime.timedelta(minutes=30)
+    LOG_PAYLOAD_LIMIT = 200
+
     """
     Useful things to scrape:
     gettime()
@@ -160,7 +187,8 @@ class Requestor:
     Also: getpredictions()
     """
 
-    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, debug=False, write_local=False):
+    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, parser: ParserInterface,
+                 debug=False, write_local=False):
         self.start_time = Util.utcnow()
         self.api_key = api_key
         self.output_dir = output_dir
@@ -169,6 +197,7 @@ class Requestor:
         self.debug = debug
         self.shutdown = False
         self.write_local = write_local
+        self.parser = parser
         if self.write_local:
             self.s3client = None
         else:
@@ -220,74 +249,6 @@ class Requestor:
                             level=level)
         logger.info(f'Initialize requestor. Local file mode: {self.write_local}')
 
-    @staticmethod
-    def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
-        trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
-        if response.status_code != 200:
-            logging.error(f'Non-successful status code: {response.status_code}. Response: {trunc_response}')
-            if response.status_code == 429:
-                # too many requests
-                return ResponseWrapper.rate_limit_error()
-            return ResponseWrapper.permanent_error()
-        json_response = response.json()
-        if not isinstance(json_response, dict):
-            logging.error(f'Received invalid JSON response: {trunc_response}')
-            return ResponseWrapper.permanent_error()
-        bustime_response = json_response.get('bustime-response')
-        if not isinstance(bustime_response, dict) or not bustime_response:
-            logging.error(f'Unexpected response format: {trunc_response}')
-        expected, _ = Requestor.COMMAND_RESPONSE_SCHEMA.get(command, (None, None))
-        if expected in bustime_response:
-            # partial errors are possible
-            app_error = bustime_response.get('error')
-            error_dict = Requestor.parse_error(bustime_response)
-            return ResponseWrapper(json_dict=bustime_response[expected],
-                                   error_dict=error_dict)
-        if 'error' in bustime_response:
-            error_dict = Requestor.parse_error(bustime_response)
-            app_error = bustime_response['error']
-            errorstr = str(app_error)
-            logging.error(f'Application error: {trunc_response}')
-            if 'transaction limit' in errorstr.lower():
-                return ResponseWrapper.rate_limit_error()
-            if 'API' in errorstr:
-                return ResponseWrapper.permanent_error()
-            if 'internal server error' in errorstr.lower():
-                return ResponseWrapper.permanent_error()
-            return ResponseWrapper(error_dict=error_dict)
-        logging.error(f'Unexpected response schema: {trunc_response}')
-        return ResponseWrapper.permanent_error()
-
-    @staticmethod
-    def parse_error(bustime_response: dict):
-        if 'error' not in bustime_response:
-            return None
-        error_list = bustime_response.get('error', [])
-        rv = {'rt': [], 'stpid': [], 'other': []}
-        if not isinstance(error_list, list):
-            return {'other': [str(error_list)]}
-        errortime = Util.utcnow()
-        for e in error_list:
-            msg = e.get('msg')
-            model = ErrorMessage.get_or_none(ErrorMessage.text == msg)
-            if model is None:
-                model = ErrorMessage(text=msg, last_seen=errortime)
-                model.count = model.count + 1
-                #model.insert()
-                model.save(force_insert=True)
-            else:
-                model.count = model.count + 1
-                model.save()
-            rt = e.get('rt')
-            stpid = e.get('stpid')
-            if rt:
-                rv['rt'].append(rt)
-            elif stpid:
-                rv['stpid'].append(stpid)
-            else:
-                rv['other'].append(msg)
-        return rv
-
     def make_request(self, command, **kwargs) -> ResponseWrapper:
         """
         Makes a request by appending command to BASE_URL. Automatically adds api key and JSON format to arg dict.
@@ -319,7 +280,7 @@ class Requestor:
             request_time = Util.utcnow()
             response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
             trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
-            result = self.parse_success(response, command)
+            result = self.parser.parse_success(response, command)
             response_time = Util.utcnow()
             if result.ok():
                 self.bundler.record(command, request_args, request_time,
@@ -665,7 +626,7 @@ class BusScraper(ScraperInterface):
         else:
             print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
             sys.exit(1)
-        self.requestor = Requestor(output_dir, output_dir, api_key, debug=debug, write_local=write_local)
+        self.requestor = Requestor(output_dir, output_dir, api_key, BusParser(), debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
         self.count = 5
         self.scrape_predictions = scrape_predictions

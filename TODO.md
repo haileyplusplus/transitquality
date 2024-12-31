@@ -49,3 +49,5 @@ weekdays
 - 7 - 10
 
 Combine ridership stats with service provided to get riders per bus
+
+set bundle interval in app.py

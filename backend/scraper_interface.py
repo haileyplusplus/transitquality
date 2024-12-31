@@ -1,5 +1,50 @@
 from enum import IntEnum
 from abc import ABC, abstractmethod
+import requests
+
+
+class ResponseWrapper:
+    """
+    Simple wrapper to encapsulate response return values
+    """
+    TRANSIENT_ERROR = -1
+    PERMANENT_ERROR = -2
+    RATE_LIMIT_ERROR = -3
+    PARTIAL_ERROR = -4
+
+    def __init__(self, json_dict=None, error_code=None, error_dict=None):
+        self.json_dict = json_dict
+        self.error_code = error_code
+        self.error_dict = error_dict
+
+    def __str__(self):
+        jds = str(self.json_dict)[:300]
+        return f'ResponseWrapper: dict {jds} code {self.error_code} dict {self.error_dict}'
+
+    @classmethod
+    def transient_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.TRANSIENT_ERROR)
+
+    @classmethod
+    def permanent_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.PERMANENT_ERROR)
+
+    @classmethod
+    def rate_limit_error(cls):
+        return ResponseWrapper(error_code=ResponseWrapper.RATE_LIMIT_ERROR)
+
+    def ok(self):
+        # return isinstance(self.json_dict, dict)
+        return self.json_dict is not None
+
+    def get_error_dict(self):
+        return self.error_dict
+
+    def get_error_code(self):
+        return self.error_code
+
+    def payload(self):
+        return self.json_dict
 
 
 class ScrapeState(IntEnum):
@@ -29,4 +74,16 @@ class ScraperInterface(ABC):
 
     @abstractmethod
     def scrape_one(self):
+        pass
+
+
+class ParserInterface(ABC):
+    @staticmethod
+    @abstractmethod
+    def parse_success(response: requests.Response, command: str) -> ResponseWrapper:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def parse_error(bustime_response: dict):
         pass

@@ -63,6 +63,7 @@ class Runner:
         self.handle_shutdown()
 
     async def loop(self):
+        logger.info(f'Loop: {self.scraper.get_name()}')
         if not self.initialized:
             self.scraper.initialize()
             self.initialized = True

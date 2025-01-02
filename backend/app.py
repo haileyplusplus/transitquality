@@ -147,15 +147,28 @@ def setkey(key: str, trainkey: str | None = None):
     return {'result': 'success'}
 
 
-@app.get('/start')
-async def start(background_tasks: BackgroundTasks):
+@app.get('/startbus')
+async def startbus(background_tasks: BackgroundTasks):
     if not bus_scraper.has_api_key():
         return {'result': 'error', 'message': 'API key must first be set'}
     bus_runner.syncstart()
-    train_runner.syncstart()
+    #train_runner.syncstart()
     # check whether running
     #asyncio.run(runner.start())
     background_tasks.add_task(bus_runner.loop)
+    #background_tasks.add_task(train_runner.loop)
+    return {'result': 'success'}
+
+
+@app.get('/starttrain')
+async def starttrain(background_tasks: BackgroundTasks):
+    if not train_scraper.has_api_key():
+        return {'result': 'error', 'message': 'API key must first be set'}
+    #bus_runner.syncstart()
+    train_runner.syncstart()
+    # check whether running
+    #asyncio.run(runner.start())
+    #background_tasks.add_task(bus_runner.loop)
     background_tasks.add_task(train_runner.loop)
     return {'result': 'success'}
 

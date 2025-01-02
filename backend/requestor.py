@@ -178,7 +178,9 @@ class Requestor:
             c.save()
         params = kwargs
         params['key'] = self.api_key
-        if not params.get('noformat'):
+        if params.get('noformat'):
+            del params['noformat']
+        else:
             params['format'] = 'json'
         trunc_response = '(unavailable)'
         self.request_count += 1

@@ -121,7 +121,6 @@ class TrainScraper(ScraperInterface):
         return self.scrape_interval
 
     def scrape_one(self):
-        logger.info('Train scrape one ')
         scrape_time = Util.utcnow()
         if scrape_time < (self.last_scraped + self.get_scrape_interval()):
             return

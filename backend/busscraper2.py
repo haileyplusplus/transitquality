@@ -105,6 +105,7 @@ class BusParser(ParserInterface):
                 model.save(force_insert=True)
             else:
                 model.count = model.count + 1
+                model.last_seen=errortime
                 model.save()
             rt = e.get('rt')
             stpid = e.get('stpid')
@@ -413,6 +414,7 @@ class Routes:
 
 class BusScraper(ScraperInterface):
     MAX_CONSECUTIVE_PATTERNS = 3
+    BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
                  api_key: str, debug=False, dry_run=False, scrape_predictions=False,
@@ -431,7 +433,9 @@ class BusScraper(ScraperInterface):
         else:
             print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
             sys.exit(1)
-        self.requestor = Requestor(output_dir, output_dir, api_key, BusParser(), debug=debug, write_local=write_local)
+        self.requestor = Requestor(self.BASE_URL,
+                                   output_dir, output_dir, BusParser(),
+                                   debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
         self.count = 5
         self.scrape_predictions = scrape_predictions
@@ -462,6 +466,12 @@ class BusScraper(ScraperInterface):
 
     def get_write_local(self):
         return self.requestor.write_local
+
+    def get_name(self) -> str:
+        return 'bus'
+
+    def get_bundle_status(self) -> dict:
+        return self.requestor.bundler.status()
 
     def scrape_one(self):
         scrapetime = Util.utcnow()

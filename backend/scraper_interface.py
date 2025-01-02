@@ -76,6 +76,14 @@ class ScraperInterface(ABC):
     def scrape_one(self):
         pass
 
+    @abstractmethod
+    def get_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_bundle_status(self) -> dict:
+        pass
+
 
 class ParserInterface(ABC):
     @staticmethod

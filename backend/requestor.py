@@ -65,6 +65,11 @@ class Bundler:
                    'request_time': request_time.isoformat(),
                    'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
 
+    def status(self):
+        d = {}
+        for k, v in self.bundles.items():
+            d[k] = len(v)
+        return d
 
 
 class Requestor:
@@ -72,7 +77,6 @@ class Requestor:
     Low-level scraper that gets, sends, and logs requests; also handles logging.
     Handling periodic scraping is done elsewhere.
     """
-    BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
     ERROR_REST = datetime.timedelta(minutes=30)
     LOG_PAYLOAD_LIMIT = 200
 
@@ -89,10 +93,11 @@ class Requestor:
     Also: getpredictions()
     """
 
-    def __init__(self, output_dir: Path, rawdatadir: Path, api_key: str, parser: ParserInterface,
+    def __init__(self, base_url: str,
+                 output_dir: Path, rawdatadir: Path, parser: ParserInterface,
                  debug=False, write_local=False):
         self.start_time = Util.utcnow()
-        self.api_key = api_key
+        self.api_key = None
         self.output_dir = output_dir
         self.rawdatadir = rawdatadir
         self.request_count = 0
@@ -100,6 +105,7 @@ class Requestor:
         self.shutdown = False
         self.write_local = write_local
         self.parser = parser
+        self.base_url = base_url
         if self.write_local:
             self.s3client = None
         else:
@@ -172,7 +178,8 @@ class Requestor:
             c.save()
         params = kwargs
         params['key'] = self.api_key
-        params['format'] = 'json'
+        if not params.get('noformat'):
+            params['format'] = 'json'
         trunc_response = '(unavailable)'
         self.request_count += 1
         request_args = kwargs.copy()
@@ -180,7 +187,7 @@ class Requestor:
         logging.info(f'Request {self.request_count:6d}: cmd {command} args {request_args}')
         try:
             request_time = Util.utcnow()
-            response = requests.get(f'{self.BASE_URL}/{command}', params=params, timeout=10)
+            response = requests.get(f'{self.base_url}/{command}', params=params, timeout=10)
             trunc_response = response.text[:Requestor.LOG_PAYLOAD_LIMIT]
             result = self.parser.parse_success(response, command)
             response_time = Util.utcnow()

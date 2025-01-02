@@ -11,6 +11,7 @@ from playhouse.shortcuts import model_to_dict
 import gitinfo
 
 from backend.busscraper2 import BusScraper
+from backend.trainscraper2 import TrainScraper
 from backend.scraper_interface import ScrapeState
 from backend.runner import Runner
 from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
@@ -34,9 +35,12 @@ outdir = Path('/transit/scraping/bustracker')
 # outdir.mkdir(parents=True, exist_ok=True)
 # logdir = outdir / 'logs'
 # logdir.mkdir(parents=True, exist_ok=True)
-ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
-                fetch_routes=False)
-runner = Runner(ts)
+bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
+                         fetch_routes=False)
+bus_runner = Runner(bus_scraper)
+train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60))
+train_runner = Runner(train_scraper)
+
 #signal.signal(signal.SIGINT, runner.exithandler)
 #signal.signal(signal.SIGTERM, runner.exithandler)
 
@@ -50,7 +54,8 @@ async def lifespan(app: FastAPI):
     logger.info(f'App starting up')
     yield
     logger.info(f'App lifespan done')
-    runner.syncstop()
+    bus_runner.syncstop()
+    train_runner.syncstop()
     logger.info(f'Syncstop done')
 
 
@@ -111,7 +116,7 @@ def countinfo():
 
 @app.get('/status')
 def status():
-    d = runner.status()
+    d = {}
     fn = LOCALDIR / 'data' / 'buildinfo.json'
     if fn.exists():
         with open(fn) as fh:
@@ -120,30 +125,37 @@ def status():
         git = {}
     d['build'] = git
     d['started'] = START_TIME.isoformat()
+    for x in {bus_runner, train_runner}:
+        d[x.scraper.get_name()] = x.status()
     return d
 
 
 @app.get('/setkey/{key}')
-def setkey(key: str):
-    ts.set_api_key(key)
+def setkey(key: str, trainkey: str | None = None):
+    bus_scraper.set_api_key(key)
+    if trainkey is not None:
+        train_scraper.set_api_key(trainkey)
     return {'result': 'success'}
 
 
 @app.get('/start')
 async def start(background_tasks: BackgroundTasks):
-    if not ts.has_api_key():
+    if not bus_scraper.has_api_key():
         return {'result': 'error', 'message': 'API key must first be set'}
-    runner.syncstart()
+    bus_runner.syncstart()
+    train_runner.syncstart()
     # check whether running
     #asyncio.run(runner.start())
-    background_tasks.add_task(runner.loop)
+    background_tasks.add_task(bus_runner.loop)
+    background_tasks.add_task(train_runner.loop)
     return {'result': 'success'}
 
 
 @app.get('/stop')
 def stop():
     #asyncio.run(runner.stop())
-    runner.syncstop()
+    bus_runner.syncstop()
+    train_runner.syncstop()
     return {'result': 'success'}
 
 
@@ -155,13 +167,13 @@ def tests3(testarg: str):
 
 @app.get('/loghead')
 def loghead():
-    v = ts.requestor.readlog(tail=False)
+    v = bus_scraper.requestor.readlog(tail=False)
     return {'log_contents': v}
 
 
 @app.get('/logtail')
 def logtail():
-    v = ts.requestor.readlog(tail=True)
+    v = bus_scraper.requestor.readlog(tail=True)
     return {'log_contents': v}
 
 

@@ -61,28 +61,34 @@ class TrainScraper(ScraperInterface):
     BASE_URL = 'https://lapi.transitchicago.com/api/1.0'
     ERROR_REST = datetime.timedelta(minutes=30)
 
-    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta, api_key: str,
-                 parser: ParserInterface, write_local=False):
+    def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
+                 write_local=False):
         super().__init__()
         self.start_time = datetime.datetime.now()
-        self.api_key = api_key
+        self.api_key = None
         self.write_local = write_local
         self.last_scraped = None
         self.next_scrape = None
         self.output_dir = output_dir
-        self.requestor = Requestor(self.BASE_URL, output_dir, output_dir, api_key, TrainParser(),
+        self.parser = TrainParser()
+        self.requestor = Requestor(self.BASE_URL, output_dir, output_dir, self.parser,
                                    debug=False, write_local=write_local)
         self.scrape_interval = scrape_interval
         self.night = False
-        self.parser = parser
         #self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
         self.initialize_logging()
+
+    def get_bundle_status(self) -> dict:
+        return self.requestor.bundler.status()
 
     def get_write_local(self):
         return self.write_local
 
     def initialize(self):
         pass
+
+    def get_name(self) -> str:
+        return 'train'
 
     def initialize_logging(self):
         logdir = self.output_dir / 'logs'

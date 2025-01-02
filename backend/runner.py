@@ -44,7 +44,9 @@ class Runner:
         running = (state == RunState.RUNNING or state == RunState.IDLE)
         #write_local = self.scraper.requestor.write_local
         write_local = self.scraper.get_write_local()
-        return {'running': running, 'state': state.name, 'write_local': write_local}
+        return {'running': running, 'state': state.name, 'write_local': write_local,
+                'name': self.scraper.get_name(),
+                'bundles': self.scraper.get_bundle_status()}
 
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')

@@ -126,12 +126,9 @@ class TrainScraper(ScraperInterface):
         if scrape_time < (self.last_scraped + self.get_scrape_interval()):
             return
         cmd = 'ttpositions.aspx'
-        res = self.requestor.make_request(cmd,
-                                          rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
-        if res.ok():
-            self.parser.parse_success(res.payload(), cmd)
-        if res.get_error_dict():
-            self.parser.parse_error(res.get_error_dict())
+        # Nothing in the response affects scraping logic, so we ignore it
+        self.requestor.make_request(cmd,
+                                    rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
         self.last_scraped = scrape_time
 
     def do_shutdown(self):

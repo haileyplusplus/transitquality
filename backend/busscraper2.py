@@ -417,22 +417,14 @@ class BusScraper(ScraperInterface):
     BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
-                 api_key: str, debug=False, dry_run=False, scrape_predictions=False,
-                 fetch_routes=False):
+                 debug=False, dry_run=False, scrape_predictions=False,
+                 fetch_routes=False, write_local=False):
         super().__init__()
         self.start_time = Util.utcnow()
         self.dry_run = dry_run
         self.scrape_interval = scrape_interval
         self.night = False
         self.output_dir = output_dir
-        tracker_env = os.getenv('TRACKERWRITE')
-        if tracker_env == 's3':
-            write_local = False
-        elif tracker_env == 'local':
-            write_local = True
-        else:
-            print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
-            sys.exit(1)
         self.requestor = Requestor(self.BASE_URL,
                                    output_dir, output_dir, BusParser(),
                                    debug=debug, write_local=write_local)

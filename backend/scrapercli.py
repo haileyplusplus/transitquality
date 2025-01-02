@@ -40,7 +40,7 @@ if __name__ == "__main__":
     datadir.mkdir(parents=True, exist_ok=True)
     statedir = outdir / 'state'
     statedir.mkdir(parents=True, exist_ok=True)
-    ts = BusScraper(outdir, datetime.timedelta(seconds=60), api_key=args.api_key[0], debug=args.debug,
+    ts = BusScraper(outdir, datetime.timedelta(seconds=60), debug=args.debug,
                     dry_run=args.dry_run, scrape_predictions=args.scrape_predictions,
                     fetch_routes=args.fetch_routes)
     ts.initialize()

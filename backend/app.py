@@ -5,6 +5,7 @@ from pathlib import Path
 import datetime
 import logging
 import json
+import sys
 
 
 from playhouse.shortcuts import model_to_dict
@@ -34,11 +35,19 @@ outdir = Path('/transit/scraping/bustracker')
 # os.mkdir('/transit/scraping/bustracker/logs')
 # outdir.mkdir(parents=True, exist_ok=True)
 # logdir = outdir / 'logs'
+tracker_env = os.getenv('TRACKERWRITE')
+if tracker_env == 's3':
+    write_local = False
+elif tracker_env == 'local':
+    write_local = True
+else:
+    print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
+    sys.exit(1)
 # logdir.mkdir(parents=True, exist_ok=True)
-bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), api_key='', debug=False,
-                         fetch_routes=False)
+bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
+                         fetch_routes=False, write_local=write_local)
 bus_runner = Runner(bus_scraper)
-train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60))
+train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60), write_local=write_local)
 train_runner = Runner(train_scraper)
 
 #signal.signal(signal.SIGINT, runner.exithandler)

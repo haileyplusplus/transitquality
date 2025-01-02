@@ -67,7 +67,7 @@ class TrainScraper(ScraperInterface):
         self.start_time = datetime.datetime.now()
         self.api_key = None
         self.write_local = write_local
-        self.last_scraped = None
+        self.last_scraped = datetime.datetime.fromtimestamp(0).replace(tzinfo=datetime.UTC)
         self.next_scrape = None
         self.output_dir = output_dir
         self.parser = TrainParser()
@@ -75,17 +75,20 @@ class TrainScraper(ScraperInterface):
                                    debug=False, write_local=write_local)
         self.scrape_interval = scrape_interval
         self.night = False
+        logger.info('Train scraper')
         #self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
-        self.initialize_logging()
+        #self.initialize_logging()
 
     def get_bundle_status(self) -> dict:
-        return self.requestor.bundler.status()
+        d = self.requestor.bundler.status()
+        d['last_scraped'] = self.last_scraped.isoformat()
+        return d
 
     def get_write_local(self):
         return self.write_local
 
     def initialize(self):
-        pass
+        logger.info('Initialize train scraper')
 
     def get_name(self) -> str:
         return 'train'
@@ -118,8 +121,9 @@ class TrainScraper(ScraperInterface):
         return self.scrape_interval
 
     def scrape_one(self):
+        logger.info('Train scrape one ')
         scrape_time = Util.utcnow()
-        if self.last_scraped is not None and scrape_time < self.last_scraped + self.get_scrape_interval():
+        if scrape_time < (self.last_scraped + self.get_scrape_interval()):
             return
         cmd = 'ttpositions.aspx'
         res = self.requestor.make_request(cmd,

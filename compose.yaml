@@ -45,8 +45,8 @@ services:
     depends_on:
       db:
        condition: service_healthy
-    networks:
-      - transitquality
+    #networks:
+    #  - transitquality
   db:
      image: postgres
      restart: always
@@ -55,8 +55,8 @@ services:
        - db-password
      volumes:
        - db-data:/var/lib/postgresql/data
-     networks:
-       - transitquality
+     #networks:
+     #  - transitquality
      environment:
        - POSTGRES_SERVER=db
        - POSTGRES_DB=busdata
@@ -77,7 +77,7 @@ secrets:
    file: db/password.txt
  #cloud-credentials:
  #  file: ~/.aws/credentials
-networks:
-  transitquality:
-    external:
-      name: transitquality
+#networks:
+#  transitquality:
+#    external:
+#      name: transitquality

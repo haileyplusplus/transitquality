@@ -6,11 +6,13 @@ import datetime
 import json
 from pathlib import Path
 
+from s3path import S3Path
+
 
 class Bundler:
     THRESH = datetime.timedelta(minutes=10)
 
-    def __init__(self, data_dir: Path, day: str):
+    def __init__(self, data_dir: Path | S3Path, day: str):
         self.data_dir = data_dir
         self.day = day.replace('-', '')
         self.first = None
@@ -18,9 +20,20 @@ class Bundler:
         self.prev = None
         self.max_interval = None
         self.index = 0
+        self.total = 0
+        self.processed = 0
         self.route_index = {}
         self.requests_out = []
         self.outfile = self.data_dir / f'bundle-{self.day}.json.bz2'
+        self.done = False
+        self.success = False
+
+    def done(self):
+        return self.done
+
+    def status(self):
+        return {'active': True, 'day': self.day,
+                'processed': self.processed, 'total': self.total}
 
     def store_routes(self, routes, request_time: datetime.datetime):
         for rt in routes.split(','):
@@ -94,16 +107,22 @@ class Bundler:
 
     def scan_day(self):
         if self.outfile.exists():
+            self.done = True
             return False
         dir_ = self.data_dir / 'getvehicles' / self.day
         if not dir_.exists():
             print(f'Directory not found')
+            self.done = True
             return False
         files = sorted(dir_.glob('t??????z.json'))
+        self.total = len(files)
         for f in files:
             self.scan_file(f)
+            self.processed += 1
         self.summary()
         self.output()
+        self.done = True
+        self.success = True
         return True
 
 

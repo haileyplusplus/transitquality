@@ -14,6 +14,9 @@ services:
       dockerfile: bundler/Dockerfile
     ports:
       - 8009:8000
+    volumes:
+      - ~/.aws/credentials:/home/appuser/.aws/credentials:ro
+      - ~/.aws/config:/home/appuser/.aws/config:ro
     develop:
       watch:
         - action: rebuild

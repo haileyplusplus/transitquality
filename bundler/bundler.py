@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
-import bz2
+import tempfile
+import lzma
 import datetime
 import json
 from pathlib import Path
@@ -24,7 +25,7 @@ class Bundler:
         self.processed = 0
         self.route_index = {}
         self.requests_out = []
-        self.outfile = self.data_dir / f'bundle-{self.day}.json.bz2'
+        self.outfile = self.data_dir / f'bundle-{self.day}.json.lz'
         self.done = False
         self.success = False
 
@@ -48,16 +49,20 @@ class Bundler:
         if self.outfile.exists():
             print(f'Not overwriting existing file')
             return False
-        with bz2.open(self.outfile, 'wt', encoding='UTF-8') as jfh:
-            outdict = {'v': '2.0',
-                       'bundle_type': 'vehicle',
-                       'day': self.day,
-                       'first': self.first.isoformat(),
-                       'last': self.last.isoformat(),
-                       'max_interval_seconds': self.max_interval.total_seconds(),
-                       'index': self.route_index,
-                       'requests': self.requests_out}
-            json.dump(outdict, jfh)
+        with tempfile.NamedTemporaryFile('wb') as tempout:
+            tempout.close()
+            with lzma.open(tempout.name, mode='wt', encoding='UTF-8') as lzmafile:
+                #with bz2.open(self.outfile, 'wt', encoding='UTF-8') as jfh:
+                outdict = {'v': '2.0',
+                           'bundle_type': 'vehicle',
+                           'day': self.day,
+                           'first': self.first.isoformat(),
+                           'last': self.last.isoformat(),
+                           'max_interval_seconds': self.max_interval.total_seconds(),
+                           'index': self.route_index,
+                           'requests': self.requests_out}
+                json.dump(outdict, lzmafile)
+            self.outfile.write_bytes(open(tempout.name, 'rb').read())
 
     def summary(self, by_route=False):
         print(f'Summary for {self.day}:')

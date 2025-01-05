@@ -2,6 +2,7 @@ import threading
 
 from fastapi import FastAPI, BackgroundTasks
 from s3path import S3Path
+import boto3
 
 from bundler.bundler import Bundler
 
@@ -15,6 +16,7 @@ class BundleManager:
     def __init__(self):
         self.mutex = threading.Lock()
         self.bundler = None
+        boto3.setup_default_session(profile_name='transitquality_boto')
 
     def create_bundler(self, day: str):
         success = False

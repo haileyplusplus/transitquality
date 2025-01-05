@@ -17,6 +17,11 @@ services:
     volumes:
       - ~/.aws/credentials:/home/appuser/.aws/credentials:ro
       - ~/.aws/config:/home/appuser/.aws/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 900M
     develop:
       watch:
         - action: rebuild

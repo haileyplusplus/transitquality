@@ -42,7 +42,8 @@ elif tracker_env == 'local':
     write_local = True
 else:
     print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
-    sys.exit(1)
+    write_local = False
+    #sys.exit(1)
 # logdir.mkdir(parents=True, exist_ok=True)
 bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
                          fetch_routes=False, write_local=write_local)

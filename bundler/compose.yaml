@@ -10,7 +10,8 @@
 services:
   bundleserver:
     build:
-      context: .
+      context: ..
+      dockerfile: bundler/Dockerfile
     ports:
       - 8009:8000
     develop:

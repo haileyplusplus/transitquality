@@ -22,7 +22,7 @@ class BundleManager:
         success = False
         bundler = None
         with self.mutex:
-            if self.bundler is None or self.bundler.done():
+            if self.bundler is None or self.bundler.is_done():
                 self.bundler = Bundler(self.BUCKET, day)
                 success = True
                 bundler = self.bundler

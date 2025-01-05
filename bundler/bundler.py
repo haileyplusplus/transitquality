@@ -28,13 +28,20 @@ class Bundler:
         self.outfile = self.data_dir / f'bundle-{self.day}.json.lz'
         self.done = False
         self.success = False
+        self.start_time = datetime.datetime.now(tz=datetime.UTC)
+        self.end_time = None
 
-    def done(self):
+    def is_done(self):
         return self.done
 
     def status(self):
         return {'active': True, 'day': self.day,
-                'processed': self.processed, 'total': self.total}
+                'processed': self.processed, 'total': self.total,
+                'outfile': self.outfile.name,
+                'done': self.done,
+                'success': self.success,
+                'start': self.start_time,
+                'end': self.end_time}
 
     def store_routes(self, routes, request_time: datetime.datetime):
         for rt in routes.split(','):
@@ -128,6 +135,7 @@ class Bundler:
         self.output()
         self.done = True
         self.success = True
+        self.end_time = datetime.datetime.now(tz=datetime.UTC)
         return True
 
 

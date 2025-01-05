@@ -83,8 +83,8 @@ class Bundler:
             return False
         return True
 
-    def scan_file(self, file: Path):
-        with open(file) as fh:
+    def scan_file(self, file: Path | S3Path):
+        with file.open() as fh:
             d = json.load(fh)
             if d.get('command') != 'getvehicles':
                 return False

@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class Bundler:
-    THRESH = datetime.timedelta(minutes=5)
+    THRESH = datetime.timedelta(minutes=10)
 
     def __init__(self, data_dir: Path, day: str):
         self.data_dir = data_dir

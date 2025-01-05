@@ -5,9 +5,12 @@ import tempfile
 import lzma
 import datetime
 import json
+import pytz
 from pathlib import Path
 
 from s3path import S3Path
+
+from backend.util import Util
 
 
 class Bundler:
@@ -50,9 +53,10 @@ class Bundler:
         self.index += 1
 
     def output(self):
-        if not self.complete(thresh=self.THRESH):
-            print(f'Not bundling incomplete day {self.day}')
-            return False
+        # fix this
+        #if not self.complete(thresh=self.THRESH):
+        #    print(f'Not bundling incomplete day {self.day}')
+        #    return False
         if self.outfile.exists():
             print(f'Not overwriting existing file')
             return False
@@ -121,14 +125,32 @@ class Bundler:
         if self.outfile.exists():
             self.done = True
             return False
-        dir_ = self.data_dir / 'getvehicles' / self.day
-        if not dir_.exists():
-            print(f'Directory not found')
-            self.done = True
-            return False
-        files = sorted(dir_.glob('t??????z.json'))
-        self.total = len(files)
+        naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
+        next_day = naive_day + datetime.timedelta(days=1)
+        # start service day at 3am
+        chicago_day_start = Util.CTA_TIMEZONE.localize(naive_day.replace(hour=3))
+        chicago_day_end = Util.CTA_TIMEZONE.localize(next_day.replace(hour=3))
+        files = []
+        for dir_ in [self.data_dir / 'getvehicles' / self.day,
+                     self.data_dir / 'getvehicles' / next_day.strftime('%Y%m%d')]:
+            print(f'Processing files in {dir_.name}')
+            if not dir_.exists():
+                print(f'Directory not found')
+                self.done = True
+                return False
+            files += sorted(dir_.glob('t??????z.json'))
+        process = []
+        print(f'Processing from {chicago_day_start.isoformat()} to {chicago_day_end.isoformat()}')
         for f in files:
+            parent = f.parent.name
+            name = f.name
+            filedate = pytz.UTC.localize(
+                datetime.datetime.strptime(f'{parent}{name}', '%Y%m%dt%H%M%Sz.json'))
+            if filedate < chicago_day_start or filedate >= chicago_day_end:
+                continue
+            process.append(f)
+        self.total = len(process)
+        for f in process:
             self.scan_file(f)
             self.processed += 1
         self.summary()

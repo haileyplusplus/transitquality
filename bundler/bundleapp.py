@@ -3,6 +3,7 @@ import threading
 from fastapi import FastAPI, BackgroundTasks
 from s3path import S3Path
 import boto3
+import botocore.exceptions
 
 from bundler.bundler import Bundler
 
@@ -16,7 +17,10 @@ class BundleManager:
     def __init__(self):
         self.mutex = threading.Lock()
         self.bundler = None
-        boto3.setup_default_session(profile_name='transitquality_boto')
+        try:
+            boto3.setup_default_session(profile_name='transitquality_boto')
+        except botocore.exceptions.ProfileNotFound:
+            print(f'Not using boto profile')
 
     def create_bundler(self, day: str):
         success = False

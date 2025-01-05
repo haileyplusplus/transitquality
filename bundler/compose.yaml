@@ -17,6 +17,3 @@ services:
       watch:
         - action: rebuild
           path: .
-    depends_on:
-      db:
-       condition: service_healthy

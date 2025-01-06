@@ -141,7 +141,7 @@ def setkey(key: str, trainkey: str | None = None):
     bus_scraper.set_api_key(key)
     if trainkey is not None:
         train_scraper.set_api_key(trainkey)
-    return {'result': 'success'}
+    return {'command': 'setkey', 'result': 'success'}
 
 
 @app.get('/startbus')
@@ -154,7 +154,7 @@ async def startbus(background_tasks: BackgroundTasks):
     #asyncio.run(runner.start())
     background_tasks.add_task(bus_runner.loop)
     #background_tasks.add_task(train_runner.loop)
-    return {'result': 'success'}
+    return {'command': 'startbus', 'result': 'success'}
 
 
 @app.get('/starttrain')
@@ -167,7 +167,7 @@ async def starttrain(background_tasks: BackgroundTasks):
     #asyncio.run(runner.start())
     #background_tasks.add_task(bus_runner.loop)
     background_tasks.add_task(train_runner.loop)
-    return {'result': 'success'}
+    return {'command': 'starttrain', 'result': 'success'}
 
 
 @app.get('/stop')

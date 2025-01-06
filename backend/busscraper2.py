@@ -463,6 +463,7 @@ class BusScraper(ScraperInterface):
     def get_bundle_status(self) -> dict:
         d = self.requestor.bundler.status()
         d['last_scraped'] = self.last_scraped
+        d['total_count'] = self.count
         return d
 
     def scrape_one(self):
@@ -500,11 +501,13 @@ class BusScraper(ScraperInterface):
                 #self.consecutive_patterns += 1
                 scrapetask = PatternTask(patterns_to_scrape)
                 scrapetask.scrape(self.requestor)
+                self.last_scraped = Util.utcnow()
                 return
         routes_to_scrape = self.routes.choose(self.scrape_interval)
         if routes_to_scrape is not None:
             # scrape predictions
             routes_to_scrape.scrape(self.requestor)
+            self.last_scraped = Util.utcnow()
             return
         models = self.routes.choose_predictions(self.scrape_interval)
         if not models:
@@ -513,6 +516,7 @@ class BusScraper(ScraperInterface):
             return
         scrapetask = PredictionTask(models)
         scrapetask.scrape(self.requestor)
+        self.last_scraped = Util.utcnow()
 
     def freshen_debug(self):
         scrapetime = Util.utcnow()

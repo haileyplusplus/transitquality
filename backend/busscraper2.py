@@ -413,7 +413,7 @@ class Routes:
 
 
 class BusScraper(ScraperInterface):
-    MAX_CONSECUTIVE_PATTERNS = 3
+    MAX_CONSECUTIVE_PATTERNS = 1
     BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,

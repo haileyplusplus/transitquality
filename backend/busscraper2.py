@@ -170,6 +170,8 @@ class PatternTask(ScrapeTask):
         return 'getpatterns', {'pid': self.ids}
 
     def handle_response(self, response: list):
+        # We don't request patterns until we know about them, so by the time we
+        # get here they will always be in the database
         for pattern in response:
             pattern_id = pattern.get('pid')
             model: Pattern = self.model_dict.get(pattern_id)
@@ -178,6 +180,7 @@ class PatternTask(ScrapeTask):
                 continue
             model.length = pattern.get('ln')
             model.direction = pattern.get('rtdir')
+            model.timestamp = Util.utcnow()
             min_seq = None
             stop_id = None
             stop_name = None
@@ -208,6 +211,8 @@ class PatternTask(ScrapeTask):
                     insert = True
                 stop_model.scrape_state = ScrapeState.ACTIVE
                 stop_model.save(force_insert=insert)
+            else:
+                model.save()
 
     def handle_errors(self, error_dict: dict):
         pass

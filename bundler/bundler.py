@@ -6,7 +6,9 @@ import lzma
 import datetime
 import json
 import pytz
+import os
 from pathlib import Path
+from tarfile import TarFile
 
 from s3path import S3Path
 
@@ -27,12 +29,27 @@ class Bundler:
         self.total = 0
         self.processed = 0
         self.route_index = {}
-        self.requests_out = []
-        self.outfile = self.data_dir / f'bundle-{self.day}.json.lz'
+        #self.requests_out = []
+        self.request_count = 0
+        self.outfile = self.data_dir / f'bundle-{self.day}.tar.lz'
         self.done = False
-        self.success = False
+        self.success = None
         self.start_time = datetime.datetime.now(tz=datetime.UTC)
         self.end_time = None
+        #self.tempout = None
+        self.prepare_output()
+        self.tempdir = tempfile.TemporaryDirectory()
+
+    def __del__(self):
+        self.tempdir.cleanup()
+
+    def prepare_output(self):
+        if self.outfile.exists():
+            print(f'Not overwriting existing file')
+            self.success = False
+            return
+        #self.tempout = tempfile.NamedTemporaryFile('wb')
+        #self.tarfile = tarfile.open(self.tempout.name, mode='w:xz')
 
     def is_done(self):
         return self.done
@@ -46,9 +63,9 @@ class Bundler:
                 'start': self.start_time,
                 'end': self.end_time}
 
-    def store_routes(self, routes, request_time: datetime.datetime):
+    def store_routes(self, routes, request_time: datetime.datetime, file):
         for rt in routes.split(','):
-            val = (self.index, request_time.isoformat())
+            val = (self.index, file.parent.name, file.name, request_time.isoformat())
             self.route_index.setdefault(rt, []).append(val)
         self.index += 1
 
@@ -57,12 +74,9 @@ class Bundler:
         #if not self.complete(thresh=self.THRESH):
         #    print(f'Not bundling incomplete day {self.day}')
         #    return False
-        if self.outfile.exists():
-            print(f'Not overwriting existing file')
-            return False
         with tempfile.NamedTemporaryFile('wb') as tempout:
             tempout.close()
-            with lzma.open(tempout.name, mode='wt', encoding='UTF-8') as lzmafile:
+            with TarFile.open(tempout.name, mode='w:xz') as tarfile:
                 #with bz2.open(self.outfile, 'wt', encoding='UTF-8') as jfh:
                 outdict = {'v': '2.0',
                            'bundle_type': 'vehicle',
@@ -70,9 +84,13 @@ class Bundler:
                            'first': self.first.isoformat(),
                            'last': self.last.isoformat(),
                            'max_interval_seconds': self.max_interval.total_seconds(),
-                           'index': self.route_index,
-                           'requests': self.requests_out}
-                json.dump(outdict, lzmafile)
+                           'index': self.route_index}
+                index = Path(self.tempdir.name) / 'index.json'
+                with index.open('w') as wfh:
+                    json.dump(outdict, wfh)
+                td = Path(self.tempdir.name)
+                for f in td.glob('*.json'):
+                    tarfile.add(f, arcname=f'{self.day}/{f.name}')
             self.outfile.write_bytes(open(tempout.name, 'rb').read())
 
     def summary(self, by_route=False):
@@ -81,7 +99,7 @@ class Bundler:
         print(f'First update: {self.first.isoformat()}')
         print(f'Last update: {self.last.isoformat()}')
         print(f'Max interval: {self.max_interval.total_seconds()} seconds')
-        print(f'Total requests: {len(self.requests_out)}')
+        print(f'Total requests: {self.request_count}')
         print()
         if by_route:
             print(f'Requests by route:')
@@ -104,10 +122,11 @@ class Bundler:
             d = json.load(fh)
             if d.get('command') != 'getvehicles':
                 return False
+            self.index = 0
             for r in d.get('requests', []):
                 routes = r['request_args']['rt']
                 request_time = datetime.datetime.fromisoformat(r['request_time'])
-                self.store_routes(routes, request_time)
+                self.store_routes(routes, request_time, file)
                 if self.first is None:
                     self.first = request_time
                 else:
@@ -118,7 +137,11 @@ class Bundler:
                     else:
                         self.max_interval = max(interval, self.max_interval)
                 self.prev = request_time
-                self.requests_out.append(r)
+                self.request_count += 1
+                #self.requests_out.append(r)
+            filename = f'{file.parent.name}{file.name}'
+            with (Path(self.tempdir.name) / filename).open('w') as wfh:
+                json.dump(d, wfh)
         return True
 
     def scan_day(self):

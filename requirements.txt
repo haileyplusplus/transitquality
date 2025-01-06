@@ -1,11 +1,11 @@
-fastapi==0.115.0
+fastapi~=0.112.2
 fastapi-cli==0.0.4
 uvicorn==0.30.1
 peewee==3.17.1
 pytz==2024.1
 pydantic>=2.7.0,<3.0.0
-requests==2.32.3
+requests~=2.31.0
 psycopg2-binary==2.9.10
-boto3==1.35.82
+boto3~=1.34.154
 python-git-info==0.8.3
 pandas==2.2.3

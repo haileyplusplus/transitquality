@@ -413,7 +413,6 @@ class Routes:
 
 
 class BusScraper(ScraperInterface):
-    MAX_CONSECUTIVE_PATTERNS = 1
     BASE_URL = 'http://www.ctabustracker.com/bustime/api/v3'
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
@@ -429,10 +428,9 @@ class BusScraper(ScraperInterface):
                                    output_dir, output_dir, BusParser(),
                                    debug=debug, write_local=write_local)
         self.routes = Routes(self.requestor)
-        self.count = 5
+        self.count = 0
         self.scrape_predictions = scrape_predictions
         #self.routes.initialize(fetch_routes)
-        self.consecutive_patterns = 0
         self.fetch_routes = fetch_routes
         self.seen_days: set[str] = set([])
 
@@ -463,7 +461,9 @@ class BusScraper(ScraperInterface):
         return 'bus'
 
     def get_bundle_status(self) -> dict:
-        return self.requestor.bundler.status()
+        d = self.requestor.bundler.status()
+        d['last_scraped'] = self.last_scraped
+        return d
 
     def scrape_one(self):
         scrapetime = Util.utcnow()
@@ -489,16 +489,15 @@ class BusScraper(ScraperInterface):
             for p in pattern_paused:
                 p.scrape_state = ScrapeState.ACTIVE
                 p.save()
-        if self.consecutive_patterns >= self.MAX_CONSECUTIVE_PATTERNS:
-            self.consecutive_patterns = 0
-        else:
+        self.count += 1
+        if self.count % 20 == 0:
             pattern_thresh = Util.utcnow() - datetime.timedelta(days=14)
             patterns_to_scrape = (Pattern.select().
                                   where((Pattern.scrape_state == ScrapeState.NEEDS_SCRAPING) |
                                         (Pattern.timestamp < pattern_thresh)).
                                   limit(1))
             if patterns_to_scrape.exists():
-                self.consecutive_patterns += 1
+                #self.consecutive_patterns += 1
                 scrapetask = PatternTask(patterns_to_scrape)
                 scrapetask.scrape(self.requestor)
                 return

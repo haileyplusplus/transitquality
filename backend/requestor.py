@@ -66,7 +66,7 @@ class Bundler:
                    'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
 
     def status(self):
-        d = {}
+        d = {'last_write_time': self.last_write_time}
         for k, v in self.bundles.items():
             d[k] = len(v)
         return d

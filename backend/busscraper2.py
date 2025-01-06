@@ -492,7 +492,11 @@ class BusScraper(ScraperInterface):
         if self.consecutive_patterns >= self.MAX_CONSECUTIVE_PATTERNS:
             self.consecutive_patterns = 0
         else:
-            patterns_to_scrape = Pattern.select().where(Pattern.scrape_state == ScrapeState.NEEDS_SCRAPING).limit(1)
+            pattern_thresh = Util.utcnow() - datetime.timedelta(days=14)
+            patterns_to_scrape = (Pattern.select().
+                                  where(Pattern.scrape_state == ScrapeState.NEEDS_SCRAPING).
+                                  where(Pattern.timestamp < pattern_thresh).
+                                  limit(1))
             if patterns_to_scrape.exists():
                 self.consecutive_patterns += 1
                 scrapetask = PatternTask(patterns_to_scrape)

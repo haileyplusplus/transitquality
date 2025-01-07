@@ -1,6 +1,6 @@
 import peewee
 from peewee import CharField, BooleanField, DateField, ForeignKeyField, IntegerField, Model, SqliteDatabase, \
-    DateTimeField, PostgresqlDatabase, DatabaseProxy, AutoField
+    DateTimeField, PostgresqlDatabase, DatabaseProxy, AutoField, TextField
 from playhouse.postgres_ext import DateTimeTZField
 
 from pathlib import Path
@@ -50,6 +50,7 @@ class Pattern(BaseModel):
     direction = ForeignKeyField(Direction, null=True)
     timestamp = DateTimeTZField(null=True)
     length = IntegerField(null=True)
+    raw = TextField(null=True)
 
 
 class Stop(BaseModel):

@@ -87,6 +87,7 @@ class PatternParser(BaseParser):
                 pattern_id=pid,
                 direction=self.get_direction(top['rtdir']),
                 timestamp=self.data_time,
+                raw=json.dumps(brdict),
                 length=int(top['ln']))
         except peewee.IntegrityError:
             return

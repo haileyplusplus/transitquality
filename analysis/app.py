@@ -11,6 +11,9 @@ import json
 import sys
 
 
+from analysis.patterntemp import Exporter
+
+
 from playhouse.shortcuts import model_to_dict
 import gitinfo
 
@@ -145,3 +148,10 @@ def get_raw_stop(stop_id: str, route_id: str):
 def get_stop_headways(stop_id: str, route_id: str):
     processor.open()
     return processor.analyze_stop(stop_id, route_id)
+
+
+@app.get('/patterndump')
+def patterndump():
+    processor.open()
+    e = Exporter()
+    return e.serve()

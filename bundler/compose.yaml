@@ -12,6 +12,9 @@ services:
     build:
       context: ..
       dockerfile: bundler/Dockerfile
+    labels:
+      tsdproxy.enable: "true"
+      tsdproxy.name: "transitbundler"
     ports:
       - 8009:8000
     volumes:

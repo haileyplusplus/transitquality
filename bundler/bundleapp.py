@@ -6,6 +6,7 @@ import boto3
 import botocore.exceptions
 
 from bundler.bundler import Bundler
+from bundler.interpolate import RouteInterpolate
 
 
 app = FastAPI()
@@ -58,3 +59,10 @@ def status():
 async def bundle(day: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(manager.create_bundler, day)
     return {'day': day, 'started': True}
+
+
+@app.get('/interpolate')
+def interpolate():
+    i = RouteInterpolate()
+    i.load_working()
+    return {'command': 'interpolate'}

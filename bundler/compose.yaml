@@ -20,6 +20,7 @@ services:
     volumes:
       - ~/.aws/credentials:/home/appuser/.aws/credentials:ro
       - ~/.aws/config:/home/appuser/.aws/config:ro
+      - transit-working:/transitworking
     deploy:
       resources:
         limits:
@@ -29,3 +30,5 @@ services:
       watch:
         - action: rebuild
           path: .
+volumes:
+ transit-working:

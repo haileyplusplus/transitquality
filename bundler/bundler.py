@@ -29,6 +29,7 @@ class Bundler:
         self.total = 0
         self.processed = 0
         self.route_index = {}
+        self.patterns = {}
         #self.requests_out = []
         self.request_count = 0
         self.outfile = self.data_dir / f'bundle-{self.day}.tar.lz'
@@ -78,13 +79,17 @@ class Bundler:
             tempout.close()
             with TarFile.open(tempout.name, mode='w:xz') as tarfile:
                 #with bz2.open(self.outfile, 'wt', encoding='UTF-8') as jfh:
+                patterns = {}
+                for k, v in self.patterns.items():
+                    patterns[k] = list(v)
                 outdict = {'v': '2.0',
                            'bundle_type': 'vehicle',
                            'day': self.day,
                            'first': self.first.isoformat(),
                            'last': self.last.isoformat(),
                            'max_interval_seconds': self.max_interval.total_seconds(),
-                           'index': self.route_index}
+                           'index': self.route_index,
+                           'patterns': patterns}
                 index = Path(self.tempdir.name) / 'index.json'
                 with index.open('w') as wfh:
                     json.dump(outdict, wfh)
@@ -117,6 +122,13 @@ class Bundler:
             return False
         return True
 
+    def process_patterns(self, r):
+        updates = r.get('response', {}).get('bustime-response', {}).get('vehicle', [])
+        for u in updates:
+            route = u['rt']
+            pid = u['pid']
+            self.patterns.setdefault(route, set([])).add(pid)
+
     def scan_file(self, file: Path | S3Path):
         with file.open() as fh:
             d = json.load(fh)
@@ -127,6 +139,7 @@ class Bundler:
                 routes = r['request_args']['rt']
                 request_time = datetime.datetime.fromisoformat(r['request_time'])
                 self.store_routes(routes, request_time, file)
+                self.process_patterns(r)
                 if self.first is None:
                     self.first = request_time
                 else:

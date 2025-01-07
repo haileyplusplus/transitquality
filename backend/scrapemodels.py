@@ -3,6 +3,7 @@ from playhouse.postgres_ext import DateTimeTZField
 
 from pathlib import Path
 from backend.util import Util
+import datetime
 import shutil
 import socket
 import sys
@@ -55,7 +56,7 @@ class Route(BaseModel):
     route_id = CharField(primary_key=True)
     route_name = CharField(null=True)
     route_color = CharField(null=True)
-    last_scrape_attempt = DateTimeType(null=True)
+    last_scrape_attempt = DateTimeType(default=datetime.datetime.fromtimestamp(0))
     last_scrape_success = DateTimeType(null=True)
     scrape_state = IntegerField(default=0)
 

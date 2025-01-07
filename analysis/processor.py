@@ -17,7 +17,7 @@ import peewee
 from playhouse.shortcuts import model_to_dict
 
 from backend.util import Util
-from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error, TimetableView
+from analysis.datamodels import db_initialize, Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip, VehiclePosition, StopInterpolation, File, FileParse, Error, TimetableView, PatternIndex
 
 
 logger = logging.getLogger(__file__)
@@ -27,12 +27,13 @@ PROJROOT = Path(__file__).parent.parent
 
 
 class BaseParser:
-    def __init__(self, db, attempt):
+    def __init__(self, db, attempt, existing):
         self.attempt = attempt
         self.db = db
         self.iter = 0
         self.data_time = None
         self.success = False
+        self.existing = existing
 
     def set_data_time(self, data_time: datetime.datetime):
         self.data_time = data_time
@@ -60,8 +61,8 @@ class BaseParser:
 
 
 class PatternParser(BaseParser):
-    def __init__(self, db, attempt):
-        super().__init__(db, attempt)
+    def __init__(self, db, attempt, existing):
+        super().__init__(db, attempt, existing)
 
     @staticmethod
     def get_direction(dirname):
@@ -79,6 +80,14 @@ class PatternParser(BaseParser):
     def parse_inner(self, brdict):
         top = brdict['bustime-response']['ptr'][0]
         pid = int(top['pid'])
+        PatternIndex.create(
+            pattern_id=pid,
+            direction=self.get_direction(top['rtdir']),
+            timestamp=self.data_time,
+            raw=json.dumps(brdict),
+            length=int(top['ln']))
+        if self.existing:
+            return
         try:
             # existing = Pattern.get_or_none(Pattern.pattern_id == pid)
             # if existing is not None:
@@ -217,11 +226,13 @@ class WorkingTrip:
 
 
 class VehicleParser(BaseParser):
-    def __init__(self, db, attempt):
-        super().__init__(db, attempt)
+    def __init__(self, db, attempt, existing):
+        super().__init__(db, attempt, existing)
         self.by_trip: dict[str, WorkingTrip] = {}
 
     def parse(self, brdict, override=None):
+        if self.existing:
+            return
         if override is not None:
             top = override
         else:
@@ -257,6 +268,7 @@ class Processor:
         self.db = None
         self.processed = 0
         self.inserted = 0
+        self.existing = False
 
     def open(self):
         if self.db is None:
@@ -469,9 +481,7 @@ class Processor:
         files = File.select().where(File.command == 'getpatterns')
         previous = Pattern.select().count()
         for f in files:
-            if f in existing:
-                continue
-            self.parse_file(f)
+            self.parse_file(f, existing)
         patterns = Pattern.select().count()
         return {'files': len(files), 'previous': previous, 'patterns': patterns}
 
@@ -503,7 +513,8 @@ class Processor:
         v = VehiclePosition.select().count()
         return {'needed': len(needed), 'previous': previous, 'vehicles': v, 'prev_success': len(success)}
 
-    def parse_file(self, file_model: File):
+    def parse_file(self, file_model: File, existing=False):
+        self.existing = existing
         f: Path = self.data_dir / file_model.relative_path / file_model.filename
         attempt = FileParse(file_id=file_model,
                             parse_time=Util.utcnow(),
@@ -517,7 +528,7 @@ class Processor:
             return False
         #process_fn = getattr(self, f'parse_{file_model.command}_response')
         parser_class = self.PARSERS[file_model.command]
-        parser = parser_class(self.db, attempt)
+        parser = parser_class(self.db, attempt, existing)
         success = False
         with open(f) as fh:
             try:

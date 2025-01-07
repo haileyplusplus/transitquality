@@ -53,6 +53,15 @@ class Pattern(BaseModel):
     raw = TextField(null=True)
 
 
+class PatternIndex(BaseModel):
+    pattern_id = IntegerField(null=True)
+    route = CharField(null=True)
+    direction = CharField(null=True)
+    timestamp = DateTimeTZField(null=True)
+    length = IntegerField(null=True)
+    raw = TextField(null=True)
+
+
 class Stop(BaseModel):
     stop_id = CharField(primary_key=True)
     stop_name = CharField()
@@ -233,7 +242,8 @@ def db_initialize():
     db.connect()
     db.create_tables([
         Route, Direction, Pattern, Stop, PatternStop, Waypoint, Trip,
-        VehiclePosition, StopInterpolation, File, FileParse, Error
+        VehiclePosition, StopInterpolation, File, FileParse, Error,
+        PatternIndex
     ])
     create_views(db)
     #print(f'Initialized {db} in {self.catalog.name}')

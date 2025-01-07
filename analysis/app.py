@@ -35,6 +35,7 @@ def status():
     d['started'] = START_TIME.isoformat()
     return d
 
+
 @app.get('/runprocessor')
 def runprocessor():
     processor.open()

@@ -80,6 +80,7 @@ class TripsHandler:
                  writer: StopWriter):
         self.route = routex
         self.day = day
+        self.vehicle_id = vehicle_df.vid.unique()[0]
         naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
         self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
         self.vehicle_df = vehicle_df
@@ -106,11 +107,11 @@ class TripsHandler:
             self.writer.writer_trips.writerow({
                 'route_id': self.route.route,
                 'service_id': self.day,
-                'trip_id': f'{self.day}.{trip_id}',
+                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
             })
             self.process_trip(trip_id)
 
-    def process_trip(self, trip_id: str):
+    def process_trip(self, trip_id: str, debug=False):
         stops = []
         stop_index = {}
         df = self.vehicle_df[self.vehicle_df.origtatripno == trip_id]
@@ -155,12 +156,14 @@ class TripsHandler:
         df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(
             lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.fromtimestamp(int(x)))
         ))
+        if debug:
+            return df
         #stop_interpolation = []
         for _, row in df.iterrows():
             pattern_stop = stop_index[row.stpid]
             interpolated_timestamp = self.gtfs_time(row.tmstmp)
             self.writer.write_stop_time({
-                'trip_id': f'{self.day}.{trip_id}',
+                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
                 'arrival_time': interpolated_timestamp,
                 'departure_time': interpolated_timestamp,
                 'stop_id': pattern_stop.stop_id,

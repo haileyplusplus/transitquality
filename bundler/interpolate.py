@@ -199,10 +199,17 @@ if __name__ == "__main__":
         afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
     route_file = writer.output_path / 'routes.txt'
     with route_file.open('w') as rfh:
+        # bug in output here
         dw = csv.DictWriter(rfh,
                             ['route_id', 'route_short_name', 'route_type'])
         dw.writeheader()
-        mpm.write_routes(dw)
+        for x in routes:
+            dw.writerow({
+                'route_id': x,
+                'route_short_name': x,
+                'route_type': 3
+            })
+        #mpm.write_routes(dw)
     for route, vsamp in r.generate_vehicles():
         th = TripsHandler(route, r.day, vsamp, mpm, writer)
         th.process_all_trips()

@@ -7,6 +7,26 @@ from pathlib import Path
 from tarfile import TarFile
 
 import pandas as pd
+import peewee
+from peewee import SqliteDatabase
+
+from analysis.processor import PatternParser
+from analysis.datamodels import Pattern, Direction, Stop, PatternStop, Waypoint, PatternIndex, database_proxy
+
+
+class MemoryPatternManager:
+    def __init__(self):
+        Pattern.timestamp = peewee.DateTimeField(null=True)
+        self.db = SqliteDatabase(':memory:')
+        database_proxy.initialize(self.db)
+        self.db.connect()
+        self.db.create_tables([Direction, Pattern, Stop, PatternStop,
+                               Waypoint, PatternIndex])
+        self.parser = PatternParser(self.db, None, False)
+
+    def parse(self, patterns: dict):
+        for p in patterns.values():
+            self.parser.parse_inner(p)
 
 
 class Route:
@@ -44,11 +64,6 @@ class Route:
                 if v['rt'] == self.route:
                     vehicle = v['vid']
                     self.vehicles.setdefault(vehicle, []).append(v)
-
-
-class FileUpdate:
-    def __init__(self, filename: str):
-        self.filename = filename
 
 
 class BundleReader:
@@ -89,3 +104,6 @@ if __name__ == "__main__":
     routes = args.routes.split(',')
     r = BundleReader(bundle_file, routes)
     r.process_bundle_file()
+    pd = json.load((bundle_file.parent / 'patterns2025.json').open())
+    mpm = MemoryPatternManager()
+    mpm.parse(pd['patterns'])

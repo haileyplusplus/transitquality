@@ -185,6 +185,18 @@ if __name__ == "__main__":
     mpm.parse(pdict['patterns'])
     #vsamp = r.routes['8'].get_vehicle('1310')
     writer = StopWriter(Path('/tmp'))
+    stops_file = writer.output_path / 'stops.txt'
+    with stops_file.open('w') as sfh:
+        dw = csv.DictWriter(sfh,
+                            ['stop_id', 'stop_name', 'stop_lat', 'stop_lon'])
+        dw.writeheader()
+        mpm.write_all_stops(dw)
+    cal_file = writer.output_path / 'calendar_dates.txt'
+    with cal_file.open('w') as calfh:
+        calfh.write(f'service_id,date,exception_type\n{r.day},{r.day},1\n')
+    agency_file = writer.output_path / 'agency.txt'
+    with agency_file.open('w') as afh:
+        afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
     for route, vsamp in r.generate_vehicles():
         th = TripsHandler(route, r.day, vsamp, mpm, writer)
         th.process_all_trips()

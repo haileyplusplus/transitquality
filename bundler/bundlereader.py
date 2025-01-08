@@ -28,6 +28,15 @@ class MemoryPatternManager:
         for p in patterns.values():
             self.parser.parse_inner(p)
 
+    def write_all_stops(self, writer):
+        for stop in Stop.select():
+            writer.writerow({
+                'stop_id': stop.stop_id,
+                'stop_name': stop.stop_name,
+                'stop_lat': stop.lat,
+                'stop_lon': stop.lon,
+            })
+
     def get_stops(self, pid: int):
         p = Pattern.get_or_none(Pattern.pattern_id == pid)
         if p is None:

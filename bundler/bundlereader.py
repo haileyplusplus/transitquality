@@ -28,6 +28,10 @@ class MemoryPatternManager:
         for p in patterns.values():
             self.parser.parse_inner(p)
 
+    def get_stops(self, pid: int):
+        p = Pattern.get_or_none(Pattern.pattern_id == pid)
+        return p.stops
+
 
 class Route:
     def __init__(self, route: str, indexlist: list):

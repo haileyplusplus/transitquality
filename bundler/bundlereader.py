@@ -101,7 +101,7 @@ class BundleReader:
     def generate_vehicles(self):
         for r in self.routes.values():
             for vid in r.vehicles.keys():
-                yield r.get_vehicle(vid)
+                yield r, r.get_vehicle(vid)
 
 
 if __name__ == "__main__":

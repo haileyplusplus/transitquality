@@ -52,9 +52,13 @@ Combine ridership stats with service provided to get riders per bus
 
 set bundle interval in app.py
 
-        fieldnames = ['trip_id',
-                      'arrival_time',
-                      'departure_time',
-                      'stop_id',
-                      'stop_sequence',
-                      'shape_dist_traveled']
+Known issues
+- with daily bundle, trips around 3am boundary will be incomplete
+- fast bus turns: need vehicle-level interpolation; pandas interpolation in one direction is not as smart.
+```
+87  1956  20250105 06:36:40   41.90176773071289  -87.77480105696053  335  2291  70             Austin  40765  False  1032453    259605803   70 -802          1   N/A  21660  2025-01-05
+88  1956  20250105 06:37:40   41.90176773071289  -87.77480105696053  335  2291  70             Austin  40765  False  1032453    259605803   70 -802          1   N/A  21660  2025-01-05
+89  1956  20250105 06:39:03   41.90203857421875   -87.7713394165039   88  2289  70  Walton & Dearborn   1017  False  1032457    259605733   70 -802          1   N/A  23880  2025-01-05
+90  1956  20250105 06:39:49   41.90211868286133  -87.76608276367188   89  2289  70  Walton & Dearborn   2408  False  1032457    259605733   70 -802          1   N/A  23880  2025-01-05
+91  1956  20250105 06:40:59  41.902157318897736  -87.76383267916165   87  2289  70  Walton & Dearborn   3024  False  1032457    259605733   70 -802          1   N/A  23880  2025-01-05
+```

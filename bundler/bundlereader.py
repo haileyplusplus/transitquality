@@ -30,7 +30,7 @@ class MemoryPatternManager:
 
     def write_all_stops(self, writer):
         for stop in Stop.select():
-            writer.writerow({
+            writer.write('stops', {
                 'stop_id': stop.stop_id,
                 'stop_name': stop.stop_name,
                 'stop_lat': stop.lat,

@@ -18,30 +18,40 @@ from bundler.bundlereader import BundleReader, MemoryPatternManager, Route
 from backend.util import Util
 
 
-class StopWriter:
-    def __init__(self, output_path: Path):
-        self.output_path = output_path
-        self.st_fh = (self.output_path / 'stop_times.txt').open('w')
-        st_fieldnames = ['trip_id',
-                         'arrival_time',
-                         'departure_time',
-                         'stop_id',
-                         'stop_sequence',
-                         'shape_dist_traveled']
-        self.writer_stop_time = csv.DictWriter(self.st_fh, st_fieldnames)
-        self.writer_stop_time.writeheader()
-        self.trips_fh = (self.output_path / 'trips.txt').open('w')
-        self.writer_trips = csv.DictWriter(
-            self.trips_fh,
-            ['route_id', 'service_id', 'trip_id']
-        )
-        self.writer_trips.writeheader()
+class ScheduleWriter:
+    FEEDS_AND_FIELDS = {
+        'stop_times.txt': ['trip_id',
+                           'arrival_time',
+                           'departure_time',
+                           'stop_id',
+                           'stop_sequence',
+                           'shape_dist_traveled'],
+        'trips.txt': ['route_id', 'service_id', 'trip_id'],
+        'stops.txt': ['stop_id', 'stop_name', 'stop_lat', 'stop_lon'],
+        'routes.txt': ['route_id', 'route_short_name', 'route_type'],
+        'calendar_dates.txt': ['service_id', 'date' , 'exception_type'],
+    }
 
-    def write_stop_time(self, row: dict):
-        self.writer_stop_time.writerow(row)
+    def __init__(self, output_path: Path, day: str):
+        self.output_path = output_path
+        self.file_handlers = []
+        self.writers = {}
+        basedir = self.output_path / day
+        basedir.mkdir(exist_ok=True)
+        for k, v in self.FEEDS_AND_FIELDS.items():
+            table = k.removesuffix('.txt')
+            self.file_handlers.append(
+                (basedir / k).open('w')
+            )
+            # omit writing headers until merge
+            self.writers[table] = csv.DictWriter(self.file_handlers[-1], v)
+
+    def write(self, table: str, row: dict):
+        self.writers[table].writerow(row)
 
     def __del__(self):
-        self.st_fh.close()
+        for fh in self.file_handlers:
+            fh.close()
 
 
 class RouteInterpolate:
@@ -77,7 +87,7 @@ class TripsHandler:
     def __init__(self, routex: Route,
                  day: str,
                  vehicle_df: pd.DataFrame, mpm: MemoryPatternManager,
-                 writer: StopWriter):
+                 writer: ScheduleWriter):
         self.route = routex
         self.day = day
         self.vehicle_id = vehicle_df.vid.unique()[0]
@@ -104,7 +114,7 @@ class TripsHandler:
 
     def process_all_trips(self):
         for trip_id in self.trip_ids:
-            self.writer.writer_trips.writerow({
+            self.writer.write('trips', {
                 'route_id': self.route.route,
                 'service_id': self.day,
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
@@ -162,7 +172,7 @@ class TripsHandler:
         for _, row in df.iterrows():
             pattern_stop = stop_index[row.stpid]
             interpolated_timestamp = self.gtfs_time(row.tmstmp)
-            self.writer.write_stop_time({
+            self.writer.write('stop_times', {
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
                 'arrival_time': interpolated_timestamp,
                 'departure_time': interpolated_timestamp,
@@ -191,31 +201,22 @@ if __name__ == "__main__":
     mpm = MemoryPatternManager()
     mpm.parse(pdict['patterns'])
     #vsamp = r.routes['8'].get_vehicle('1310')
-    writer = StopWriter(Path('/tmp'))
-    stops_file = writer.output_path / 'stops.txt'
-    with stops_file.open('w') as sfh:
-        dw = csv.DictWriter(sfh,
-                            ['stop_id', 'stop_name', 'stop_lat', 'stop_lon'])
-        dw.writeheader()
-        mpm.write_all_stops(dw)
-    cal_file = writer.output_path / 'calendar_dates.txt'
-    with cal_file.open('w') as calfh:
-        calfh.write(f'service_id,date,exception_type\n{r.day},{r.day},1\n')
+    writer = ScheduleWriter(Path('/tmp'), r.day)
+    mpm.write_all_stops(writer)
+    writer.write('calendar_dates', {
+        'service_id': r.day,
+        'date': r.day,
+        'exception_type': 1
+    })
+    for x in r.routes_to_parse:
+        writer.write('routes', {
+            'route_id': x,
+            'route_short_name': x,
+            'route_type': 3
+        })
     agency_file = writer.output_path / 'agency.txt'
     with agency_file.open('w') as afh:
         afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
-    route_file = writer.output_path / 'routes.txt'
-    with route_file.open('w') as rfh:
-        # bug in output here
-        dw = csv.DictWriter(rfh,
-                            ['route_id', 'route_short_name', 'route_type'])
-        dw.writeheader()
-        for x in r.routes_to_parse:
-            dw.writerow({
-                'route_id': x,
-                'route_short_name': x,
-                'route_type': 3
-            })
         #mpm.write_routes(dw)
     for route, vsamp in r.generate_vehicles():
         th = TripsHandler(route, r.day, vsamp, mpm, writer)

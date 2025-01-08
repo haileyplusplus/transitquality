@@ -30,6 +30,8 @@ class MemoryPatternManager:
 
     def get_stops(self, pid: int):
         p = Pattern.get_or_none(Pattern.pattern_id == pid)
+        if p is None:
+            return []
         return p.stops
 
 
@@ -96,6 +98,11 @@ class BundleReader:
                 for route in routes:
                     route.process_file(filename, contents)
 
+    def generate_vehicles(self):
+        for r in self.routes.values():
+            for vid in r.vehicles.keys():
+                yield r.get_vehicle(vid)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Read bundles')
@@ -106,8 +113,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     bundle_file = Path(args.bundle_file).expanduser()
     routes = args.routes.split(',')
-    r = BundleReader(bundle_file, routes)
-    r.process_bundle_file()
-    pd = json.load((bundle_file.parent / 'patterns2025.json').open())
+    rr = BundleReader(bundle_file, routes)
+    rr.process_bundle_file()
+    pdd = json.load((bundle_file.parent / 'patterns2025.json').open())
     mpm = MemoryPatternManager()
-    mpm.parse(pd['patterns'])
+    mpm.parse(pdd['patterns'])

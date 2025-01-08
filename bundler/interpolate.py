@@ -94,15 +94,19 @@ class TripsHandler:
             return ts.strftime(f'{hour:02d}:%M:%S')
         return ts.strftime('%H:%M:%S')
 
-    def process_trip(self, trip_id: int):
+    def process_all_trips(self):
+        for trip_id in self.trip_ids:
+            self.process_trip(trip_id)
+
+    def process_trip(self, trip_id: str):
         stops = []
         stop_index = {}
         df = self.vehicle_df[self.vehicle_df.origtatripno == trip_id]
         # TODO: rename
         vehicles_df = df[['tmstmp', 'pdist']]
         pids = df['pid'].unique()
-        if len(pids) > 1:
-            self.record_error(trip_id, f'Too many pattern ids: {pids}')
+        if len(pids) != 1:
+            self.record_error(trip_id, f'Wrong number of pattern ids: {pids}')
             return
         pid = pids[0]
         for ps in self.mpm.get_stops(pid):
@@ -167,6 +171,8 @@ if __name__ == "__main__":
     pdict = json.load((bundle_file.parent / 'patterns2025.json').open())
     mpm = MemoryPatternManager()
     mpm.parse(pdict['patterns'])
-    vsamp = r.routes['8'].get_vehicle('1310')
+    #vsamp = r.routes['8'].get_vehicle('1310')
     writer = StopWriter(Path('/tmp/stop_times.txt'))
-    th = TripsHandler(r.day, vsamp, mpm, writer)
+    for vsamp in r.generate_vehicles():
+        th = TripsHandler(r.day, vsamp, mpm, writer)
+        th.process_all_trips()

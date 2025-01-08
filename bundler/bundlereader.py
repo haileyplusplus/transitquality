@@ -37,6 +37,15 @@ class MemoryPatternManager:
                 'stop_lon': stop.lon,
             })
 
+    def write_routes(self, writer):
+        for pattern in PatternIndex.select(PatternIndex.route).distinct():
+            writer.writerow({
+                'route_id': pattern.route,
+                'route_short_name': pattern.route,
+                'route_type': 3
+            })
+
+
     def get_stops(self, pid: int):
         p = Pattern.get_or_none(Pattern.pattern_id == pid)
         if p is None:

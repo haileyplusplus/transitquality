@@ -106,7 +106,7 @@ class TripsHandler:
             self.writer.writer_trips.writerow({
                 'route_id': self.route.route,
                 'service_id': self.day,
-                'trip_id': trip_id,
+                'trip_id': f'{self.day}.{trip_id}',
             })
             self.process_trip(trip_id)
 
@@ -197,6 +197,12 @@ if __name__ == "__main__":
     agency_file = writer.output_path / 'agency.txt'
     with agency_file.open('w') as afh:
         afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
+    route_file = writer.output_path / 'routes.txt'
+    with route_file.open('w') as rfh:
+        dw = csv.DictWriter(rfh,
+                            ['route_id', 'route_short_name', 'route_type'])
+        dw.writeheader()
+        mpm.write_routes(dw)
     for route, vsamp in r.generate_vehicles():
         th = TripsHandler(route, r.day, vsamp, mpm, writer)
         th.process_all_trips()

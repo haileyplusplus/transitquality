@@ -180,7 +180,11 @@ if __name__ == "__main__":
                         help='Comma-separated list of routes.')
     args = parser.parse_args()
     bundle_file = Path(args.bundle_file).expanduser()
-    routes = args.routes.split(',')
+    print(f'Routes: {args.routes}')
+    if not args.routes:
+        routes = None
+    else:
+        routes = args.routes.split(',')
     r = BundleReader(bundle_file, routes)
     r.process_bundle_file()
     pdict = json.load((bundle_file.parent / 'patterns2025.json').open())
@@ -206,7 +210,7 @@ if __name__ == "__main__":
         dw = csv.DictWriter(rfh,
                             ['route_id', 'route_short_name', 'route_type'])
         dw.writeheader()
-        for x in routes:
+        for x in r.routes_to_parse:
             dw.writerow({
                 'route_id': x,
                 'route_short_name': x,

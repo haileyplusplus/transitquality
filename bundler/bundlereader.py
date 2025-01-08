@@ -93,17 +93,22 @@ class Route:
 class BundleReader:
     DAY_RE = re.compile(r'(20\d{6})')
 
-    def __init__(self, bundle_file: Path, routes: list[str]):
+    def __init__(self, bundle_file: Path, routes: list[str] | None):
         self.bundle_file = bundle_file
-        self.routes_to_parse = set(routes)
+        self.routes_to_parse = routes
         self.routes = {}
         self.index = None
         self.day = self.DAY_RE.search(self.bundle_file.name).groups()[0]
+
+    def routes_from_index(self):
+        return self.index['index'].keys()
 
     def process_bundle_file(self):
         with TarFile.open(self.bundle_file, 'r:xz') as archive:
             index_fh = archive.extractfile(f'{self.day}/index.json')
             self.index = json.load(index_fh)
+            if self.routes_to_parse is None:
+                self.routes_to_parse = self.routes_from_index()
             for r in self.routes_to_parse:
                 self.routes.setdefault(r, Route(r, self.index['index'][r]))
             all_files = {}
@@ -130,7 +135,11 @@ if __name__ == "__main__":
                         help='Comma-separated list of routes.')
     args = parser.parse_args()
     bundle_file = Path(args.bundle_file).expanduser()
-    routes = args.routes.split(',')
+    print(f'Routes: {args.routes}')
+    if not args.routes:
+        routes = None
+    else:
+        routes = args.routes.split(',')
     rr = BundleReader(bundle_file, routes)
     rr.process_bundle_file()
     pdd = json.load((bundle_file.parent / 'patterns2025.json').open())

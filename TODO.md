@@ -51,3 +51,10 @@ weekdays
 Combine ridership stats with service provided to get riders per bus
 
 set bundle interval in app.py
+
+        fieldnames = ['trip_id',
+                      'arrival_time',
+                      'departure_time',
+                      'stop_id',
+                      'stop_sequence',
+                      'shape_dist_traveled']

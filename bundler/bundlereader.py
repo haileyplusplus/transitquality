@@ -78,11 +78,11 @@ class BundleReader:
         self.routes_to_parse = set(routes)
         self.routes = {}
         self.index = None
+        self.day = self.DAY_RE.search(self.bundle_file.name).groups()[0]
 
     def process_bundle_file(self):
         with TarFile.open(self.bundle_file, 'r:xz') as archive:
-            day = self.DAY_RE.search(self.bundle_file.name).groups()[0]
-            index_fh = archive.extractfile(f'{day}/index.json')
+            index_fh = archive.extractfile(f'{self.day}/index.json')
             self.index = json.load(index_fh)
             for r in self.routes_to_parse:
                 self.routes.setdefault(r, Route(r, self.index['index'][r]))
@@ -91,7 +91,7 @@ class BundleReader:
                 for k in route.by_filename.keys():
                     all_files.setdefault(k, set([])).add(route)
             for filename, routes in sorted(all_files.items()):
-                fh = archive.extractfile(f'{day}/{filename}')
+                fh = archive.extractfile(f'{self.day}/{filename}')
                 contents = json.load(fh)
                 for route in routes:
                     route.process_file(filename, contents)

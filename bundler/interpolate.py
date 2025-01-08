@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import threading
+import csv
 from types import SimpleNamespace
 
 from s3path import S3Path
@@ -15,6 +16,27 @@ import pandas as pd
 
 from bundler.bundlereader import BundleReader, MemoryPatternManager
 from backend.util import Util
+
+
+class StopWriter:
+    def __init__(self, output_file: Path):
+        self.output_file = output_file
+        self.fh = self.output_file.open('w')
+        fieldnames = ['trip_id',
+                      'arrival_time',
+                      'departure_time',
+                      'stop_id',
+                      'stop_sequence',
+                      'shape_dist_traveled']
+        self.writer = csv.DictWriter(self.fh,
+                                     fieldnames)
+        self.writer.writeheader()
+
+    def write(self, row: dict):
+        self.writer.writerow(row)
+
+    def __del__(self):
+        self.fh.close()
 
 
 class RouteInterpolate:
@@ -47,7 +69,12 @@ class RouteInterpolate:
 
 
 class TripsHandler:
-    def __init__(self, vehicle_df: pd.DataFrame, mpm: MemoryPatternManager):
+    def __init__(self, day: str,
+                 vehicle_df: pd.DataFrame, mpm: MemoryPatternManager,
+                 writer: StopWriter):
+        self.day = day
+        naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
+        self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
         self.vehicle_df = vehicle_df
         self.vehicle_df['tmstmp'] = self.vehicle_df.loc[:, 'tmstmp'].apply(lambda x: int(Util.CTA_TIMEZONE.localize(
             datetime.datetime.strptime(x, '%Y%m%d %H:%M:%S')).timestamp()))
@@ -55,9 +82,17 @@ class TripsHandler:
         self.error = None
         self.mpm = mpm
         self.output_df = pd.DataFrame()
+        self.writer = writer
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
+        print(self.error)
+
+    def gtfs_time(self, ts: datetime.datetime):
+        if ts >= self.next_day_thresh:
+            hour = ts.hour + 24
+            return ts.strftime(f'{hour:02d}:%M:%S')
+        return ts.strftime('%H:%M:%S')
 
     def process_trip(self, trip_id: int):
         stops = []
@@ -102,14 +137,18 @@ class TripsHandler:
             method='index', limit_direction='both')
         combined = combined.groupby(combined.index).last()
         df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
-        stop_interpolation = []
+        #stop_interpolation = []
         for _, row in df.iterrows():
-            stop_interpolation.append(SimpleNamespace(
-                trip_id=trip_id,
-                pattern_stop=stop_index[row.stpid],
-                interpolated_timestamp=row.tmstmp
-            ).__dict__)
-        return stop_interpolation
+            pattern_stop = stop_index[row.stpid]
+            interpolated_timestamp = self.gtfs_time(row.tmstmp)
+            self.writer.write({
+                'trip_id': f'{self.day}.{trip_id}',
+                'arrival_time': interpolated_timestamp,
+                'departure_time': interpolated_timestamp,
+                'stop_id': pattern_stop.stop_id,
+                'stop_sequence': pattern_stop.sequence_no,
+                'shape_dist_traveled': pattern_stop.pattern_distance,
+            })
 
 
 if __name__ == "__main__":
@@ -127,4 +166,5 @@ if __name__ == "__main__":
     mpm = MemoryPatternManager()
     mpm.parse(pdict['patterns'])
     vsamp = r.routes['8'].get_vehicle('1310')
-    th = TripsHandler(vsamp, mpm)
+    writer = StopWriter(Path('/tmp/stop_times.txt'))
+    th = TripsHandler(r.day, vsamp, mpm, writer)

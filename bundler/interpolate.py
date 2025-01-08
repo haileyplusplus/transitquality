@@ -136,7 +136,9 @@ class TripsHandler:
         combined = pd.concat([pattern_template, filtered.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
         combined = combined.groupby(combined.index).last()
-        df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(lambda x: datetime.datetime.fromtimestamp(int(x))))
+        df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(
+            lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.fromtimestamp(int(x)))
+        ))
         #stop_interpolation = []
         for _, row in df.iterrows():
             pattern_stop = stop_index[row.stpid]

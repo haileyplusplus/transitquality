@@ -19,7 +19,7 @@ class Combiner:
         self.day_count = days
 
     def combine(self):
-        with zipfile.ZipFile(self.target_file, 'w') as zf:
+        with zipfile.ZipFile(self.target_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             with zf.open('agency.txt', 'w') as afh:
                 afh.write(
                     'agency_name,agency_url,agency_timezone\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago\n'.encode('utf-8'))
@@ -32,6 +32,9 @@ class Combiner:
                         source = self.source_dir / datestr / k
                         with (source.open('rb')) as sourcefile:
                             ofh.write(sourcefile.read())
+                        if k in {'stops.txt', 'routes.txt'}:
+                            # TODO: find a more elegant way of doing this
+                            break
 
 
 if __name__ == "__main__":

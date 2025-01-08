@@ -169,8 +169,12 @@ class TripsHandler:
         if debug:
             return df
         #stop_interpolation = []
+        stopseq = set([])
         for _, row in df.iterrows():
             pattern_stop = stop_index[row.stpid]
+            # TODO: log error and debug this
+            if pattern_stop.sequence_no in stopseq:
+                continue
             interpolated_timestamp = self.gtfs_time(row.tmstmp)
             self.writer.write('stop_times', {
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
@@ -180,6 +184,7 @@ class TripsHandler:
                 'stop_sequence': pattern_stop.sequence_no,
                 'shape_dist_traveled': pattern_stop.pattern_distance,
             })
+            stopseq.add(pattern_stop.sequence_no)
 
 
 if __name__ == "__main__":

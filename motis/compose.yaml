@@ -2,8 +2,6 @@ services:
   motisrouter:
     volumes:
       - motis-data:/data
-    platform:
-      linux/x86_64
     ports:
       - 7001:7001
     build:

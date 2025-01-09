@@ -9,6 +9,7 @@ RUN addgroup -S motis && adduser -S motis -G motis && \
     chown motis:motis /data
 EXPOSE 8080
 VOLUME ["/data"]
-USER motis
-RUN /motis import
-CMD ["/motis", "server", "/data"]
+#USER motis
+#RUN /motis import
+#CMD ["/motis", "server", "/data"]
+CMD ["tail", "-f", "/dev/null"]

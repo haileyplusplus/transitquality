@@ -2,7 +2,6 @@
 
 FROM ghcr.io/motis-project/motis:2.0.9
 
-COPY motis-config.yaml /data/config.yml
 EXPOSE 7001
 RUN addgroup -S motis && adduser -S motis -G motis && \
     mkdir /data && \
@@ -10,5 +9,6 @@ RUN addgroup -S motis && adduser -S motis -G motis && \
 EXPOSE 8080
 VOLUME ["/data"]
 USER motis
-RUN /motis import
-CMD ["/motis", "server", "/data"]
+COPY motis-config.yaml /data/config.yml
+RUN /motis import -d /data
+CMD ["/motis", "server", "-d", "/data"]

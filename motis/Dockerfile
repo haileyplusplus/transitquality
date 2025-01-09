@@ -11,5 +11,6 @@ VOLUME ["/data"]
 USER motis
 COPY motis-config.yaml /data/config.yml
 RUN ls -l /data
-RUN /motis import -d /data
-CMD ["/motis", "server", "-d", "/data"]
+#RUN /motis import -d /data
+#CMD ["/motis", "server", "-d", "/data"]
+CMD ["tail", "-f", "/dev/null"]

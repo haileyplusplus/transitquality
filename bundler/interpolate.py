@@ -206,7 +206,7 @@ if __name__ == "__main__":
     mpm = MemoryPatternManager()
     mpm.parse(pdict['patterns'])
     #vsamp = r.routes['8'].get_vehicle('1310')
-    writer = ScheduleWriter(Path('/tmp'), r.day)
+    writer = ScheduleWriter(Path('/tmp/take2'), r.day)
     mpm.write_all_stops(writer)
     writer.write('calendar_dates', {
         'service_id': r.day,

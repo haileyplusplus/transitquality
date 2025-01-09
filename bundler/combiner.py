@@ -22,7 +22,7 @@ class Combiner:
         with zipfile.ZipFile(self.target_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             with zf.open('agency.txt', 'w') as afh:
                 afh.write(
-                    'agency_name,agency_url,agency_timezone\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago\n'.encode('utf-8'))
+                    'agency_name,agency_url,agency_timezone\nChicago Transit Authority,http://transitchicago.com,America/Chicago\n'.encode('utf-8'))
             for k, v in ScheduleWriter.FEEDS_AND_FIELDS.items():
                 with zf.open(k, 'w') as ofh:
                     ofh.write(','.join(v).encode('utf-8'))

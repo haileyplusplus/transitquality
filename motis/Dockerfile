@@ -10,7 +10,6 @@ EXPOSE 7001
 VOLUME ["/data"]
 USER motis
 COPY motis-config.yaml /data/config.yml
-RUN ls -l /data
-#RUN /motis import -d /data
-#CMD ["/motis", "server", "-d", "/data"]
-CMD ["tail", "-f", "/dev/null"]
+RUN /motis import -d /data -c /data/config.yml
+CMD ["/motis", "server", "-d", "/data"]
+#CMD ["tail", "-f", "/dev/null"]

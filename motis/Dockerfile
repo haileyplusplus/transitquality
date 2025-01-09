@@ -11,11 +11,17 @@ RUN addgroup -S motis && adduser -S motis -G motis && \
 RUN apk add cmake
 RUN apk add clang18
 RUN apk add ninja
+RUN apk add git
+RUN apk add g++
+
+# build-base llvm-static llvm-dev clang-static clang-dev
+RUN apk add build-base llvm18-static llvm18-dev clang18-static clang18-dev
 
 VOLUME ["/data"]
 
+RUN git clone https://github.com/motis-project/motis.git
 
-USER motis
+#USER motis
 #RUN /motis import
 #CMD ["/motis", "server", "/data"]
 CMD ["tail", "-f", "/dev/null"]

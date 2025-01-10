@@ -18,8 +18,13 @@
     <v-btn icon="mdi-dots-vertical" />
   </v-toolbar>
 
-  Main vue<br>
-  Str: {{ userlocation }}, set {{ locationset }}
+  <v-time-picker
+    v-model="arrival"
+    ampm-in-title
+  />
+
+  Location: {{ userlocation }}, set {{ locationset }}
+  Arrival time: {{ arrival }}
 
   Trip info:
   <!--
@@ -47,6 +52,7 @@
   const select = ref(null)
   const resultsobj = ref({})
   const tripinfo = ref(null)
+  const arrival = ref(null)
   //41.8786 Longitude: -87.6403.
   function setPosition(position) {
     console.log('position is ', position)
@@ -68,13 +74,13 @@
 
   async function handleSelection(selectval, val) {
     // console.log('this is my select: ' + selectval + ' and val is ' + val)
-    if (val == selectval) {
+    if (val == selectval && arrival.value) {
       console.log('Handling selection: ' + val)
       const selectobj = resultsobj.value[selectval]
       console.log('Obj: ' + JSON.stringify(selectobj))
       const lat = selectobj.lat
       const lon = selectobj.lon
-      const url = `/api/routebylatlon?to=${lat},${lon}&from_=${userlocation.value}&arrival=2025-01-05T19:00:00Z`
+      const url = `/api/routebylatlon?to=${lat},${lon}&from_=${userlocation.value}&arrival=2025-01-05T${arrival.value}:00-06:00`
       console.log('url: ' + url)
       const resp = await fetch(url)
       const results = await resp.json()
@@ -88,6 +94,10 @@
   watch(search, val => {
     val && val !== select.value && querySelections(val)
     handleSelection(select.value, val)
+  })
+
+  watch(arrival, val => {
+    handleSelection(select.value, select.value)
   })
 
   async function querySelections (v) {

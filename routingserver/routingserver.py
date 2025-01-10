@@ -12,7 +12,7 @@ START_TIME = datetime.datetime.now(datetime.UTC)
 
 
 class Routing:
-    BASE_URL = 'http://citycollege:7001/api/v1/plan'
+    BASE_URL = 'http://abed:7001/api/v1/plan'
 
     def __init__(self):
         self.samples = []

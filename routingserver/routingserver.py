@@ -68,6 +68,32 @@ class Routing:
     def df(self):
         return pd.DataFrame(self.samples)
 
+    def parse_search_results(self, items: list):
+        rv = {}
+        for item in items:
+            include = False
+            for a in item['areas']:
+                if a['name'] == 'Chicago':
+                    include = True
+                    break
+            if include:
+                rv[item['name']] = {
+                    'type': item['type'],
+                    'lat': item['lat'],
+                    'lon': item['lon'],
+                }
+                if item['type'] == 'STOP':
+                    rv['stop'] = item['id']
+        return rv
+
+    def search(self, query):
+        resp = requests.get(self.BASE_URL, params={'text': query})
+        if resp.status_code != 200:
+            print(f'Error searching for {query}')
+            return False
+        results = self.parse_search_results(resp.json())
+        return {'results': results}
+
 
 @app.get('/routebylatlon')
 def routebylatlon(from_: str, to: str, arrival: str, include_raw=False):
@@ -92,3 +118,9 @@ def routebylatlon(from_: str, to: str, arrival: str, include_raw=False):
 @app.get('/routebystop')
 def routebystop(from_: str, to: str, arrival: str, include_raw=False):
     return routebylatlon(f'chicago_{from_}', f'chicago_{to}', arrival, include_raw)
+
+
+@app.get('/search')
+def search(text: str):
+    r = Routing()
+    return r.search(text)

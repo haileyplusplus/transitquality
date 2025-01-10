@@ -16,6 +16,7 @@ class Routing:
 
     def __init__(self):
         self.samples = []
+        self.rawsamp = None
 
     def query(self, from_, to_, arrival_time: datetime.datetime):
         """
@@ -38,6 +39,8 @@ class Routing:
             if resp.status_code != 200:
                 print(f'Error fetching {common}')
                 return False
+            if self.rawsamp is None:
+                self.rawsamp = resp.json()
             #print(str(resp.json()))
             parsed = self.parse_response(resp.json(), arrival)
             if parsed:
@@ -67,7 +70,7 @@ class Routing:
 
 
 @app.get('/routebylatlon')
-def routebylatlon(from_: str, to: str, arrival: str):
+def routebylatlon(from_: str, to: str, arrival: str, include_raw=False):
     r = Routing()
     arrival_time = datetime.datetime.fromisoformat(arrival)
     r.query(from_, to, arrival_time)
@@ -78,6 +81,8 @@ def routebylatlon(from_: str, to: str, arrival: str):
     rv = {'times': x,
           'routes': ' / '.join(routes),
           'arrival': arrival}
+    if include_raw:
+        rv['debug'] = r.rawsamp
     for pct in [50, 95, 99]:
         start = local_arrive - datetime.timedelta(minutes=df.total_time.quantile(pct/100.0))
         x.append((f'{pct}%', start.isoformat()))
@@ -85,5 +90,5 @@ def routebylatlon(from_: str, to: str, arrival: str):
 
 
 @app.get('/routebystop')
-def routebystop(from_: str, to: str, arrival: str):
-    return routebylatlon(f'chicago_{from_}', f'chicago_{to}', arrival)
+def routebystop(from_: str, to: str, arrival: str, include_raw=False):
+    return routebylatlon(f'chicago_{from_}', f'chicago_{to}', arrival, include_raw)

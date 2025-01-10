@@ -87,7 +87,7 @@ class Routing:
         return rv
 
     def search(self, query):
-        resp = requests.get(self.BASE_URL, params={'text': query})
+        resp = requests.get('http://abed:7001/api/v1/geocode', params={'text': query})
         if resp.status_code != 200:
             print(f'Error searching for {query}')
             return False

@@ -1,5 +1,24 @@
 services:
-  web:
+  ts-frontend-sidecar:
+    image: tailscale/tailscale:latest
+    container_name: ts-frontend-sidecar
+    hostname: tsfrontendsidecar
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_CONFIG}
+      TS_STATE_DIR: "/var/lib/tailscale"
+      #TS_SOCKET: ${TS_SOCKET}
+      #TS_USERSPACE: "false"
+    secrets:
+      - ts-authkey-secret
+    volumes:
+      - ${PWD}/ts-authkey-test/state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+  tqfrontend:
     build:
       context: app
       target: development
@@ -8,8 +27,6 @@ services:
     volumes:
       - ./app:/project
       - /project/node_modules
-    networks:
-      - transitquality
     develop:
       watch:
         - action: sync
@@ -19,7 +36,25 @@ services:
             - node_modules/
         - action: rebuild
           path: package.json
-networks:
-  transitquality:
-    external:
-      name: transitquality
+  autocompletedev:
+    build:
+      context: autocompletedev
+      target: development
+    volumes:
+      - ./autocompletedev:/project
+      - /project/node_modules
+    network_mode: service:ts-frontend-sidecar
+    depends_on:
+      - ts-frontend-sidecar
+    develop:
+      watch:
+        - action: sync
+          path: ./autocompletedev
+          target: /project
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+secrets:
+  ts-authkey-secret:
+    file: ~/.config/tailscale/ts-authkey-sidecars

@@ -32,13 +32,13 @@ class Routing:
         for day in range(1, 8):
             arrival = arrival_time - datetime.timedelta(days=day)
             common['time'] = arrival.isoformat()
-            print(f'trying {common}')
+            #print(f'trying {common}')
             # TODO: look at keeping the connection open
             resp = requests.get(self.BASE_URL, params=common)
             if resp.status_code != 200:
                 print(f'Error fetching {common}')
                 return False
-            print(str(resp.json()))
+            #print(str(resp.json()))
             parsed = self.parse_response(resp.json(), arrival)
             if parsed:
                 self.samples.append(parsed)

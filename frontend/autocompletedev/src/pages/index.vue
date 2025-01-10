@@ -21,7 +21,19 @@
   Main vue<br>
   Str: {{ userlocation }}, set {{ locationset }}
 
-  Trip info: {{ tripinfo }}
+  Trip info:
+  <!--
+  {"times":[["50%","2025-01-05T12:24:00-06:00"],["95%","2025-01-05T12:18:45-06:00"],["99%","2025-01-05T12:18:09-06:00"]],"routes":"Bus 22 / Bus 151","arrival":"2025-01-05T19:00:00Z"}
+  -->
+  <table v-if="tripinfo">
+    <tr><th>Chance</th><th>Leave by</th></tr>
+    <tr
+      v-for="t in tripinfo.times"
+      :key="t[0]"
+    >
+      <td>{{ t[0] }}</td><td>{{ t[1] }}</td>
+    </tr>
+  </table>
 </template>
 
 <script setup>
@@ -34,7 +46,7 @@
   const search = ref(null)
   const select = ref(null)
   const resultsobj = ref({})
-  const tripinfo = ref('')
+  const tripinfo = ref(null)
   //41.8786 Longitude: -87.6403.
   function setPosition(position) {
     console.log('position is ', position)
@@ -66,7 +78,7 @@
       console.log('url: ' + url)
       const resp = await fetch(url)
       const results = await resp.json()
-      tripinfo.value = JSON.stringify(results)
+      tripinfo.value = results
       console.log('results ' + JSON.stringify(results))
     }
   }

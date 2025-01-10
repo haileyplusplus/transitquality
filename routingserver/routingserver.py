@@ -77,13 +77,14 @@ class Routing:
                     include = True
                     break
             if include:
-                rv[item['name']] = {
+                d = {
                     'type': item['type'],
                     'lat': item['lat'],
                     'lon': item['lon'],
                 }
                 if item['type'] == 'STOP':
-                    rv['stop'] = item['id']
+                    d['stop'] = item['id']
+                rv[item['name']] = d
         return rv
 
     def search(self, query):

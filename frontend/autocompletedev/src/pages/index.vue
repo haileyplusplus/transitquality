@@ -19,17 +19,27 @@
   </v-toolbar>
 
   Main vue<br>
-  Str: {{ hellostr }}
+  Str: {{ userlocation }}, set {{ locationset }}
+
+  Trip info: {{ tripinfo }}
 </template>
 
 <script setup>
   import { ref, watch } from 'vue'
 
-  const hellostr = ref('Hello!')
-
+  const userlocation = ref('41.882629,-87.623474')
+  const locationset = ref(false)
+  const loading = ref(false)
+  const items = ref([])
+  const search = ref(null)
+  const select = ref(null)
+  const resultsobj = ref({})
+  const tripinfo = ref('')
+  //41.8786 Longitude: -87.6403.
   function setPosition(position) {
     console.log('position is ', position)
-    hellostr.value = '' + position.coords.latitude + ', ' + position.coords.longitude
+    userlocation.value = '' + position.coords.latitude + ',' + position.coords.longitude
+    locationset.value = true
   }
 
   function setHello() {
@@ -39,24 +49,33 @@
       navigator.geolocation.getCurrentPosition(setPosition)
       console.log('done')
     } else {
-      hellostr.value = 'no location available'
+      userlocation.value = 'no location available'
       console.log('no position')
     }
   }
 
-  function handleSelection(selectval) {
-    console.log('this is my select: ' + selectval)
+  async function handleSelection(selectval, val) {
+    // console.log('this is my select: ' + selectval + ' and val is ' + val)
+    if (val == selectval) {
+      console.log('Handling selection: ' + val)
+      const selectobj = resultsobj.value[selectval]
+      console.log('Obj: ' + JSON.stringify(selectobj))
+      const lat = selectobj.lat
+      const lon = selectobj.lon
+      const url = `/api/routebylatlon?to=${lat},${lon}&from_=${userlocation.value}&arrival=2025-01-05T19:00:00Z`
+      console.log('url: ' + url)
+      const resp = await fetch(url)
+      const results = await resp.json()
+      tripinfo.value = JSON.stringify(results)
+      console.log('results ' + JSON.stringify(results))
+    }
   }
 
   setHello()
-  const loading = ref(false)
-  const items = ref([])
-  const search = ref(null)
-  const select = ref(null)
 
   watch(search, val => {
     val && val !== select.value && querySelections(val)
-    handleSelection(select.value)
+    handleSelection(select.value, val)
   })
 
   async function querySelections (v) {
@@ -68,6 +87,7 @@
           )
       const results = await res.json()
       if (results) {
+        resultsobj.value = results.results
         items.value = Object.keys(results.results)
         loading.value = false
       }
@@ -83,7 +103,7 @@
         items: [],
         search: null,
         select: null,
-        hellostr: 'Hello2 !'
+        userlocation: 'Hello2 !'
       }
     },
   }

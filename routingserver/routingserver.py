@@ -72,9 +72,12 @@ def routebylatlon(from_: str, to: str, arrival: str):
     arrival_time = datetime.datetime.fromisoformat(arrival)
     r.query(from_, to, arrival_time)
     df = r.df()
+    routes = df['path'].unique()
     local_arrive = arrival_time.astimezone(pytz.timezone('America/Chicago'))
     x = []
-    rv = {'times': x}
+    rv = {'times': x,
+          'routes': ' / '.join(routes),
+          'arrival': arrival}
     for pct in [50, 95, 99]:
         start = local_arrive - datetime.timedelta(minutes=df.total_time.quantile(pct/100.0))
         x.append((f'{pct}%', start.isoformat()))

@@ -1,11 +1,14 @@
 services:
   ts-frontend-sidecar2:
-    image: tailscale/tailscale:latest
+    image: ghcr.io/elliotmatson/tailscale-sidecar-proxy:latest
     container_name: ts-frontend-sidecar2
     hostname: tsfrontendsidecar
     environment:
-      TS_AUTHKEY: ${TS_AUTHKEY_CONFIG}
-      TS_STATE_DIR: "/var/lib/tailscale"
+      TAILSCALE_AUTH_KEY: ${TS_AUTHKEY_CONFIG}
+      TAILSCALE_STATE_DIR: "/var/lib/tailscale"
+      TAILSCALE_HOSTNAME: tsfrontendsidecar
+      TAILSCALE_SERVE_PORT: 80
+      TAILSCALE_SERVE_SOURCE_MODE: http
       # tailscale serve --bg --https 443 80
       #TS_SOCKET: ${TS_SOCKET}
       #TS_USERSPACE: "false"

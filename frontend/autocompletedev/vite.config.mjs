@@ -60,7 +60,7 @@ export default defineConfig({
       // http://localhost:5173/api/bar
       //   -> http://jsonplaceholder.typicode.com/bar
       '/api': {
-        target: 'http://100.97.35.68:8115',
+        target: 'http://abed.guineafowl-cloud.ts.net:8115',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       }

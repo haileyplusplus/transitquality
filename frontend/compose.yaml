@@ -3,9 +3,13 @@ services:
     image: tailscale/tailscale:latest
     container_name: ts-frontend-sidecar
     hostname: tsfrontendsidecar
+    build:
+      context: autocompletedev
+      dockerfile: Dockerfile-ts
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY_CONFIG}
       TS_STATE_DIR: "/var/lib/tailscale"
+      # tailscale serve --bg --https 443 80
       #TS_SOCKET: ${TS_SOCKET}
       #TS_USERSPACE: "false"
     secrets:
@@ -18,24 +22,24 @@ services:
       - net_admin
       - sys_module
     restart: unless-stopped
-  tqfrontend:
-    build:
-      context: app
-      target: development
-    ports:
-      - 8085:5173
-    volumes:
-      - ./app:/project
-      - /project/node_modules
-    develop:
-      watch:
-        - action: sync
-          path: ./app
-          target: /project
-          ignore:
-            - node_modules/
-        - action: rebuild
-          path: package.json
+  # tqfrontend:
+  #   build:
+  #     context: app
+  #     target: development
+  #   ports:
+  #     - 8085:5173
+  #   volumes:
+  #     - ./app:/project
+  #     - /project/node_modules
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./app
+  #         target: /project
+  #         ignore:
+  #           - node_modules/
+  #       - action: rebuild
+  #         path: package.json
   autocompletedev:
     build:
       context: autocompletedev

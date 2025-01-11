@@ -36,7 +36,12 @@
       v-for="t in tripinfo.times"
       :key="t[0]"
     >
-      <td>{{ t[0] }}</td><td>{{ t[1] }}</td>
+      <td>{{ t[0] }}</td><td>{{ new Date(t[1]).toLocaleTimeString() }}</td>
+    </tr>
+    <tr>
+      <td colspan="2">
+        Routes: {{ tripinfo.routes }}
+      </td>
     </tr>
   </table>
 </template>

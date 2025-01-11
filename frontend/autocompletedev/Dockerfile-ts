@@ -1,3 +1,6 @@
 FROM tailscale/tailscale:latest
 
+# from https://github.com/tailscale/tailscale/blob/main/Dockerfile
+RUN mkdir /tailscale && ln -s /usr/local/bin/containerboot /tailscale/run.sh
+
 CMD ["tailscale", "serve", "--bg", "--https", "443", "80"]

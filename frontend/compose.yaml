@@ -1,7 +1,7 @@
 services:
-  ts-frontend-sidecar:
+  ts-frontend-sidecar2:
     image: tailscale/tailscale:latest
-    container_name: ts-frontend-sidecar
+    container_name: ts-frontend-sidecar2
     hostname: tsfrontendsidecar
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY_CONFIG}
@@ -44,9 +44,9 @@ services:
     volumes:
       - ./autocompletedev:/project
       - /project/node_modules
-    network_mode: service:ts-frontend-sidecar
+    network_mode: service:ts-frontend-sidecar2
     depends_on:
-      - ts-frontend-sidecar
+      - ts-frontend-sidecar2
     develop:
       watch:
         - action: sync

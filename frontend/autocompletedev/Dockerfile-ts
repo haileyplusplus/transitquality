@@ -1,3 +1,3 @@
 FROM tailscale/tailscale:latest
 
-RUN tailscale serve --bg --https 443 80
+CMD ["tailscale", "serve", "--bg", "--https", "443", "80"]

@@ -37,7 +37,7 @@ services:
     secrets:
       - db-password
       - bus_api_key
-      - train _api_key
+      - train_api_key
       #- cloud-credentials
     develop:
       watch:

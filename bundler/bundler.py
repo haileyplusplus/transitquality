@@ -84,19 +84,17 @@ class Bundler:
                 'start': self.start_time,
                 'end': self.end_time}
 
-    def store_bus_routes(self, routes, request_time: datetime.datetime, filename):
+    def store_bus_routes(self, routes, filename):
         for rt in routes.split(','):
-            val = (self.bus_stats.index, filename, request_time.isoformat())
-            self.route_index.setdefault(rt, []).append(val)
+            self.route_index.setdefault(rt, {}).setdefault(filename, []).append(self.bus_stats.index)
         self.bus_stats.index += 1
 
-    def store_train_routes(self, request, request_time: datetime.datetime, filename):
-        # request_time is already in request but we've already parsed it
+    def store_train_routes(self, request, filename):
         routes = request['response']['ctatt']['route']
         for rt in routes:
-            key = rt['@name']
-            val = (self.train_stats.index, filename, request_time.isoformat())
-            self.route_index.setdefault(key, []).append(val)
+            if 'train' in rt:
+                key = rt['@name']
+                self.route_index.setdefault(key, {}).setdefault(filename, []).append(self.train_stats.index)
         self.train_stats.index += 1
 
     def output(self):
@@ -172,10 +170,10 @@ class Bundler:
                 routes = r['request_args']['rt']
                 request_time = datetime.datetime.fromisoformat(r['request_time'])
                 if bus:
-                    self.store_bus_routes(routes, request_time, filename)
+                    self.store_bus_routes(routes, filename)
                     self.process_patterns(r)
                 else:
-                    self.store_train_routes(r, request_time, filename)
+                    self.store_train_routes(r, filename)
                 if stats.first is None:
                     stats.first = request_time
                 else:

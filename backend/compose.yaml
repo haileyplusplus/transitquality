@@ -36,6 +36,8 @@ services:
       - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
     secrets:
       - db-password
+      - bus_api_key
+      - train _api_key
       #- cloud-credentials
     develop:
       watch:
@@ -73,3 +75,7 @@ volumes:
 secrets:
  db-password:
    file: ../db/password.txt
+ bus_api_key:
+   file: ~/.config/cta/bus_api_key
+ train_api_key:
+   file: ~/.config/cta/train_api_key

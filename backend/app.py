@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from fastapi import FastAPI, BackgroundTasks
 from contextlib import asynccontextmanager
 import asyncio
@@ -9,7 +11,8 @@ import sys
 
 
 from playhouse.shortcuts import model_to_dict
-import gitinfo
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 from backend.busscraper2 import BusScraper
 from backend.trainscraper2 import TrainScraper
@@ -65,7 +68,23 @@ async def lifespan(app: FastAPI):
     logger.info(f'Syncstop done')
 
 
+class Settings(BaseSettings):
+    # TODO: put bucket settings here
+    model_config = SettingsConfigDict(secrets_dir='/run/secrets')
+    bus_api_key: str
+    train_api_key: str
+
+
 app = FastAPI(lifespan=lifespan)
+
+
+def apply_settings():
+    s = Settings()
+    bus_scraper.set_api_key(s.bus_api_key)
+    train_scraper.set_api_key(s.train_api_key)
+
+
+apply_settings()
 
 
 def sshelper(d: dict):

@@ -57,8 +57,6 @@ class Bundler:
         self.end_time = None
         #self.tempout = None
         self.tempdir = tempfile.TemporaryDirectory()
-        self.traindir = (Path(self.tempdir.name) / 'train')
-        self.traindir.mkdir()
         self.prepare_output()
 
     def __del__(self):
@@ -86,11 +84,20 @@ class Bundler:
                 'start': self.start_time,
                 'end': self.end_time}
 
-    def store_routes(self, routes, request_time: datetime.datetime, file):
+    def store_bus_routes(self, routes, request_time: datetime.datetime, filename):
         for rt in routes.split(','):
-            val = (self.bus_stats.index, file.parent.name, file.name, request_time.isoformat())
+            val = (self.bus_stats.index, filename, request_time.isoformat())
             self.route_index.setdefault(rt, []).append(val)
         self.bus_stats.index += 1
+
+    def store_train_routes(self, request, request_time: datetime.datetime, filename):
+        # request_time is already in request but we've already parsed it
+        routes = request['response']['ctatt']['route']
+        for rt in routes:
+            key = rt['@name']
+            val = (self.train_stats.index, filename, request_time.isoformat())
+            self.route_index.setdefault(key, []).append(val)
+        self.train_stats.index += 1
 
     def output(self):
         # fix this
@@ -112,14 +119,11 @@ class Bundler:
                            'index': self.route_index,
                            'patterns': patterns}
                 td = Path(self.tempdir.name)
-                for f in td.glob('*.json'):
-                    tarfile.add(f, arcname=f'bus/{f.name}')
-                for f in self.traindir.glob('*.json'):
-                    tarfile.add(f, arcname=f'train/{f.name}')
-                index = Path(self.tempdir.name) / 'index.json'
+                index = td / 'index.json'
                 with index.open('w') as wfh:
                     json.dump(outdict, wfh)
-                tarfile.add(td / 'index.json', arcname='index.json')
+                for f in td.glob('*.json'):
+                    tarfile.add(f, arcname=f'{f.name}')
             self.outfile.write_bytes(open(tempout.name, 'rb').read())
 
     # def summary(self, by_route=False):
@@ -159,12 +163,19 @@ class Bundler:
             if d.get('command') != cmd:
                 return False
             stats.index = 0
+            if bus:
+                filename = f'bus_{file.parent.name}{file.name}'
+            else:
+                filename = f'train_{file.parent.name}{file.name}'
+            outfile = (Path(self.tempdir.name) / filename)
             for r in d.get('requests', []):
                 routes = r['request_args']['rt']
                 request_time = datetime.datetime.fromisoformat(r['request_time'])
                 if bus:
-                    self.store_routes(routes, request_time, file)
+                    self.store_bus_routes(routes, request_time, filename)
                     self.process_patterns(r)
+                else:
+                    self.store_train_routes(r, request_time, filename)
                 if stats.first is None:
                     stats.first = request_time
                 else:
@@ -177,11 +188,6 @@ class Bundler:
                 stats.prev = request_time
                 stats.request_count += 1
                 #self.requests_out.append(r)
-            filename = f'{file.parent.name}{file.name}'
-            if bus:
-                outfile = (Path(self.tempdir.name) / filename)
-            else:
-                outfile = self.traindir / filename
             with outfile.open('w') as wfh:
                 json.dump(d, wfh)
         return True

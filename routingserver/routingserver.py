@@ -102,6 +102,15 @@ def routebylatlon(from_: str, to: str, arrival: str, include_raw=False):
     arrival_time = datetime.datetime.fromisoformat(arrival)
     r.query(from_, to, arrival_time)
     df = r.df()
+    if df.empty:
+        rv = {
+            'times': [],
+            'routes': 'no route found',
+            'arrival': arrival,
+        }
+        if include_raw:
+            rv['debug'] = r.rawsamp
+        return rv
     routes = df['path'].unique()
     local_arrive = arrival_time.astimezone(pytz.timezone('America/Chicago'))
     x = []

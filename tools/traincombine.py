@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import copy
 import datetime
 import json
 from pathlib import Path
@@ -9,6 +10,21 @@ from backend.util import Util
 
 
 class Batcher:
+    OUTER_TEMPLATE = {
+        "v": "2.0",
+        "command": "ttpositions.aspx",
+        "requests": []
+    }
+
+    REQUEST_TEMPLATE = {
+            "request_args": {
+                "rt": "Red,Blue,Brn,G,Org,P,Pink,Y",
+                "outputType": "JSON"
+            },
+            "request_time": None,
+            "latency_ms": 0
+    }
+
     def __init__(self, output_path: Path):
         self.items: list[tuple[Path, datetime.datetime]] = []
         self.date = None
@@ -21,7 +37,7 @@ class Batcher:
         :return: Whether the item was added.
         """
         timestamp = datetime.datetime.strptime(item.name, 'ttscrape-%Y%m%d%H%M%S.json')
-        d = timestamp.date()
+        d = (timestamp.date(), timestamp.hour)
         if self.date is None:
             self.date = d
         if self.date != d:
@@ -30,31 +46,39 @@ class Batcher:
         return True
 
     def consume(self, items: list):
+        self.items = []
         while items and self.add(items[0]):
             items.pop(0)
 
     def process(self):
-        out = []
-        daystr = self.date.strftime('%Y%m%d')
-        new_fn = self.output_path / f'ttcombined-{daystr}.json'
+        out = {
+            "v": "2.0",
+            "command": "ttpositions.aspx",
+            "requests": []
+        }
+        reqlist = out['requests']
+        daystr = self.date[0].strftime('%Y%m%d')
+        np = self.output_path / 'ttpositions.aspx' / f'{daystr}'
+        np.mkdir(parents=True, exist_ok=True)
+        ts = self.items[0][1]
+        new_fn = np / ts.strftime('t%H%M%Sz.json')
         if new_fn.exists():
-            with open(new_fn) as jfh:
-                existing = json.load(jfh)
-                if sorted(list(existing.keys())) != ['ctatts', 'day']:
-                    raise ValueError
-                out = existing['ctatts']
+            raise ValueError('incremental only')
         for item, timestamp in self.items:
+            outreq = copy.copy(self.REQUEST_TEMPLATE)
             with open(item) as jfh:
                 d = json.load(jfh)
                 if list(d.keys()) != ['ctatt']:
                     raise ValueError(f'Unexpected JSON file format: {item}')
-                out.append({'scraped': timestamp.astimezone().astimezone(Util.CTA_TIMEZONE).isoformat(),
-                            'ctatt': d['ctatt']})
+                reqtime = timestamp.astimezone().astimezone(Util.CTA_TIMEZONE).isoformat()
+                outreq['request_time'] = reqtime
+                outreq['response'] = d['ctatt']
+            reqlist.append(outreq)
         with open(new_fn, 'w') as ofh:
-            json.dump({'day': daystr, 'ctatts': out}, ofh)
-        for item, _ in self.items:
-            item.unlink()
-        print(f'Processed {daystr}')
+            json.dump(out, ofh)
+        #for item, _ in self.items:
+        #    item.unlink()
+        print(f'Processed {daystr}, {ts.hour}')
 
 
 class Combiner:

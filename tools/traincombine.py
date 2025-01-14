@@ -72,7 +72,7 @@ class Batcher:
                     raise ValueError(f'Unexpected JSON file format: {item}')
                 reqtime = timestamp.astimezone().astimezone(Util.CTA_TIMEZONE).isoformat()
                 outreq['request_time'] = reqtime
-                outreq['response'] = d['ctatt']
+                outreq['response'] = {'ctatt': d['ctatt']}
             reqlist.append(outreq)
         with open(new_fn, 'w') as ofh:
             json.dump(out, ofh)

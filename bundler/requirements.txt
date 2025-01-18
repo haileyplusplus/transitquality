@@ -8,3 +8,4 @@ peewee==3.17.1
 psycopg2-binary==2.9.10
 boto3~=1.34.154
 pandas==2.2.3
+python-dateutil==2.9.0.post0

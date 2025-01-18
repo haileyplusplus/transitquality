@@ -7,6 +7,7 @@ import botocore.exceptions
 
 from bundler.bundler import Bundler
 from bundler.interpolate import RouteInterpolate
+from bundler.schedule_manager import ScheduleManager
 
 
 app = FastAPI()
@@ -43,6 +44,7 @@ class BundleManager:
 
 
 manager = BundleManager()
+sm = ScheduleManager()
 
 
 @app.get('/')
@@ -52,7 +54,10 @@ def main():
 
 @app.get('/status')
 def status():
-    return manager.bundle_status()
+    return {
+        'bundler': manager.bundle_status(),
+        'schedules': sm.status()
+    }
 
 
 @app.get('/bundle/{day}')
@@ -66,3 +71,8 @@ def interpolate():
     i = RouteInterpolate()
     i.load_working()
     return {'command': 'interpolate'}
+
+
+@app.get('/schedule_update')
+def schedule_update():
+    return sm.retrieve()

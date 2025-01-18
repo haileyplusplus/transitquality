@@ -38,6 +38,9 @@ class ScheduleManager:
         self.state = json.loads(state.read_text(encoding='utf-8'))
         return True
 
+    def status(self):
+        return self.state
+
     def write_state(self):
         state = self.BUCKET / 'state.json'
         state.write_text(json.dumps(self.state), encoding='utf-8')
@@ -45,15 +48,16 @@ class ScheduleManager:
     def retrieve(self):
         needs_update = self.poll()
         if not needs_update:
-            return
+            return {'retrieve': 'no update needed'}
         with tempfile.TemporaryDirectory as tfh:
             resp = requests.get(self.URL, stream=True)
             if resp.status_code != 200:
-                return False
+                return {'retrieve': 'error',
+                        'status_code': resp.status_code}
             try:
                 dt = parse(resp.headers.get('Last-Modified'))
-            except ValueError:
-                return False
+            except ValueError as e:
+                return {'retrieve': 'error', 'message': str(e)}
             outname = dt.strftime('cta_gtfs_%Y%m%d.zip')
             outpath = self.BUCKET / outname
             for chunk in resp.iter_content(chunk_size=16384):
@@ -62,6 +66,7 @@ class ScheduleManager:
             outpath.write_bytes(tfh.read())
             self.state = resp.headers
         self.write_state()
+        return {'retrieve': 'success'}
 
     def poll(self):
         h = requests.head(self.URL)

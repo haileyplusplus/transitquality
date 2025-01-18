@@ -49,7 +49,7 @@ class ScheduleManager:
         needs_update = self.poll()
         if not needs_update:
             return {'retrieve': 'no update needed'}
-        with tempfile.TemporaryDirectory as tfh:
+        with tempfile.TemporaryFile() as tfh:
             resp = requests.get(self.URL, stream=True)
             if resp.status_code != 200:
                 return {'retrieve': 'error',

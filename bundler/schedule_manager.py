@@ -43,7 +43,7 @@ class ScheduleManager:
 
     def write_state(self):
         state = self.BUCKET / 'state.json'
-        state.write_text(json.dumps(self.state), encoding='utf-8')
+        state.write_text(json.dumps(dict(self.state)), encoding='utf-8')
 
     def retrieve(self):
         needs_update = self.poll()

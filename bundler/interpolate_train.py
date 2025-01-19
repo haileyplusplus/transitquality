@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
 
 import argparse
+from pathlib import Path
+
+
+from bundler.bundlereader import BundleReader
 
 
 class TrainManager:
     pass
 
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Package scraped data.')
-    parser.add_argument('--show_stats', action='store_true',
-                        help='Show bundling stats.')
-    parser.add_argument('--day', type=str,
-                        help='Bundle a single day.')
-    parser.add_argument('--data_dir', type=str, default='~/transit/bustracker/raw',
-                        help='Data directory with scraped files')
+    parser = argparse.ArgumentParser(description='Read bundles')
+    parser.add_argument('--bundle_file', type=str,
+                        help='File with bus scrape data.')
+    parser.add_argument('--routes', type=str,
+                        help='Comma-separated list of routes.')
     args = parser.parse_args()
-    data_dir = Path(args.data_dir).expanduser()
-    if args.day:
-        day = args.day
-        b = Bundler(data_dir, day)
-        b.scan_day()
+    bundle_file = Path(args.bundle_file).expanduser()
+    print(f'Routes: {args.routes}')
+    if not args.routes:
+        routes = None
     else:
-        print(f'Bundling all files')
-        bundle_all(data_dir)
-
-
+        routes = args.routes.split(',')
+    r = BundleReader(bundle_file, routes)
+    r.process_bundle_file()
+    for route, vsamp in r.generate_vehicles():
+        print(route)
+        print(vsamp)
+        break

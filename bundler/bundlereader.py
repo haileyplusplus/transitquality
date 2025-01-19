@@ -79,6 +79,7 @@ class Route:
         return pd.DataFrame(v)
 
     def process_file(self, filename, contents):
+        print(f'Processing {filename}')
         indices = self.indexdict[filename]
         for i in indices:
             if filename.startswith(Mode.BUS):
@@ -99,15 +100,18 @@ class Route:
         trdict = contents['requests'][i]['response']['ctatt']
         if 'route' not in trdict:
             return
-        routedict = None
+        train_positions = None
         for rd in trdict['route']:
             if rd['@name'] == self.route:
-                routedict = rd['train']
+                train_positions = rd['train']
                 break
-        if routedict is None:
+        if train_positions is None:
             raise ValueError
-        for v in routedict.get('train', []):
-            self.vehicles.setdefault(v['rn'], []).append(v)
+        if isinstance(train_positions, dict):
+            self.vehicles.setdefault(train_positions['rn'], []).append(train_positions)
+        else:
+            for v in train_positions:
+                self.vehicles.setdefault(v['rn'], []).append(v)
 
 
 class BundleReader:

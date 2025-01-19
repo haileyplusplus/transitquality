@@ -58,7 +58,8 @@ class TripsHandler:
         self.vehicle_id = vehicle_df.rn.unique()[0]
         naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
         self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
-        self.vehicle_df = vehicle_df.sort_values('prdt')[vehicle_df.lat != '0'].copy()
+        vehicle_df_filt = vehicle_df[vehicle_df.lat != '0']
+        self.vehicle_df = vehicle_df_filt.sort_values('prdt').copy()
         m = TrainManager()
         m.split_trips(self.vehicle_df)
         self.vehicle_df['tmstmp'] = self.vehicle_df.loc[:, 'prdt'].apply(lambda x: int(Util.CTA_TIMEZONE.localize(
@@ -107,7 +108,7 @@ class TripsHandler:
             #print(rt_geo_trip)
             #print(run_geo)
             #raise ValueError(f'No shape within threshold 1000m. Closest: {minval}m')
-            print(f'No shape within threshold 1000m. Closest: {minval}m')
+            print(f'Run {run} trip {trip_id}: No shape within threshold 1000m. Closest: {minval}m')
             return False
         shape = run_geo[run_geo['tot'] == minval].iloc[0]
         self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id

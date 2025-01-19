@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+from enum import StrEnum
 from pathlib import Path
 from tarfile import TarFile
 
@@ -53,14 +54,16 @@ class MemoryPatternManager:
         return p.stops
 
 
+class Mode(StrEnum):
+    BUS = 'bus'
+    TRAIN = 'train'
+
+
 class Route:
-    def __init__(self, route: str, indexlist: list):
+    def __init__(self, route: str, indexdict: dict):
         self.route = route
         self.vehicles = {}
-        self.indexlist = indexlist
-        self.indexlist.sort(key=lambda x: x[3])
-        self.by_filename = {}
-        self.calc_by_filename()
+        self.indexdict = indexdict
 
     def __hash__(self):
         return hash(self.route)
@@ -75,19 +78,36 @@ class Route:
         v = self.vehicles[vid]
         return pd.DataFrame(v)
 
-    def calc_by_filename(self):
-        for seq, day, tm, _ in self.indexlist:
-            filename = f'{day}{tm}'
-            self.by_filename.setdefault(filename, []).append(seq)
-
     def process_file(self, filename, contents):
-        indices = self.by_filename[filename]
+        indices = self.indexdict[filename]
         for i in indices:
-            brdict = contents['requests'][i]['response']['bustime-response']
-            for v in brdict.get('vehicle', []):
-                if v['rt'] == self.route:
-                    vehicle = v['vid']
-                    self.vehicles.setdefault(vehicle, []).append(v)
+            if filename.startswith(Mode.BUS):
+                self.process_bus(contents, i)
+            elif filename.startswith(Mode.TRAIN):
+                self.process_train(contents, i)
+            else:
+                raise ValueError(f'Unexpected filename: {filename}')
+
+    def process_bus(self, contents, i):
+        brdict = contents['requests'][i]['response']['bustime-response']
+        for v in brdict.get('vehicle', []):
+            if v['rt'] == self.route:
+                vehicle = v['vid']
+                self.vehicles.setdefault(vehicle, []).append(v)
+
+    def process_train(self, contents, i):
+        trdict = contents['requests'][i]['response']['ctatt']
+        if 'route' not in trdict:
+            return
+        routedict = None
+        for rd in trdict['route']:
+            if rd['@name'] == self.route:
+                routedict = rd['train']
+                break
+        if routedict is None:
+            raise ValueError
+        for v in routedict.get('train', []):
+            self.vehicles.setdefault(v['rn'], []).append(v)
 
 
 class BundleReader:
@@ -103,9 +123,9 @@ class BundleReader:
     def routes_from_index(self):
         return self.index['index'].keys()
 
-    def process_bundle_file(self):
+    def process_bundle_file(self, mode=Mode.BUS):
         with TarFile.open(self.bundle_file, 'r:xz') as archive:
-            index_fh = archive.extractfile(f'{self.day}/index.json')
+            index_fh = archive.extractfile(f'index.json')
             self.index = json.load(index_fh)
             if self.routes_to_parse is None:
                 self.routes_to_parse = self.routes_from_index()
@@ -113,10 +133,10 @@ class BundleReader:
                 self.routes.setdefault(r, Route(r, self.index['index'][r]))
             all_files = {}
             for route in self.routes.values():
-                for k in route.by_filename.keys():
+                for k in route.indexdict.keys():
                     all_files.setdefault(k, set([])).add(route)
             for filename, routes in sorted(all_files.items()):
-                fh = archive.extractfile(f'{self.day}/{filename}')
+                fh = archive.extractfile(filename)
                 contents = json.load(fh)
                 for route in routes:
                     route.process_file(filename, contents)

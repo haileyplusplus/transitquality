@@ -11,6 +11,8 @@ import datetime
 from dateutil.parser import parse
 
 
+# Need to map service date to GTFS file
+
 class ScheduleManager:
     BUCKET = S3Path('/transitquality2024/schedules/cta')
     URL = 'https://www.transitchicago.com/downloads/sch_data/google_transit.zip'

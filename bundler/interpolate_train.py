@@ -8,6 +8,8 @@ import json
 
 import gtfs_kit
 import pandas as pd
+import geopandas as gpd
+from gtfs_kit import Feed
 
 from bundler.bundlereader import BundleReader, Route
 from bundler.schedule_writer import ScheduleWriter
@@ -19,6 +21,8 @@ class MemoryPatternManager:
 
 
 class TrainManager:
+    CHICAGO = 'EPSG:26916'  # unit: meters
+
     def __init__(self):
         pass
 
@@ -44,28 +48,68 @@ class TrainManager:
 
 
 class TripsHandler:
-    # incomplete! fix for trains
     def __init__(self, routex: Route,
                  day: str,
-                 vehicle_df: pd.DataFrame, mpm: MemoryPatternManager,
+                 vehicle_df: pd.DataFrame, feed: Feed,
                  writer: ScheduleWriter):
         self.route = routex
         self.day = day
-        self.vehicle_id = vehicle_df.vid.unique()[0]
+        self.vehicle_id = vehicle_df.rn.unique()[0]
         naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
         self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
-        self.vehicle_df = vehicle_df
-        self.vehicle_df['tmstmp'] = self.vehicle_df.loc[:, 'tmstmp'].apply(lambda x: int(Util.CTA_TIMEZONE.localize(
-            datetime.datetime.strptime(x, '%Y%m%d %H:%M:%S')).timestamp()))
-        self.trip_ids = list(vehicle_df.origtatripno.unique())
+        self.vehicle_df = vehicle_df.sort_values('prdt').copy()
+        m = TrainManager()
+        m.split_trips(self.vehicle_df)
+        self.vehicle_df['tmstmp'] = self.vehicle_df.loc[:, 'prdt'].apply(lambda x: int(Util.CTA_TIMEZONE.localize(
+            datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S')).timestamp()))
+        self.trip_ids = list(self.vehicle_df.trip_id.unique())
         self.error = None
-        self.mpm = mpm
+        self.feed = feed
         self.output_df = pd.DataFrame()
         self.writer = writer
+        self.shape = None
+        self.reference_trip = None
+        self.rt_geo_trip_utm = None
+        self.get_shape()
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
         print(self.error)
+
+    def get_shape(self):
+        run = self.vehicle_id
+        daily_trips = self.feed.get_trips(self.day)
+        route_trips = daily_trips[daily_trips.route_id.str.lower() == key.route]
+        run_trips = route_trips[route_trips.schd_trip_id == f'R{run}']
+        services = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
+        geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
+        rt_trip = self.vehicle_df
+        rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
+        rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
+        if len(services.shape_id.unique()) == 1:
+            shape_id = services.iloc[0].shape_id
+            self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
+            self.shape = geo_shapes.loc[shape_id].geometry
+            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: shape.line_locate_point(x.geometry) * 3.28084,
+                                                             axis=1)
+            self.rt_geo_trip_utm = rt_geo_trip_utm
+        rt_first = rt_geo_trip_utm.iloc[0].geometry
+        rt_last = rt_geo_trip_utm.iloc[-1].geometry
+        run_geo = services.join(geo_shapes, on='shape_id')
+        run_geo['first'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_first), axis=1)
+        run_geo['last'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_last), axis=1)
+        run_geo['len'] = run_geo.apply(lambda x: x.geometry.length, axis=1)
+        run_geo['tot'] = (run_geo['len'] - run_geo['last']) + run_geo['first']
+        minval = run_geo['tot'].min()
+        if minval > 1000:
+            print(run_geo)
+            raise ValueError(f'No shape within threshold 1000m. Closest: {minval}m')
+        shape = run_geo[run_geo['tot'] == minval].iloc[0]
+        self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
+        self.shape = shape.geometry
+        rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
+                                                         axis=1)
+        self.rt_geo_trip_utm = rt_geo_trip_utm
 
     def gtfs_time(self, ts: datetime.datetime):
         if ts >= self.next_day_thresh:
@@ -85,27 +129,24 @@ class TripsHandler:
     def process_trip(self, trip_id: str, debug=False):
         stops = []
         stop_index = {}
-        df = self.vehicle_df[self.vehicle_df.origtatripno == trip_id]
+        df = self.rt_geo_trip_utm[self.rt_geo_trip_utm.trip_id == trip_id]
+        # meters to feet
+        # 3.28084
+        feed_stops = feed.stop_times[feed.stop_times.trip_id == self.reference_trip].join(feed.stops.set_index('stop_id'), on='stop_id')
         # TODO: rename
         vehicles_df = df[['tmstmp', 'pdist']]
-        pids = df['pid'].unique()
-        if len(pids) != 1:
-            self.record_error(trip_id, f'Wrong number of pattern ids: {pids}')
-            return
-        pid = pids[0]
-        for ps in self.mpm.get_stops(pid):
-            stop_index[ps.stop.stop_id] = ps
+
+        for ps in feed_stops:
+            stop_index[ps.stop_id] = ps
             stops.append({
-                'stpid': ps.stop.stop_id,
-                'seq': ps.sequence_no,
-                'pdist': ps.pattern_distance,
+                'stpid': ps.stop_id,
+                'seq': ps.stop_sequence,
+                'pdist': ps.shape_dist_traveled,
             })
         if not stops:
             self.record_error(trip_id=trip_id, msg='Missing stops')
             return False
         stops_df = pd.DataFrame(stops)
-        #vehicles_df = pd.DataFrame([{'pdist': x.pattern_distance,
-        #                             'tmstmp': int(x.timestamp.timestamp())} for x in positions]).sort_values('tmstmp')
         minval = vehicles_df.pdist.min()
         maxval = vehicles_df.pdist.max()
         beginnings = vehicles_df[vehicles_df.pdist == minval]
@@ -163,13 +204,16 @@ if __name__ == "__main__":
     print(f'First date: {ds}')
     bundle_file = Path(args.bundle_file).expanduser()
     day = datetime.datetime.strptime(bundle_file.name, 'bundle-%Y%m%d.tar.lz')
+    daystr = day.strftime('%Y%m%d')
     print(f'Routes: {args.routes}')
     if not args.routes:
         routes = None
     else:
         routes = args.routes.split(',')
     d = {}
-    tmppath = Path('/tmp/jsoncachep')
+    routeidx = args.routes.replace(',', '_')
+    tmppath = Path(f'/tmp/jsoncachep_{routeidx}')
+    daily_trips = feed.get_trips(day.strftime('%Y%m%d'))
     if tmppath.exists():
         with tmppath.open('rb') as jfh:
             d = pickle.load(jfh)
@@ -183,4 +227,17 @@ if __name__ == "__main__":
             #break
         with tmppath.open('wb') as jfh:
             pickle.dump(d, jfh)
-    runs = next(iter(d.values()))
+    key, runs = next(iter(d.items()))
+    writer = ScheduleWriter(Path('/tmp/take2'), daystr)
+    for vsamp in runs:
+        th = TripsHandler(key, daystr, vsamp, feed, writer)
+        th.process_all_trips()
+    #route_trips = daily_trips[daily_trips.route_id.str.lower() == key.route]
+    #for route, vsamp in r.generate_vehicles():
+    #    th = TripsHandler(route, r.day, vsamp, mpm, writer)
+    #    th.process_all_trips()
+    # run_trips = route_trips[route_trips.schd_trip_id == f'R{run}']
+    #     geo_shapes = feed.get_shapes(as_gdf=True, use_utm=True)
+    #     run_trip = pd.DataFrame()
+    #     gtrip = gpd.GeoDataFrame(run_trip, geometry=gpd.points_from_xy(x=run_trip.lon, y=run_trip.lat), crs='EPSG:4326')
+    #     gtriputm = gtrip.to_crs('EPSG:32616')

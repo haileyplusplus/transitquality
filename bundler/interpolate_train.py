@@ -146,10 +146,10 @@ class TripInfo:
             print(self.cutover)
             self.handle_error('Too many cutover points')
             return False
-        print(f'Shape len: {self.shape.length}, shape id {shape_id}')
-        print(f'shape: {self.shape}')
-        print(self.cutover)
-        print(self.rt_geo_trip_utm)
+        #print(f'Shape len: {self.shape.length}, shape id {shape_id}')
+        #print(f'shape: {self.shape}')
+        #print(self.cutover)
+        #print(self.rt_geo_trip_utm)
         #cutover_dir = None
         cutover_pdist = None
         #cutover_dist = 0

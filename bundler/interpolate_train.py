@@ -122,7 +122,7 @@ class TrainTripsHandler:
             shape_id = services.iloc[0].shape_id
             self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
             self.shape = geo_shapes.loc[shape_id].geometry
-            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: shape.line_locate_point(x.geometry) * 3.28084,
+            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
                                                              axis=1)
             self.rt_geo_trip_utm = rt_geo_trip_utm
         rt_first = rt_geo_trip_utm.iloc[0].geometry

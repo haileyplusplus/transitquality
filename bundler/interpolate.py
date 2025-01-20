@@ -58,6 +58,7 @@ class Interpolator:
         self.load_feed()
         # for debugging
         self.current = None
+        self.train_manager = None
 
     def load_feed(self):
         self.feed = gtfs_kit.read_feed(self.gtfs_file, dist_units='ft')
@@ -80,6 +81,7 @@ class Interpolator:
     def write_bundle(self, output_path: Path | S3Path):
         #writer = ScheduleWriter(Path('/tmp/take2'), r.day)
         writer = ScheduleWriter(output_path, self.daystr)
+        self.train_manager = TrainManager(self.daystr, self.feed, writer)
         self.mpm.write_all_stops(writer)
         writer.write('calendar_dates', {
             'service_id': self.daystr,
@@ -97,11 +99,10 @@ class Interpolator:
             afh.write(
                 'agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
             # mpm.write_routes(dw)
-        train_manager = TrainManager(self.daystr, self.feed, writer)
         TrainTripsHandler.write_all_stops(self.feed, writer)
         for route, vsamp in self.reader.generate_vehicles():
             if route.route in self.TRAIN_ROUTES:
-                th = TrainTripsHandler(train_manager, route, vsamp)
+                th = TrainTripsHandler(self.train_manager, route, vsamp)
             else:
                 th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, writer)
             self.current = th

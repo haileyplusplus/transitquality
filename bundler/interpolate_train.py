@@ -11,6 +11,7 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 from gtfs_kit import Feed
+from shapely.ops import nearest_points
 
 from bundler.bundlereader import BundleReader, Route
 from bundler.schedule_writer import ScheduleWriter
@@ -82,6 +83,13 @@ class TripInfo:
         self.reference_trip = None
         self.rt_geo_trip_utm = None
         self.run_geo = None
+        self.has_shape = False
+        self.cutover = None
+
+    def handle_error(self, msg):
+        print(f'Run {self.run} trip {self.trip_id}: {msg}')
+
+    def initialize(self):
         self.has_shape = self.get_shape()
 
     def get_shape(self):
@@ -89,42 +97,83 @@ class TripInfo:
         dt = self.manager.daily_trips
         route_trips = dt[dt.route_id.str.lower() == self.route.route]
         run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
+        if len(self.cutover) > 1:
+            #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
+            self.handle_error('Too many cutover points')
+            return False
         services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
         rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
+        self.cutover = rt_trip[(rt_trip.trDr != rt_trip.shift(1).trDr) & (rt_trip.index != 0)]
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
         if len(services.shape_id.unique()) == 1:
             shape_id = services.iloc[0].shape_id
             self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
             self.shape = geo_shapes.loc[shape_id].geometry
-            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
-                                                             axis=1)
+            #rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
+            #                                                 axis=1)
             self.rt_geo_trip_utm = rt_geo_trip_utm
-            return True
-        rt_first = rt_geo_trip_utm.iloc[0].geometry
-        rt_last = rt_geo_trip_utm.iloc[-1].geometry
-        run_geo = services.join(geo_shapes, on='shape_id')
-        run_geo['first'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_first), axis=1)
-        run_geo['last'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_last), axis=1)
-        run_geo['len'] = run_geo.apply(lambda x: x.geometry.length, axis=1)
-        run_geo['tot'] = (run_geo['len'] - run_geo['last']) + run_geo['first']
-        self.run_geo = run_geo
-        minval = run_geo['tot'].min()
-        if minval > 2000:
-            print(f'Run {self.run} trip {self.trip_id}: No shape within threshold 1000m. Closest: {minval}m')
+        else:
+            rt_first = rt_geo_trip_utm.iloc[0].geometry
+            rt_last = rt_geo_trip_utm.iloc[-1].geometry
+            run_geo = services.join(geo_shapes, on='shape_id')
+            run_geo['first'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_first), axis=1)
+            run_geo['last'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_last), axis=1)
+            run_geo['len'] = run_geo.apply(lambda x: x.geometry.length, axis=1)
+            run_geo['tot'] = (run_geo['len'] - run_geo['last']) + run_geo['first']
+            self.run_geo = run_geo
+            minval = run_geo['tot'].min()
+            if minval > 2000:
+                #print(f'Run {self.run} trip {self.trip_id}: No shape within threshold 1000m. Closest: {minval}m')
+                self.handle_error(f'No shape within threshold 1000m. Closest: {minval}m')
+                return False
+            shape = run_geo[run_geo['tot'] == minval].iloc[0]
+            self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
+            self.shape = shape.geometry
+        cutover_dir = None
+        cutover_pdist = None
+        cutover_dist = 0
+        if not self.cutover.empty:
+            cutover_point = self.cutover.iloc[0].geometry
+            cutover_dir = self.cutover.iloc[0].trDr
+            cutover_dist = self.shape.distance(cutover_point)
+            cutover_pdist = self.shape.line_locate_point(cutover_point)
+
+        if cutover_dist > 100:
+            self.handle_error(f'Invalid cutover distance: {cutover_dist}m')
             return False
-        shape = run_geo[run_geo['tot'] == minval].iloc[0]
-        self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
-        self.shape = shape.geometry
-        #print(self.shape)
-        #print(rt_geo_trip_utm)
+
+        def cutover_geofn(x):
+            geo_point = x.geometry
+            candidates = nearest_points(self.shape, geo_point)
+            pdists = [self.shape.line_locate_point(x) for x in candidates]
+            pdist = None
+            if x.trDr == cutover_dir:
+                # look in second half
+                for z in pdists:
+                    if z >= cutover_pdist:
+                        pdist = z
+                        break
+            else:
+                # look in first half
+                for z in pdists:
+                    if z <= cutover_pdist:
+                        pdist = z
+                        break
+            #rv = self.shape.line_locate_point(geo) * 3.28084
+            rv = pdist * 3.28084
+            return rv
+
         def geofn(x):
             geo = x.geometry
             #print(geo)
             rv = self.shape.line_locate_point(geo) * 3.28084
             #print(geo, rv)
             return rv
-        rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
+        if cutover_dir is None:
+            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
+        else:
+            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(cutover_geofn, axis=1)
         self.rt_geo_trip_utm = rt_geo_trip_utm
         return True
 
@@ -196,6 +245,7 @@ class TrainTripsHandler:
             trip_info = TripInfo(self.manager, self.route, self.vehicle_id,
                                  self.vehicle_df, trip_id)
             self.current_trip = trip_info
+            self.current_trip.initialize()
             #result = self.get_shape(trip_id)
             result = trip_info.has_shape
             if not result:

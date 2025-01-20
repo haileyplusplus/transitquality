@@ -126,6 +126,8 @@ class BundleReader:
         self.routes = {}
         self.index = None
         self.day = self.DAY_RE.search(self.bundle_file.name).groups()[0]
+        self.cache_path = Path('/tmp/filecache')
+        self.cache_path.mkdir(exist_ok=True)
 
     def routes_from_index(self):
         return self.index['index'].keys()
@@ -143,7 +145,14 @@ class BundleReader:
                 for k in route.indexdict.keys():
                     all_files.setdefault(k, set([])).add(route)
             for filename, routes in sorted(all_files.items()):
-                fh = archive.extractfile(filename)
+                cache_filename = self.cache_path / filename
+                if cache_filename.exists():
+                    fh = cache_filename.open()
+                else:
+                    fh = archive.extractfile(filename)
+                    with cache_filename.open('w') as cfh:
+                        cfh.write(fh.read().decode('utf-8'))
+                    fh.seek(0)
                 contents = json.load(fh)
                 for route in routes:
                     route.process_file(filename, contents)

@@ -97,13 +97,13 @@ class TripInfo:
         dt = self.manager.daily_trips
         route_trips = dt[dt.route_id.str.lower() == self.route.route]
         run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
+        services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
+        rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
+        self.cutover = rt_trip[(rt_trip.trDr != rt_trip.shift(1).trDr) & (rt_trip.index != 0)]
         if len(self.cutover) > 1:
             #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
             self.handle_error('Too many cutover points')
             return False
-        services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
-        rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
-        self.cutover = rt_trip[(rt_trip.trDr != rt_trip.shift(1).trDr) & (rt_trip.index != 0)]
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
         if len(services.shape_id.unique()) == 1:

@@ -21,6 +21,24 @@ class MemoryPatternManager:
     pass
 
 
+def fix_interpolation(orig_df: pd.DataFrame):
+    df = orig_df.reset_index()
+    #df['tmstmp'] = df['tmstmp'].apply(lambda x: int(x))
+    samefirst = df[df.tmstmp == df.iloc[0].tmstmp]
+    #samelast = df[df.tmstmp == df.iloc[-1].tmstmp]
+    next_ = df.iloc[len(samefirst)]
+    deltas = next_ - samefirst.iloc[-1]
+    #if deltas.tmstmp < self.EPSILON:
+    #    return None
+    v = deltas.pdist / deltas.tmstmp
+    ref = samefirst.iloc[-1]
+    for x in range(len(samefirst)):
+        calc = df.iloc[x]
+        corrected_tmstmp = ref.tmstmp - ((ref - calc).pdist / v)
+        #col_index = orig_df.columns.get_loc('tmstmp')
+        orig_df.iloc[x] = corrected_tmstmp
+
+
 class TrainManager:
     CHICAGO = 'EPSG:26916'  # unit: meters
 
@@ -188,8 +206,14 @@ class TripsHandler:
             self.record_error(trip_id=trip_id, msg='Interpolated vehicle error')
             return False
         pattern_template = pd.DataFrame(index=stops_df.pdist, columns={'tmstmp': float('NaN')})
+        # need spline interpolations or something else
+        # https://stackoverflow.com/questions/71215630/how-do-i-use-pandas-to-interpolate-on-the-first-few-rows-of-a-dataframe
+        #itarget = pd.concat([pattern_template, filtered.set_index('pdist')]).sort_index().tmstmp.astype('float')
+        #itarget.to_csv(f'/tmp/interpolate-{self.vehicle_id}-{trip_id}')
         combined = pd.concat([pattern_template, filtered.set_index('pdist')]).sort_index().tmstmp.astype('float').interpolate(
             method='index', limit_direction='both')
+        #print(combined)
+        fix_interpolation(combined)
         combined = combined.groupby(combined.index).last()
         df = stops_df.set_index('pdist').assign(tmstmp=combined.apply(
             lambda x: Util.CTA_TIMEZONE.localize(datetime.datetime.fromtimestamp(int(x)))

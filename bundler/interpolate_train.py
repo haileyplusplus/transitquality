@@ -146,8 +146,6 @@ class TrainTripsHandler:
         self.shape = shape.geometry
         #print(self.shape)
         #print(rt_geo_trip_utm)
-        return True
-
         def geofn(x):
             geo = x.geometry
             #print(geo)

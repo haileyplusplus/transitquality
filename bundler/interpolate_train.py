@@ -125,6 +125,7 @@ class TrainTripsHandler:
             rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
                                                              axis=1)
             self.rt_geo_trip_utm = rt_geo_trip_utm
+            return True
         rt_first = rt_geo_trip_utm.iloc[0].geometry
         rt_last = rt_geo_trip_utm.iloc[-1].geometry
         run_geo = services.join(geo_shapes, on='shape_id')
@@ -145,6 +146,7 @@ class TrainTripsHandler:
         self.shape = shape.geometry
         #print(self.shape)
         #print(rt_geo_trip_utm)
+        return True
 
         def geofn(x):
             geo = x.geometry

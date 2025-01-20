@@ -47,20 +47,20 @@ class RouteInterpolate:
 class Interpolator:
     TRAIN_ROUTES = ['red', 'p', 'y', 'blue', 'pink', 'g', 'org', 'brn']
 
-    def __init__(self, bundle_path: Path | S3Path, gtfs_file: Path | S3Path, daystr: str):
+    def __init__(self, bundle_path: Path | S3Path, gtfs_file: Path | S3Path, daystr: str, routes=None):
         self.bundle_path = bundle_path
         self.daystr = daystr
         self.mpm = None
         self.reader = None
         self.gtfs_file = gtfs_file
         self.feed = None
-        self.load_bundle()
+        self.load_bundle(routes)
         self.load_feed()
 
     def load_feed(self):
         self.feed = gtfs_kit.read_feed(self.gtfs_file, dist_units='ft')
 
-    def load_bundle(self):
+    def load_bundle(self, routes):
         #bundle_file = Path(args.bundle_file).expanduser()
         bundle_file = self.bundle_path / f'bundle-{self.daystr}.tar.lz'
         # print(f'Routes: {args.routes}')
@@ -68,7 +68,7 @@ class Interpolator:
         #     routes = None
         # else:
         #     routes = args.routes.split(',')
-        self.reader = BundleReader(bundle_file, None)
+        self.reader = BundleReader(bundle_file, routes)
         self.reader.process_bundle_file()
         pdict = json.load((bundle_file.parent / 'patterns2025.json').open())
         self.mpm = MemoryPatternManager()
@@ -114,10 +114,16 @@ if __name__ == "__main__":
                         help='Applicable GTFS file.')
     parser.add_argument('--output_path', type=str,
                         help='Output path.')
+    parser.add_argument('--routes', type=str,
+                        help='Filter to this comma-separated list of routes.')
     args = parser.parse_args()
+    if not args.routes:
+        routes = None
+    else:
+        routes = args.routes.split(',')
     gtfs_file = Path(args.gtfs_file).expanduser()
     bundle_path = Path(args.bundle_path).expanduser()
     output_path = Path(args.output_path).expanduser()
     daystr = args.bundle_day
-    interpolator = Interpolator(bundle_path, gtfs_file, daystr)
+    interpolator = Interpolator(bundle_path, gtfs_file, daystr, routes)
     interpolator.write_bundle(output_path)

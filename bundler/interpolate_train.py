@@ -38,8 +38,15 @@ def fix_interpolation(orig_df: pd.DataFrame):
 class TrainManager:
     CHICAGO = 'EPSG:26916'  # unit: meters
 
-    def __init__(self):
-        pass
+    def __init__(self, day: str, feed_, writer_):
+        self.day = day
+        self.feed = feed_
+        self.writer = writer_
+        naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
+        self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
+        self.daily_trips = self.feed.get_trips(self.day)
+        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
+
 
     @staticmethod
     def applysplit(x):
@@ -62,31 +69,85 @@ class TrainManager:
             vs.iloc[i, vs.columns.get_loc('trip_id')] = cur_trip_id
 
 
-class TrainTripsHandler:
-    def __init__(self, routex: Route,
-                 day: str,
-                 vehicle_df: pd.DataFrame, feed: Feed,
-                 writer: ScheduleWriter):
+class TripInfo:
+    def __init__(self, manager: TrainManager, routex: Route, run: str, rt_df: pd.DataFrame,
+                 trip_id: str):
+        self.manager = manager
         self.route = routex
-        self.day = day
+        self.run = run
+        self.rt_df = rt_df
+        #self.sched_df = sched_df
+        self.trip_id = trip_id
+        self.shape = None
+        self.reference_trip = None
+        self.rt_geo_trip_utm = None
+        self.run_geo = None
+        self.has_shape = self.get_shape()
+
+    def get_shape(self):
+        geo_shapes = self.manager.geo_shapes
+        dt = self.manager.daily_trips
+        route_trips = dt[dt.route_id.str.lower() == self.route.route]
+        run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
+        services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
+        rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
+        rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
+        rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
+        if len(services.shape_id.unique()) == 1:
+            shape_id = services.iloc[0].shape_id
+            self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
+            self.shape = geo_shapes.loc[shape_id].geometry
+            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
+                                                             axis=1)
+            self.rt_geo_trip_utm = rt_geo_trip_utm
+            return True
+        rt_first = rt_geo_trip_utm.iloc[0].geometry
+        rt_last = rt_geo_trip_utm.iloc[-1].geometry
+        run_geo = services.join(geo_shapes, on='shape_id')
+        run_geo['first'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_first), axis=1)
+        run_geo['last'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_last), axis=1)
+        run_geo['len'] = run_geo.apply(lambda x: x.geometry.length, axis=1)
+        run_geo['tot'] = (run_geo['len'] - run_geo['last']) + run_geo['first']
+        self.run_geo = run_geo
+        minval = run_geo['tot'].min()
+        if minval > 2000:
+            print(f'Run {self.run} trip {self.trip_id}: No shape within threshold 1000m. Closest: {minval}m')
+            return False
+        shape = run_geo[run_geo['tot'] == minval].iloc[0]
+        self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
+        self.shape = shape.geometry
+        #print(self.shape)
+        #print(rt_geo_trip_utm)
+        def geofn(x):
+            geo = x.geometry
+            #print(geo)
+            rv = self.shape.line_locate_point(geo) * 3.28084
+            #print(geo, rv)
+            return rv
+        rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
+        self.rt_geo_trip_utm = rt_geo_trip_utm
+        return True
+
+
+class TrainTripsHandler:
+    def __init__(self, manager: TrainManager, routex: Route, vehicle_df: pd.DataFrame):
+        self.manager = manager
+        self.route = routex
+        self.day = manager.day
         self.vehicle_id = vehicle_df.rn.unique()[0]
-        naive_day = datetime.datetime.strptime(self.day, '%Y%m%d')
-        self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
         vehicle_df_filt = vehicle_df[vehicle_df.lat != '0']
         self.vehicle_df = vehicle_df_filt.sort_values('prdt').copy()
-        m = TrainManager()
-        m.split_trips(self.vehicle_df)
+        manager.split_trips(self.vehicle_df)
         self.vehicle_df['tmstmp'] = self.vehicle_df.loc[:, 'prdt'].apply(lambda x: int(Util.CTA_TIMEZONE.localize(
             datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S')).timestamp()))
         self.trip_ids = list(self.vehicle_df.trip_id.unique())
         self.error = None
-        self.feed = feed
+        self.feed = manager.feed
         self.output_df = pd.DataFrame()
-        self.writer = writer
-        self.shape = None
-        self.reference_trip = None
-        self.rt_geo_trip_utm = None
+        self.writer = manager.writer
         self.stops_seen = set([])
+        #dt = self.manager.daily_trips
+        #self.route_trips = dt[dt.route_id.str.lower() == self.route.route]
         #self.get_shape()
 
     def record_error(self, trip_id, msg):
@@ -108,56 +169,8 @@ class TrainTripsHandler:
                 'wheelchair_boarding': row.wheelchair_boarding,
             })
 
-    def get_shape(self, trip_id):
-        run = self.vehicle_id
-        daily_trips = self.feed.get_trips(self.day)
-        route_trips = daily_trips[daily_trips.route_id.str.lower() == self.route.route]
-        run_trips = route_trips[(route_trips.schd_trip_id == f'R{run}')]
-        services = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
-        geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
-        rt_trip = self.vehicle_df[self.vehicle_df.trip_id == trip_id]
-        rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
-        rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
-        if len(services.shape_id.unique()) == 1:
-            shape_id = services.iloc[0].shape_id
-            self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
-            self.shape = geo_shapes.loc[shape_id].geometry
-            rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(lambda x: self.shape.line_locate_point(x.geometry) * 3.28084,
-                                                             axis=1)
-            self.rt_geo_trip_utm = rt_geo_trip_utm
-            return True
-        rt_first = rt_geo_trip_utm.iloc[0].geometry
-        rt_last = rt_geo_trip_utm.iloc[-1].geometry
-        run_geo = services.join(geo_shapes, on='shape_id')
-        run_geo['first'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_first), axis=1)
-        run_geo['last'] = run_geo.apply(lambda x: x.geometry.line_locate_point(rt_last), axis=1)
-        run_geo['len'] = run_geo.apply(lambda x: x.geometry.length, axis=1)
-        run_geo['tot'] = (run_geo['len'] - run_geo['last']) + run_geo['first']
-        minval = run_geo['tot'].min()
-        if minval > 2000:
-            #print(f'rt')
-            #print(rt_geo_trip)
-            #print(run_geo)
-            #raise ValueError(f'No shape within threshold 1000m. Closest: {minval}m')
-            print(f'Run {run} trip {trip_id}: No shape within threshold 1000m. Closest: {minval}m')
-            return False
-        shape = run_geo[run_geo['tot'] == minval].iloc[0]
-        self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
-        self.shape = shape.geometry
-        #print(self.shape)
-        #print(rt_geo_trip_utm)
-        def geofn(x):
-            geo = x.geometry
-            #print(geo)
-            rv = self.shape.line_locate_point(geo) * 3.28084
-            #print(geo, rv)
-            return rv
-        rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
-        self.rt_geo_trip_utm = rt_geo_trip_utm
-        return True
-
     def gtfs_time(self, ts: datetime.datetime):
-        if ts >= self.next_day_thresh:
+        if ts >= self.manager.next_day_thresh:
             hour = ts.hour + 24
             return ts.strftime(f'{hour:02d}:%M:%S')
         return ts.strftime('%H:%M:%S')
@@ -176,7 +189,12 @@ class TrainTripsHandler:
         stops = []
         stop_index = {}
         try:
-            result = self.get_shape(trip_id)
+            # def __init__(self, manager: TrainManager, routex: Route, run: str, rt_df: pd.DataFrame,
+            #              trip_id: int):
+            trip_info = TripInfo(self.manager, self.route, self.vehicle_id,
+                                 self.vehicle_df, trip_id)
+            #result = self.get_shape(trip_id)
+            result = trip_info.has_shape
             if not result:
                 return False
         #except shapely.errors.GEOSException:
@@ -184,10 +202,10 @@ class TrainTripsHandler:
             print(f'Error parsing run {self.vehicle_id} trip {trip_id}')
             return False
 
-        df = self.rt_geo_trip_utm[self.rt_geo_trip_utm.trip_id == trip_id]
+        df = trip_info.rt_geo_trip_utm[trip_info.rt_geo_trip_utm.trip_id == trip_id]
         # meters to feet
         # 3.28084
-        feed_stops = self.feed.stop_times[self.feed.stop_times.trip_id == self.reference_trip].join(self.feed.stops.set_index('stop_id'), on='stop_id')
+        feed_stops = self.feed.stop_times[self.feed.stop_times.trip_id == trip_info.reference_trip].join(self.feed.stops.set_index('stop_id'), on='stop_id')
         # TODO: rename
         vehicles_df = df[['tmstmp', 'pdist']]
 

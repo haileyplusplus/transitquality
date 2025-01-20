@@ -12,7 +12,7 @@ import gtfs_kit
 from bundler.bundlereader import BundleReader, MemoryPatternManager
 from bundler.schedule_writer import ScheduleWriter
 from bundler.interpolate_bus import BusTripsHandler
-from bundler.interpolate_train import TrainTripsHandler
+from bundler.interpolate_train import TrainTripsHandler, TrainManager
 
 
 class RouteInterpolate:
@@ -95,10 +95,11 @@ class Interpolator:
             afh.write(
                 'agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
             # mpm.write_routes(dw)
+        train_manager = TrainManager(self.daystr, self.feed, writer)
         TrainTripsHandler.write_all_stops(self.feed, writer)
         for route, vsamp in self.reader.generate_vehicles():
             if route.route in self.TRAIN_ROUTES:
-                th = TrainTripsHandler(route, self.daystr, vsamp, self.feed, writer)
+                th = TrainTripsHandler(train_manager, route, vsamp)
             else:
                 th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, writer)
             th.process_all_trips()

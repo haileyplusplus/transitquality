@@ -149,6 +149,8 @@ class TrainTripsHandler:
         #dt = self.manager.daily_trips
         #self.route_trips = dt[dt.route_id.str.lower() == self.route.route]
         #self.get_shape()
+        # for debugging
+        self.current_trip = None
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
@@ -193,6 +195,7 @@ class TrainTripsHandler:
             #              trip_id: int):
             trip_info = TripInfo(self.manager, self.route, self.vehicle_id,
                                  self.vehicle_df, trip_id)
+            self.current_trip = trip_info
             #result = self.get_shape(trip_id)
             result = trip_info.has_shape
             if not result:

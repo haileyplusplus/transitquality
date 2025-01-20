@@ -56,6 +56,8 @@ class Interpolator:
         self.feed = None
         self.load_bundle(routes)
         self.load_feed()
+        # for debugging
+        self.current = None
 
     def load_feed(self):
         self.feed = gtfs_kit.read_feed(self.gtfs_file, dist_units='ft')
@@ -102,6 +104,7 @@ class Interpolator:
                 th = TrainTripsHandler(train_manager, route, vsamp)
             else:
                 th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, writer)
+            self.current = th
             th.process_all_trips()
 
 

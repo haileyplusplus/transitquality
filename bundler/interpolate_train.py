@@ -90,11 +90,26 @@ class TripsHandler:
         self.shape = None
         self.reference_trip = None
         self.rt_geo_trip_utm = None
+        self.stops_seen = set([])
         #self.get_shape()
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
         print(self.error)
+
+    def write_all_stops(self, writer):
+        fs = self.feed.stops
+        stops = fs[(fs.parent_station != '<NA>') | (fs.location_type != 0)]
+        for _, row in stops.iterrows():
+            writer.write('stops', {
+                'stop_id': row.stop_id,
+                'stop_name': row.stop_name,
+                'stop_lat': row.lat,
+                'stop_lon': row.lon,
+                'location_type': row.location_type,
+                'parent_station': row.parent_station,
+                'wheelchair_boarding': row.wheelchair_boarding,
+            })
 
     def get_shape(self, trip_id):
         run = self.vehicle_id
@@ -158,6 +173,7 @@ class TripsHandler:
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
             })
             self.process_trip(trip_id)
+        self.write_all_stops()
 
     def process_trip(self, trip_id: str, debug=False):
         stops = []
@@ -187,6 +203,7 @@ class TripsHandler:
                 'seq': ps.stop_sequence,
                 'pdist': ps.shape_dist_traveled,
             })
+            self.stops_seen.add(ps.stop_id)
         if not stops:
             self.record_error(trip_id=trip_id, msg='Missing stops')
             return False

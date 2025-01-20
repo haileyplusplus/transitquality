@@ -36,6 +36,9 @@ class MemoryPatternManager:
                 'stop_name': stop.stop_name,
                 'stop_lat': stop.lat,
                 'stop_lon': stop.lon,
+                'location_type': 0,
+                'parent_station': '<NA>',
+                'wheelchair_boarding': 1,
             })
 
     def write_routes(self, writer):

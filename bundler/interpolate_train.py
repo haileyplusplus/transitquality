@@ -101,8 +101,8 @@ class TrainTripsHandler:
             writer.write('stops', {
                 'stop_id': row.stop_id,
                 'stop_name': row.stop_name,
-                'stop_lat': row.lat,
-                'stop_lon': row.lon,
+                'stop_lat': row.stop_lat,
+                'stop_lon': row.stop_lon,
                 'location_type': row.location_type,
                 'parent_station': row.parent_station,
                 'wheelchair_boarding': row.wheelchair_boarding,

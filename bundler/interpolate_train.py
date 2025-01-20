@@ -111,7 +111,7 @@ class TrainTripsHandler:
     def get_shape(self, trip_id):
         run = self.vehicle_id
         daily_trips = self.feed.get_trips(self.day)
-        route_trips = daily_trips[daily_trips.route_id.str.lower() == key.route]
+        route_trips = daily_trips[daily_trips.route_id.str.lower() == self.route.route]
         run_trips = route_trips[(route_trips.schd_trip_id == f'R{run}')]
         services = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
         geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
@@ -170,7 +170,7 @@ class TrainTripsHandler:
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
             })
             self.process_trip(trip_id)
-        self.write_all_stops()
+        self.write_all_stops(self.feed, self.writer)
 
     def process_trip(self, trip_id: str, debug=False):
         stops = []
@@ -187,7 +187,7 @@ class TrainTripsHandler:
         df = self.rt_geo_trip_utm[self.rt_geo_trip_utm.trip_id == trip_id]
         # meters to feet
         # 3.28084
-        feed_stops = feed.stop_times[feed.stop_times.trip_id == self.reference_trip].join(feed.stops.set_index('stop_id'), on='stop_id')
+        feed_stops = self.feed.stop_times[self.feed.stop_times.trip_id == self.reference_trip].join(self.feed.stops.set_index('stop_id'), on='stop_id')
         # TODO: rename
         vehicles_df = df[['tmstmp', 'pdist']]
 

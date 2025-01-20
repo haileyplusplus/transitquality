@@ -1,6 +1,6 @@
 import argparse
 
-from bundler.interpolate_bus import ScheduleWriter
+from bundler.schedule_writer import ScheduleWriter
 import datetime
 from pathlib import Path
 import zipfile

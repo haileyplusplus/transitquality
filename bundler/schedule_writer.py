@@ -11,7 +11,8 @@ class ScheduleWriter:
                            'stop_sequence',
                            'shape_dist_traveled'],
         'trips.txt': ['route_id', 'service_id', 'trip_id'],
-        'stops.txt': ['stop_id', 'stop_name', 'stop_lat', 'stop_lon'],
+        'stops.txt': ['stop_id', 'stop_name', 'stop_lat', 'stop_lon',
+                      'location_type', 'parent_station', 'wheelchair_boarding'],
         'routes.txt': ['route_id', 'route_short_name', 'route_type'],
         'calendar_dates.txt': ['service_id', 'date' , 'exception_type'],
     }

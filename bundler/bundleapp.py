@@ -6,7 +6,7 @@ import boto3
 import botocore.exceptions
 
 from bundler.bundler import Bundler
-from bundler.interpolate_bus import RouteInterpolate
+from bundler.interpolate import RouteInterpolate
 from bundler.schedule_manager import ScheduleManager
 
 

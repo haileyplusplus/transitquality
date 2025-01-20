@@ -19,36 +19,7 @@ from bundler.schedule_writer import ScheduleWriter
 from backend.util import Util
 
 
-class RouteInterpolate:
-    BUCKET = S3Path('/transitquality2024/bustracker/raw')
-
-    def __init__(self):
-        #self.workdir = tempfile.TemporaryDirectory()
-        self.workpath = Path('/transitworking')
-        try:
-            boto3.setup_default_session(profile_name='transitquality_boto')
-        except botocore.exceptions.ProfileNotFound:
-            print(f'Not using boto profile')
-        #with pattern_file.open() as jfh:
-        #    self.patterns = json.load(jfh)
-        self.load_working()
-
-    def load_working(self):
-        # TODO: finer grained date parsing
-        bundles: Iterable[S3Path] = self.BUCKET.glob('bundle-2025????.tar.lz')
-        pattern_file = self.BUCKET / 'patterns2025.json'
-        items = list(bundles)
-        items.append(pattern_file)
-        for b in items:
-            existing = self.workpath / b.name
-            if existing.exists():
-                continue
-            with (self.workpath / b.name).open('wb') as ofh:
-                with b.open('rb') as fh:
-                    ofh.write(fh.read())
-
-
-class TripsHandler:
+class BusTripsHandler:
     def __init__(self, routex: Route,
                  day: str,
                  vehicle_df: pd.DataFrame, mpm: MemoryPatternManager,
@@ -189,5 +160,5 @@ if __name__ == "__main__":
         afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
         #mpm.write_routes(dw)
     for route, vsamp in r.generate_vehicles():
-        th = TripsHandler(route, r.day, vsamp, mpm, writer)
+        th = BusTripsHandler(route, r.day, vsamp, mpm, writer)
         th.process_all_trips()

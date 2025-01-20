@@ -17,10 +17,6 @@ from bundler.schedule_writer import ScheduleWriter
 from backend.util import Util
 
 
-class MemoryPatternManager:
-    pass
-
-
 def fix_interpolation(orig_df: pd.DataFrame):
     df = orig_df.reset_index()
     #df['tmstmp'] = df['tmstmp'].apply(lambda x: int(x))
@@ -66,7 +62,7 @@ class TrainManager:
             vs.iloc[i, vs.columns.get_loc('trip_id')] = cur_trip_id
 
 
-class TripsHandler:
+class TrainTripsHandler:
     def __init__(self, routex: Route,
                  day: str,
                  vehicle_df: pd.DataFrame, feed: Feed,
@@ -97,8 +93,9 @@ class TripsHandler:
         self.error = f'{trip_id}: {msg}'
         print(self.error)
 
-    def write_all_stops(self, writer):
-        fs = self.feed.stops
+    @staticmethod
+    def write_all_stops(feed, writer):
+        fs = feed.stops
         stops = fs[(fs.parent_station != '<NA>') | (fs.location_type != 0)]
         for _, row in stops.iterrows():
             writer.write('stops', {
@@ -298,11 +295,11 @@ if __name__ == "__main__":
     key, runs = next(iter(d.items()))
     writer = ScheduleWriter(Path('/tmp/take2'), daystr)
     for vsamp in runs:
-        th = TripsHandler(key, daystr, vsamp, feed, writer)
+        th = TrainTripsHandler(key, daystr, vsamp, feed, writer)
         th.process_all_trips()
     #route_trips = daily_trips[daily_trips.route_id.str.lower() == key.route]
     #for route, vsamp in r.generate_vehicles():
-    #    th = TripsHandler(route, r.day, vsamp, mpm, writer)
+    #    th = TrainTripsHandler(route, r.day, vsamp, mpm, writer)
     #    th.process_all_trips()
     # run_trips = route_trips[route_trips.schd_trip_id == f'R{run}']
     #     geo_shapes = feed.get_shapes(as_gdf=True, use_utm=True)

@@ -99,13 +99,14 @@ class TripInfo:
         run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
         services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
         rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
-        self.cutover = rt_trip[(rt_trip.trDr != rt_trip.shift(1).trDr) & (rt_trip.index != 0)]
-        if len(self.cutover) > 1:
-            #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
-            self.handle_error('Too many cutover points')
-            return False
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
+        self.cutover = rt_geo_trip_utm[(rt_geo_trip_utm.trDr != rt_geo_trip_utm.shift(1).trDr) & (rt_geo_trip_utm.index != 0)]
+        if len(self.cutover) > 1:
+            #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
+            print(self.cutover)
+            self.handle_error('Too many cutover points')
+            return False
         if len(services.shape_id.unique()) == 1:
             shape_id = services.iloc[0].shape_id
             self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
@@ -130,6 +131,11 @@ class TripInfo:
             shape = run_geo[run_geo['tot'] == minval].iloc[0]
             self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
             self.shape = shape.geometry
+            shape_id = self.shape.shape_id
+        print(f'Shape len: {self.shape.length}, shape id {shape_id}')
+        print(f'shape: {self.shape}')
+        print(self.cutover)
+        print(self.rt_geo_trip_utm)
         cutover_dir = None
         cutover_pdist = None
         cutover_dist = 0
@@ -160,6 +166,10 @@ class TripInfo:
                     if z <= cutover_pdist:
                         pdist = z
                         break
+            if pdist is None:
+                self.handle_error(f'Warning: bad distance in point {x.prdt}, candidates {candidates}, {pdists}, cutover {cutover_pdist}, trdr {x.trDr}, cutover dir {cutover_dir}')
+                raise KeyError
+                #return -1
             #rv = self.shape.line_locate_point(geo) * 3.28084
             rv = pdist * 3.28084
             return rv
@@ -174,7 +184,7 @@ class TripInfo:
             rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
         else:
             rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(cutover_geofn, axis=1)
-        self.rt_geo_trip_utm = rt_geo_trip_utm
+        self.rt_geo_trip_utm = rt_geo_trip_utm[rt_geo_trip_utm.pdist >= 0]
         return True
 
 

@@ -11,7 +11,7 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 from gtfs_kit import Feed
-from shapely.ops import nearest_points
+from shapely.ops import nearest_points, split
 
 from bundler.bundlereader import BundleReader, Route
 from bundler.schedule_writer import ScheduleWriter
@@ -70,6 +70,15 @@ class TrainManager:
             vs.iloc[i, vs.columns.get_loc('trip_id')] = cur_trip_id
 
 
+class ShapeManager:
+    def __init__(self, feed):
+        self.feed = feed
+        self.cache = {}
+
+    def get_shapes(self, shape_id, reference_trip):
+        pass
+
+
 class TripInfo:
     def __init__(self, manager: TrainManager, routex: Route, run: str, rt_df: pd.DataFrame,
                  trip_id: str):
@@ -85,6 +94,7 @@ class TripInfo:
         self.run_geo = None
         self.has_shape = False
         self.cutover = None
+        self.rt_cutover = None
 
     def handle_error(self, msg):
         print(f'Run {self.run} trip {self.trip_id}: {msg}')
@@ -101,12 +111,8 @@ class TripInfo:
         rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
-        self.cutover = rt_geo_trip_utm[(rt_geo_trip_utm.trDr != rt_geo_trip_utm.shift(1).trDr) & (rt_geo_trip_utm.index != 0)]
-        if len(self.cutover) > 1:
-            #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
-            print(self.cutover)
-            self.handle_error('Too many cutover points')
-            return False
+        self.rt_cutover = rt_geo_trip_utm[
+            (rt_geo_trip_utm.trDr != rt_geo_trip_utm.shift(1).trDr) & (rt_geo_trip_utm.index != 0)]
         if len(services.shape_id.unique()) == 1:
             shape_id = services.iloc[0].shape_id
             self.reference_trip = run_trips[run_trips.shape_id == shape_id].iloc[0].trip_id
@@ -132,40 +138,66 @@ class TripInfo:
             self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
             self.shape = shape.geometry
             shape_id = self.shape.shape_id
+        feed = self.manager.feed
+        st = feed.stop_times[feed.stop_times.trip_id == self.reference_trip]
+        self.cutover = st[(st.stop_headsign != st.shift(1).stop_headsign) & (st.index != 0)]
+        if len(self.cutover) > 1:
+            #print(f'Run {self.run} trip {self.trip_id}: Too many cutover points')
+            print(self.cutover)
+            self.handle_error('Too many cutover points')
+            return False
         print(f'Shape len: {self.shape.length}, shape id {shape_id}')
         print(f'shape: {self.shape}')
         print(self.cutover)
         print(self.rt_geo_trip_utm)
-        cutover_dir = None
+        #cutover_dir = None
         cutover_pdist = None
-        cutover_dist = 0
+        #cutover_dist = 0
+        first_shape = None
+        second_shape = None
+        rt_cutover_dir = None
         if not self.cutover.empty:
-            cutover_point = self.cutover.iloc[0].geometry
-            cutover_dir = self.cutover.iloc[0].trDr
-            cutover_dist = self.shape.distance(cutover_point)
-            cutover_pdist = self.shape.line_locate_point(cutover_point)
+            if self.rt_cutover.empty:
+                self.handle_error('Misalignment with rt cutover')
+                return False
+            #cutover_point = self.cutover.iloc[0].geometry
+            rt_cutover_dir = self.rt_cutover.iloc[0].trDr
+            cutover_pdist = self.cutover.iloc[0].shape_dist_traveled * 0.3048
+            splitpoint = self.shape.interpolate(cutover_pdist)
+            splitsnap = shapely.snap(self.shape, splitpoint, tolerance=1)
+            s = split(splitsnap, splitpoint)
+            if len(s.geoms) != 2:
+                self.handle_error(f'Incorrect split: {len(s.geoms)}')
+                return False
+            first_shape, second_shape = s.geoms
+            #cutover_pdist = self.shape.line_locate_point(cutover_point)
 
-        if cutover_dist > 100:
-            self.handle_error(f'Invalid cutover distance: {cutover_dist}m')
-            return False
+
+        #if cutover_dist > 100:
+        #    self.handle_error(f'Invalid cutover distance: {cutover_dist}m')
+        #    return False
 
         def cutover_geofn(x):
+            # could maybe be simpler
             geo_point = x.geometry
-            candidates = nearest_points(self.shape, geo_point)
-            pdists = [self.shape.line_locate_point(x) for x in candidates]
-            pdist = None
-            if x.trDr == cutover_dir:
+            #pdist = None
+            if x.trDr == rt_cutover_dir:
                 # look in second half
-                for z in pdists:
-                    if z >= cutover_pdist:
-                        pdist = z
-                        break
+                pdist = second_shape.line_locate_point(geo_point)
+                pdist += first_shape.length
+                #candidates = nearest_points(self.shape, geo_point)
+                #pdists = [self.shape.line_locate_point(x) for x in candidates]
+                #for z in pdists:
+                #    if z >= cutover_pdist:
+                #        pdist = z
+                #        break
             else:
+                pdist = first_shape.line_locate_point(geo_point)
                 # look in first half
-                for z in pdists:
-                    if z <= cutover_pdist:
-                        pdist = z
-                        break
+                # for z in pdists:
+                #     if z <= cutover_pdist:
+                #         pdist = z
+                #         break
             if pdist is None:
                 self.handle_error(f'Warning: bad distance in point {x.prdt}, candidates {candidates}, {pdists}, cutover {cutover_pdist}, trdr {x.trDr}, cutover dir {cutover_dir}')
                 raise KeyError
@@ -180,7 +212,7 @@ class TripInfo:
             rv = self.shape.line_locate_point(geo) * 3.28084
             #print(geo, rv)
             return rv
-        if cutover_dir is None:
+        if cutover_pdist is None:
             rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(geofn, axis=1)
         else:
             rt_geo_trip_utm['pdist'] = rt_geo_trip_utm.apply(cutover_geofn, axis=1)

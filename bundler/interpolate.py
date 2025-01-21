@@ -101,6 +101,8 @@ class Interpolator:
             # mpm.write_routes(dw)
         TrainTripsHandler.write_all_stops(self.feed, writer)
         for route, vsamp in self.reader.generate_vehicles():
+            if not vsamp.empty and vsamp.rn.unique()[0] == '1000':
+                continue
             if route.route in self.TRAIN_ROUTES:
                 th = TrainTripsHandler(self.train_manager, route, vsamp)
             else:

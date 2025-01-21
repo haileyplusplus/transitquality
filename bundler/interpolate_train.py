@@ -108,7 +108,7 @@ class TripInfo:
         route_trips = dt[dt.route_id.str.lower() == self.route.route]
         run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
         services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
-        rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id]
+        rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id].reset_index()
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
         self.rt_cutover = rt_geo_trip_utm[
@@ -242,6 +242,8 @@ class TrainTripsHandler:
         #self.get_shape()
         # for debugging
         self.current_trip = None
+        self.last_successful = None
+        self.interpolated_df = None
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
@@ -348,23 +350,37 @@ class TrainTripsHandler:
         if debug:
             return df
         #stop_interpolation = []
-        stopseq = set([])
+        #stopseq = set([])
         #print(df)
+        df = df.reset_index()
+        self.interpolated_df = df
         for _, row in df.iterrows():
-            pattern_stop = stop_index[row.stpid]
-            # TODO: log error and debug this
-            if pattern_stop.stop_sequence in stopseq:
-                continue
             interpolated_timestamp = self.gtfs_time(row.tmstmp)
             self.writer.write('stop_times', {
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
                 'arrival_time': interpolated_timestamp,
                 'departure_time': interpolated_timestamp,
-                'stop_id': pattern_stop.stop_id,
-                'stop_sequence': pattern_stop.stop_sequence,
-                'shape_dist_traveled': pattern_stop.shape_dist_traveled,
+                'stop_id': row.stpid,
+                'stop_sequence': row.seq,
+                'shape_dist_traveled': row.pdist,
             })
-            stopseq.add(pattern_stop.stop_sequence)
+            #stopseq.add(pattern_stop.stop_sequence)
+        # for _, row in df.iterrows():
+        #     pattern_stop = stop_index[row.stpid]
+        #     # TODO: log error and debug this
+        #     if pattern_stop.stop_sequence in stopseq:
+        #         continue
+        #     interpolated_timestamp = self.gtfs_time(row.tmstmp)
+        #     self.writer.write('stop_times', {
+        #         'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
+        #         'arrival_time': interpolated_timestamp,
+        #         'departure_time': interpolated_timestamp,
+        #         'stop_id': pattern_stop.stop_id,
+        #         'stop_sequence': pattern_stop.stop_sequence,
+        #         'shape_dist_traveled': pattern_stop.shape_dist_traveled,
+        #     })
+        #     stopseq.add(pattern_stop.stop_sequence)
+        self.last_successful = trip_info
 
 
 if __name__ == "__main__":

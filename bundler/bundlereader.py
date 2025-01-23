@@ -82,7 +82,7 @@ class Route:
         return pd.DataFrame(v)
 
     def process_file(self, filename, contents):
-        print(f'Processing {filename}')
+        #print(f'Processing {filename}')
         indices = self.indexdict[filename]
         for i in indices:
             if filename.startswith(Mode.BUS):
@@ -160,7 +160,7 @@ class BundleReader:
     def generate_vehicles(self):
         for r in self.routes.values():
             for vid in r.vehicles.keys():
-                yield r, r.get_vehicle(vid)
+                yield r, vid, r.get_vehicle(vid)
 
 
 if __name__ == "__main__":

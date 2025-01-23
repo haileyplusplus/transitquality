@@ -47,7 +47,7 @@ class TrainManager:
         self.next_day_thresh = Util.CTA_TIMEZONE.localize(naive_day + datetime.timedelta(days=1))
         self.daily_trips = self.feed.get_trips(self.day)
         self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
-
+        self.error_trips = []
 
     @staticmethod
     def applysplit(x):
@@ -95,9 +95,14 @@ class TripInfo:
         self.has_shape = False
         self.cutover = None
         self.rt_cutover = None
+        self.any_error = False
+        self.pending_trip = None
 
     def handle_error(self, msg):
-        print(f'Run {self.run} trip {self.trip_id}: {msg}')
+        print(f'Run {self.run} trip {self.trip_id}: {msg} obj {self}')
+        if not self.any_error:
+            self.any_error = True
+            self.manager.error_trips.append(self)
 
     def initialize(self):
         self.has_shape = self.get_shape()
@@ -109,6 +114,7 @@ class TripInfo:
         run_trips: pd.DataFrame = route_trips[(route_trips.schd_trip_id == f'R{self.run}')]
         services: pd.DataFrame = run_trips[['route_id', 'shape_id', 'schd_trip_id']].drop_duplicates()
         rt_trip: pd.DataFrame = self.rt_df[self.rt_df.trip_id == self.trip_id].reset_index()
+        self.pending_trip = rt_trip
         rt_geo_trip = gpd.GeoDataFrame(rt_trip, geometry=gpd.points_from_xy(x=rt_trip.lon, y=rt_trip.lat), crs='EPSG:4326')
         rt_geo_trip_utm = rt_geo_trip.to_crs(TrainManager.CHICAGO)
         self.rt_cutover = rt_geo_trip_utm[
@@ -137,7 +143,7 @@ class TripInfo:
             shape = run_geo[run_geo['tot'] == minval].iloc[0]
             self.reference_trip = run_trips[run_trips.shape_id == shape.shape_id].iloc[0].trip_id
             self.shape = shape.geometry
-            shape_id = self.shape.shape_id
+            #shape_id = self.shape.shape_id
         feed = self.manager.feed
         st = feed.stop_times[feed.stop_times.trip_id == self.reference_trip]
         self.cutover = st[(st.stop_headsign != st.shift(1).stop_headsign) & (st.index != 0)]
@@ -244,9 +250,11 @@ class TrainTripsHandler:
         self.current_trip = None
         self.last_successful = None
         self.interpolated_df = None
+        self.any_error = False
 
     def record_error(self, trip_id, msg):
-        self.error = f'{trip_id}: {msg}'
+        self.error = f'Handler error {trip_id}: {msg}'
+        self.any_error = True
         print(self.error)
 
     @staticmethod
@@ -297,8 +305,11 @@ class TrainTripsHandler:
         #except shapely.errors.GEOSException:
         except ValueError:
             print(f'Error parsing run {self.vehicle_id} trip {trip_id}')
+            self.any_error = True
             return False
 
+        if trip_info.any_error:
+            self.any_error = True
         df = trip_info.rt_geo_trip_utm[trip_info.rt_geo_trip_utm.trip_id == trip_id]
         # meters to feet
         # 3.28084
@@ -414,7 +425,7 @@ if __name__ == "__main__":
     else:
         r = BundleReader(bundle_file, routes)
         r.process_bundle_file()
-        for route, vsamp in r.generate_vehicles():
+        for route, _, vsamp in r.generate_vehicles():
             d.setdefault(route, []).append(vsamp)
             #print(route)
             #print(vsamp)

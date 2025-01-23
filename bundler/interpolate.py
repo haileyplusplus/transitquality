@@ -59,6 +59,7 @@ class Interpolator:
         # for debugging
         self.current = None
         self.train_manager = None
+        self.handlers = []
 
     def load_feed(self):
         self.feed = gtfs_kit.read_feed(self.gtfs_file, dist_units='ft')
@@ -100,15 +101,20 @@ class Interpolator:
                 'agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
             # mpm.write_routes(dw)
         TrainTripsHandler.write_all_stops(self.feed, writer)
-        for route, vsamp in self.reader.generate_vehicles():
-            if not vsamp.empty and vsamp.rn.unique()[0] == '1000':
-                continue
+
+        for route, vid, vsamp in self.reader.generate_vehicles():
+            #if not vsamp.empty and vsamp.rn.unique()[0] == '1000':
+            #    continue
+            print(f'Processing {route.route} / {vid}')
             if route.route in self.TRAIN_ROUTES:
                 th = TrainTripsHandler(self.train_manager, route, vsamp)
             else:
                 th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, writer)
             self.current = th
             th.process_all_trips()
+            if isinstance(th, TrainTripsHandler) and th.any_error:
+                print(f'Error in {route.route}, {vid}')
+                self.handlers.append(th)
 
 
 if __name__ == "__main__":

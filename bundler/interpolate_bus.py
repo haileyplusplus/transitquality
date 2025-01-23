@@ -37,6 +37,7 @@ class BusTripsHandler:
         self.mpm = mpm
         self.output_df = pd.DataFrame()
         self.writer = writer
+        self.any_error = False
 
     def record_error(self, trip_id, msg):
         self.error = f'{trip_id}: {msg}'
@@ -159,6 +160,6 @@ if __name__ == "__main__":
     with agency_file.open('w') as afh:
         afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
         #mpm.write_routes(dw)
-    for route, vsamp in r.generate_vehicles():
+    for route, _, vsamp in r.generate_vehicles():
         th = BusTripsHandler(route, r.day, vsamp, mpm, writer)
         th.process_all_trips()

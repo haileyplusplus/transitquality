@@ -105,7 +105,7 @@ class Interpolator:
         for route, vid, vsamp in self.reader.generate_vehicles():
             #if not vsamp.empty and vsamp.rn.unique()[0] == '1000':
             #    continue
-            print(f'Processing {route.route} / {vid}')
+            #print(f'Processing {route.route} / {vid}')
             if route.route in self.TRAIN_ROUTES:
                 th = TrainTripsHandler(self.train_manager, route, vsamp)
             else:

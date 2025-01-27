@@ -36,6 +36,25 @@ def fix_interpolation(orig_df: pd.DataFrame):
         orig_df.iloc[x] = corrected_tmstmp
 
 
+class RouteStats:
+    def __init__(self, route_name):
+        self.route_name = route_name
+        self.trips = 0
+        self.fail = 0
+
+    def record_trip(self, fail):
+        self.trips += 1
+        if fail:
+            self.fail += 1
+
+    def __str__(self):
+        if self.trips <= 0:
+            pct = 0
+        else:
+            pct = (self.fail * 100.0) / self.trips
+        return f'Route {self.route_name}: {self.trips} with {self.fail} failing ({pct}%)'
+
+
 class TrainManager:
     CHICAGO = 'EPSG:26916'  # unit: meters
 
@@ -48,6 +67,14 @@ class TrainManager:
         self.daily_trips = self.feed.get_trips(self.day)
         self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(TrainManager.CHICAGO).set_index('shape_id')
         self.error_trips = []
+        self.stats = {}
+
+    def record_trip(self, routestr, fail):
+        self.stats.setdefault(routestr, RouteStats(routestr)).record_trip(fail)
+
+    def output_stats(self):
+        for v in sorted(self.stats.values()):
+            print(v)
 
     @staticmethod
     def applysplit(x):

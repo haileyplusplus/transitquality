@@ -69,3 +69,8 @@ too-fast interpolations: weed out
 operational:
  better health checks
  postmortem: citycollege crashed due to excess cpu or memory usage while bundling. leonard was running but bus scraping wasn't working due to api key errors after code update. The status page gave no indication that bus scraping was broken.
+
+
+interpolator:
+ - purple line schedules need cutover. schedule trip shows both out and back.
+ - 

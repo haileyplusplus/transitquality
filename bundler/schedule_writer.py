@@ -1,6 +1,8 @@
 from pathlib import Path
 import csv
 
+from bundler.sinks import SinkInterface
+
 
 class ScheduleWriter:
     FEEDS_AND_FIELDS = {
@@ -38,3 +40,13 @@ class ScheduleWriter:
         for fh in self.file_handlers:
             fh.close()
 
+
+class ScheduleSink(SinkInterface):
+    def __init__(self, writer: ScheduleWriter):
+        self.writer = writer
+
+    def trip_update(self, trip_row: dict):
+        self.writer.write('trips', trip_row)
+
+    def stop_time_update(self, row: dict):
+        self.writer.write('stop_times', row)

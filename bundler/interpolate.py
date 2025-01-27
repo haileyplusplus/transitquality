@@ -10,7 +10,7 @@ from typing import Iterable
 import gtfs_kit
 
 from bundler.bundlereader import BundleReader, MemoryPatternManager
-from bundler.schedule_writer import ScheduleWriter
+from bundler.schedule_writer import ScheduleWriter, ScheduleSink
 from bundler.interpolate_bus import BusTripsHandler
 from bundler.interpolate_train import TrainTripsHandler, TrainManager
 
@@ -101,6 +101,7 @@ class Interpolator:
                 'agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
             # mpm.write_routes(dw)
         TrainTripsHandler.write_all_stops(self.feed, writer)
+        sink = ScheduleSink(writer)
 
         for route, vid, vsamp in self.reader.generate_vehicles():
             #if not vsamp.empty and vsamp.rn.unique()[0] == '1000':
@@ -109,7 +110,7 @@ class Interpolator:
             if route.route in self.TRAIN_ROUTES:
                 th = TrainTripsHandler(self.train_manager, route, vsamp)
             else:
-                th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, writer)
+                th = BusTripsHandler(route, self.daystr, vsamp, self.mpm, sink)
             self.current = th
             th.process_all_trips()
             if isinstance(th, TrainTripsHandler) and th.any_error:

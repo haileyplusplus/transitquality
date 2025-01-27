@@ -15,7 +15,8 @@ from typing import Iterable
 import pandas as pd
 
 from bundler.bundlereader import MemoryPatternManager, Route
-from bundler.schedule_writer import ScheduleWriter
+from bundler.sinks import SinkInterface
+#from bundler.schedule_writer import ScheduleWriter
 from backend.util import Util
 
 
@@ -23,7 +24,7 @@ class BusTripsHandler:
     def __init__(self, routex: Route,
                  day: str,
                  vehicle_df: pd.DataFrame, mpm: MemoryPatternManager,
-                 writer: ScheduleWriter):
+                 sink: SinkInterface):
         self.route = routex
         self.day = day
         self.vehicle_id = vehicle_df.vid.unique()[0]
@@ -36,7 +37,7 @@ class BusTripsHandler:
         self.error = None
         self.mpm = mpm
         self.output_df = pd.DataFrame()
-        self.writer = writer
+        self.sink = sink
         self.any_error = False
 
     def record_error(self, trip_id, msg):
@@ -56,7 +57,8 @@ class BusTripsHandler:
                 'service_id': self.day,
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
             }
-            self.writer.write('trips', trip_row)
+            #self.writer.write('trips', trip_row)
+            self.sink.trip_update(trip_row)
             self.process_trip(trip_id)
 
     def process_trip(self, trip_id: str, debug=False):
@@ -122,5 +124,6 @@ class BusTripsHandler:
                 'stop_sequence': pattern_stop.sequence_no,
                 'shape_dist_traveled': pattern_stop.pattern_distance,
             }
-            self.writer.write('stop_times', row)
+            #self.writer.write('stop_times', row)
+            self.sink.stop_time_update(row)
             stopseq.add(pattern_stop.sequence_no)

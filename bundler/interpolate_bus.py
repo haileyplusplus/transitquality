@@ -14,7 +14,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from bundler.bundlereader import BundleReader, MemoryPatternManager, Route
+from bundler.bundlereader import MemoryPatternManager, Route
 from bundler.schedule_writer import ScheduleWriter
 from backend.util import Util
 
@@ -51,11 +51,12 @@ class BusTripsHandler:
 
     def process_all_trips(self):
         for trip_id in self.trip_ids:
-            self.writer.write('trips', {
+            trip_row = {
                 'route_id': self.route.route,
                 'service_id': self.day,
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
-            })
+            }
+            self.writer.write('trips', trip_row)
             self.process_trip(trip_id)
 
     def process_trip(self, trip_id: str, debug=False):
@@ -113,53 +114,13 @@ class BusTripsHandler:
             if pattern_stop.sequence_no in stopseq:
                 continue
             interpolated_timestamp = self.gtfs_time(row.tmstmp)
-            self.writer.write('stop_times', {
+            row = {
                 'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
                 'arrival_time': interpolated_timestamp,
                 'departure_time': interpolated_timestamp,
                 'stop_id': pattern_stop.stop_id,
                 'stop_sequence': pattern_stop.sequence_no,
                 'shape_dist_traveled': pattern_stop.pattern_distance,
-            })
+            }
+            self.writer.write('stop_times', row)
             stopseq.add(pattern_stop.sequence_no)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Read bundles')
-    parser.add_argument('--bundle_file', type=str,
-                        help='File with bus scrape data.')
-    parser.add_argument('--routes', type=str,
-                        help='Comma-separated list of routes.')
-    args = parser.parse_args()
-    bundle_file = Path(args.bundle_file).expanduser()
-    print(f'Routes: {args.routes}')
-    if not args.routes:
-        routes = None
-    else:
-        routes = args.routes.split(',')
-    r = BundleReader(bundle_file, routes)
-    r.process_bundle_file()
-    pdict = json.load((bundle_file.parent / 'patterns2025.json').open())
-    mpm = MemoryPatternManager()
-    mpm.parse(pdict['patterns'])
-    #vsamp = r.routes['8'].get_vehicle('1310')
-    writer = ScheduleWriter(Path('/tmp/take2'), r.day)
-    mpm.write_all_stops(writer)
-    writer.write('calendar_dates', {
-        'service_id': r.day,
-        'date': r.day,
-        'exception_type': 1
-    })
-    for x in r.routes_to_parse:
-        writer.write('routes', {
-            'route_id': x,
-            'route_short_name': x,
-            'route_type': 3
-        })
-    agency_file = writer.output_path / 'agency.txt'
-    with agency_file.open('w') as afh:
-        afh.write('agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url\n0,Chicago Transit Authority,http://transitchicago.com,America/Chicago,en,1-888-YOURCTA,http://www.transitchicago.com/travel_information/fares/default.aspx\n')
-        #mpm.write_routes(dw)
-    for route, _, vsamp in r.generate_vehicles():
-        th = BusTripsHandler(route, r.day, vsamp, mpm, writer)
-        th.process_all_trips()

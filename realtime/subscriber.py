@@ -34,7 +34,11 @@ class TrainUpdater(DatabaseUpdater):
                 if route_db is None:
                     print(f'Unknown route {route_db}')
                     continue
-                for v in route['train']:
+                if isinstance(route['train'], dict):
+                    trains = [route['train']]
+                else:
+                    trains = route['train']
+                for v in trains:
                     run = int(v['rn'])
                     timestamp = datetime.datetime.strptime(v['prdt'], '%Y-%m-%dT%H:%M:%S')
                     existing = session.get(ActiveTrain, {'run': run, 'timestamp': timestamp})

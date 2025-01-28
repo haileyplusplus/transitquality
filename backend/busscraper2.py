@@ -234,9 +234,9 @@ class VehicleTask(ScrapeTask):
         route_ids = set([])
         resp_time = Util.utcnow()
         pattern_ids = set([])
+        if self.callback:
+            self.callback(response)
         for v in response:
-            if self.callback:
-                self.callback(v)
             rt = v.get('rt')
             if not rt:
                 continue

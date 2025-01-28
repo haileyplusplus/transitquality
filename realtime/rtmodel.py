@@ -59,24 +59,31 @@ class Route(Base):
     id: Mapped[str] = mapped_column(String(8), primary_key=True)
     name: Mapped[str]
 
+    patterns: Mapped[List["Pattern"]] = relationship(back_populates="route")
+    active_trips: Mapped[List["ActiveTrip"]] = relationship(back_populates="route")
+    trips: Mapped[List["Trip"]] = relationship(back_populates="route")
+
 
 class Stop(Base):
     __tablename__ = "stop"
 
-    id: Mapped[str] = mapped_column(String(8), primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     stop_name: Mapped[str]
     lat: Mapped[float]
     lon: Mapped[float]
+
+    pattern_stops: Mapped[List["PatternStop"]] = relationship(back_populates="stop")
 
 
 class Pattern(Base):
     __tablename__ = "pattern"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    updated: Mapped[datetime.datetime]
+    updated: Mapped[datetime.datetime] = mapped_column(nullable=True)
     rt = mapped_column(ForeignKey("route.id"))
 
     route: Mapped[Route] = relationship(back_populates="patterns")
+    pattern_stops: Mapped[List["PatternStop"]] = relationship(back_populates="pattern")
 
 
 class PatternStop(Base):
@@ -88,6 +95,9 @@ class PatternStop(Base):
     sequence: Mapped[int]
     distance: Mapped[int]
 
+    pattern: Mapped[Pattern] = relationship(back_populates="pattern_stops")
+    stop: Mapped[Stop] = relationship(back_populates="pattern_stops")
+
 
 class Trip(Base):
     __tablename__ = "trip"
@@ -96,7 +106,7 @@ class Trip(Base):
     service_id: Mapped[str] = mapped_column(String(8))
     rt = mapped_column(ForeignKey("route.id"))
 
-    route: Mapped[Route] = relationship(back_populates="active_trips")
+    route: Mapped[Route] = relationship(back_populates="trips")
 
 
 class Vehicle(Base):
@@ -122,9 +132,10 @@ class ActiveTrip(Base):
     route: Mapped[Route] = relationship(back_populates="active_trips")
 
 
-def db_init():
-    engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
+def db_init(echo=False):
+    engine = create_engine("sqlite+pysqlite:///:memory:", echo=echo)
     Base.metadata.create_all(engine)
+    return engine
 
 
 if __name__ == "__main__":

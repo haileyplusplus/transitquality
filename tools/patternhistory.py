@@ -34,6 +34,12 @@ class PatternHistory:
             for ts, raw in sorted(v.items()):
                 print(f'  {ts}: {hash(raw)}')
 
+    def latest_patterns(self):
+        for k, v in sorted(self.patterns.items()):
+            maxts = max(v.keys())
+            response = json.loads(v[maxts])
+            yield response['bustime-response']['ptr'][0]
+
 
 if __name__ == "__main__":
     ph = PatternHistory(Path('~/transit/s3/getpatterns').expanduser())

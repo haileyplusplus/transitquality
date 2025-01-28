@@ -52,7 +52,7 @@ endpoint = PubSubEndpoint()
 
 def pubsub_callback(obj):
     #pub.sendMessage('vehicles', obj)
-    endpoint.publish(['vehicles'], data=obj)
+    asyncio.create_task(endpoint.publish(['vehicles'], data=obj))
     #print(obj)
 
 

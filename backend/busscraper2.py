@@ -501,7 +501,7 @@ class BusScraper(ScraperInterface):
                 p.save()
         self.count += 1
         if self.count % 20 == 0:
-            pattern_thresh = Util.utcnow() - datetime.timedelta(days=14)
+            pattern_thresh = Util.utcnow() - datetime.timedelta(days=3)
             patterns_to_scrape = (Pattern.select().
                                   where((Pattern.scrape_state == ScrapeState.NEEDS_SCRAPING) |
                                         (Pattern.timestamp < pattern_thresh)).

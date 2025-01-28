@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import sys
 
 from fastapi_websocket_pubsub import PubSubClient
 
@@ -10,11 +11,12 @@ async def updates(data, topic):
     print(f'Update on {topic}: {len(data)} str {len(datastr)} first {datastr[:100]}')
 
 
-async def main():
+async def main(host):
     client = PubSubClient(['vehicles', 'trains'], callback=updates)
-    client.start_client(f'ws://localhost:8002/pubsub')
+    client.start_client(f'ws://{host}:8002/pubsub')
     await client.wait_until_done()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    host = sys.argv[1]
+    asyncio.run(main(host))

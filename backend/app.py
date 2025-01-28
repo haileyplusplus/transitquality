@@ -56,11 +56,16 @@ def pubsub_callback(obj):
     #print(obj)
 
 
+def train_callback(obj):
+    asyncio.create_task(endpoint.publish(['trains'], data=obj))
+
+
 bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
                          fetch_routes=False, write_local=write_local,
                          callback=pubsub_callback)
 bus_runner = Runner(bus_scraper)
-train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60), write_local=write_local)
+train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60),
+                             write_local=write_local, callback=train_callback)
 train_runner = Runner(train_scraper)
 
 #signal.signal(signal.SIGINT, runner.exithandler)

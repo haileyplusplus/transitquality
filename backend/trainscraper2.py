@@ -62,7 +62,7 @@ class TrainScraper(ScraperInterface):
     ERROR_REST = datetime.timedelta(minutes=30)
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
-                 write_local=False):
+                 write_local=False, callback=None):
         super().__init__()
         self.start_time = datetime.datetime.now()
         self.api_key = None
@@ -74,6 +74,7 @@ class TrainScraper(ScraperInterface):
         self.requestor = Requestor(self.BASE_URL, output_dir, output_dir, self.parser,
                                    debug=False, write_local=write_local)
         self.scrape_interval = scrape_interval
+        self.callback = callback
         self.night = False
         logger.info('Train scraper')
         #self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
@@ -125,9 +126,13 @@ class TrainScraper(ScraperInterface):
         if scrape_time < (self.last_scraped + self.get_scrape_interval()):
             return
         cmd = 'ttpositions.aspx'
-        # Nothing in the response affects scraping logic, so we ignore it
-        self.requestor.make_request(cmd,
-                                    rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
+        # response doesn't affect scraping logic but we do want to publish it to
+        # any subscribers
+        response = self.requestor.make_request(
+            cmd, rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
+        if self.callback and response.ok():
+            d = response.payload()
+            self.callback(d)
         self.last_scraped = scrape_time
 
     def do_shutdown(self):

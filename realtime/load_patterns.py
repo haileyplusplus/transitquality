@@ -1,12 +1,33 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+import json
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import Session
 
 from tools.patternhistory import PatternHistory
 from realtime.rtmodel import *
+
+
+def load_routes():
+    engine = db_init()
+    r = Path('~/transit/s3/getroutes/20250107/t025330z.json').expanduser()
+    with r.open() as fh:
+        j = json.load(fh)
+        routes = j['requests'][0]['response']['bustime-response']['routes']
+        with Session(engine) as session:
+            for rt in routes:
+                rt_id: str = rt['rt']
+                route_db = session.get(Route, rt_id)
+                if not route_db:
+                    route_db = Route(
+                        id=rt_id,
+                        name=rt['rtnm']
+                    )
+                    session.add(route_db)
+            session.commit()
+
 
 
 def load():
@@ -14,14 +35,23 @@ def load():
     ph.traverse()
     engine = db_init()
     with Session(engine) as session:
-        for pattern_obj in ph.latest_patterns():
+        for maxts, pattern_obj in ph.latest_patterns():
             pid = pattern_obj['pid']
-            if session.get(Pattern, pid):
-                print(f'Repeat pattern {pid}')
-                continue
-            pattern = Pattern(id=pid,
-                              rt=pattern_obj['ln'])
-            session.add(pattern)
+            updated = maxts
+            pattern = session.get(Pattern, pid)
+            if pattern:
+                #print(f'Repeat pattern {pid}')
+                if updated <= pattern.updated.replace(tzinfo=datetime.UTC):
+                    continue
+                pattern.updated = updated
+                pattern.rt = pattern_obj['ln']
+                stmt = delete(PatternStop).where(PatternStop.pattern_id.is_(pid))
+                session.execute(stmt)
+            else:
+                pattern = Pattern(id=pid,
+                                  updated=updated,
+                                  rt=pattern_obj['ln'])
+                session.add(pattern)
             for pattern_stop_obj in pattern_obj['pt']:
                 if pattern_stop_obj['typ'] != 'S':
                     continue
@@ -42,6 +72,7 @@ def load():
 
 
 if __name__ == "__main__":
+    load_routes()
     engine = load()
     with engine.connect() as conn:
         print(conn.execute(select(func.count('*')).select_from(Pattern)).all())

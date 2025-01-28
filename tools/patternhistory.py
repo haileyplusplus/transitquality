@@ -38,7 +38,7 @@ class PatternHistory:
         for k, v in sorted(self.patterns.items()):
             maxts = max(v.keys())
             response = json.loads(v[maxts])
-            yield response['bustime-response']['ptr'][0]
+            yield maxts, response['bustime-response']['ptr'][0]
 
 
 if __name__ == "__main__":

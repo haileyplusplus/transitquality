@@ -10,12 +10,25 @@ from tools.patternhistory import PatternHistory
 from realtime.rtmodel import *
 
 
+TRAIN_ROUTES = [
+    {'rt': 'red', 'rtnm': 'Red Line'},
+    {'rt': 'blue', 'rtnm': 'Blue Line'},
+    {'rt': 'brn', 'rtnm': 'Brown Line'},
+    {'rt': 'g', 'rtnm': 'Green Line'},
+    {'rt': 'org', 'rtnm': 'Orange Line'},
+    {'rt': 'p', 'rtnm': 'Purple Line'},
+    {'rt': 'pink', 'rtnm': 'Pink Line'},
+    {'rt': 'y', 'rtnm': 'Yellow Line'},
+]
+
+
 def load_routes():
     engine = db_init()
     r = Path('~/transit/s3/getroutes/20250107/t025330z.json').expanduser()
     with r.open() as fh:
         j = json.load(fh)
         routes = j['requests'][0]['response']['bustime-response']['routes']
+        routes += TRAIN_ROUTES
         with Session(engine) as session:
             for rt in routes:
                 rt_id: str = rt['rt']

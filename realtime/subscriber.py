@@ -26,7 +26,38 @@ class TrainUpdater(DatabaseUpdater):
         super().__init__(*args)
 
     def subscriber_callback(self, data):
-        print(f'Train {len(data)}')
+        with Session(self.subscriber.engine) as session:
+            routes = data['route']
+            for route in routes:
+                rt = route['@name']
+                route_db = session.get(Route, rt)
+                if route_db is None:
+                    print(f'Unknown route {route_db}')
+                    continue
+                for v in route['train']:
+                    run = int(v['rn'])
+                    timestamp = datetime.datetime.strptime(v['prdt'], '%Y-%m-%dT%H:%M:%S')
+                    existing = session.get(ActiveTrain, {'run': run, 'timestamp': timestamp})
+                    if existing is not None:
+                        continue
+                    upd = ActiveTrain(
+                        run=run,
+                        timestamp=timestamp,
+                        dest_station=int(v['destSt']),
+                        dest_name=v['destNm'],
+                        direction=int(v['trDr']),
+                        next_station=int(v['nextStaId']),
+                        next_stop=int(v['nextStpId']),
+                        arrival=datetime.datetime.strptime(v['arrT'], '%Y-%m-%dT%H:%M:%S'),
+                        approaching=int(v['isApp']),
+                        delayed=int(v['isDly']),
+                        lat=float(v['lat']),
+                        lon=float(v['lon']),
+                        heading=int(v['heading']),
+                        route=route_db,
+                    )
+                    session.add(upd)
+            session.commit()
 
 
 class BusUpdater(DatabaseUpdater):
@@ -34,7 +65,7 @@ class BusUpdater(DatabaseUpdater):
         super().__init__(*args)
 
     def subscriber_callback(self, data):
-        print(f'Bus {len(data)}')
+        #print(f'Bus {len(data)}')
         with Session(self.subscriber.engine) as session:
             for v in data:
                 vid = int(v['vid'])

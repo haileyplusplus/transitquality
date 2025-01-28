@@ -41,6 +41,8 @@ class Route(Base):
     active_trips: Mapped[List["ActiveTrip"]] = relationship(back_populates="route")
     trips: Mapped[List["Trip"]] = relationship(back_populates="route")
     active_trains: Mapped[List["ActiveTrain"]] = relationship(back_populates="route")
+    current_vehicles: Mapped[List["CurrentVehicleState"]] = relationship(back_populates="route")
+
 
 class Stop(Base):
     __tablename__ = "stop"
@@ -62,6 +64,7 @@ class Pattern(Base):
 
     route: Mapped[Route] = relationship(back_populates="patterns")
     pattern_stops: Mapped[List["PatternStop"]] = relationship(back_populates="pattern")
+    current_vehicles: Mapped[List["CurrentVehicleState"]] = relationship(back_populates="pattern")
 
 
 class PatternStop(Base):
@@ -87,11 +90,21 @@ class Trip(Base):
     route: Mapped[Route] = relationship(back_populates="trips")
 
 
-class Vehicle(Base):
-    __tablename__ = "vehicle"
+class CurrentVehicleState(Base):
+    __tablename__ = "current_vehicle_state"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     last_update: Mapped[datetime.datetime]
+    lat: Mapped[float]
+    lon: Mapped[float]
+    pid = mapped_column(ForeignKey("pattern.id"))
+    rt = mapped_column(ForeignKey("route.id"))
+    distance: Mapped[int]
+    origtatripno: Mapped[str]
+    destination: Mapped[str]
+
+    route: Mapped[Route] = relationship(back_populates="current_vehicles")
+    pattern: Mapped[Pattern] = relationship(back_populates="current_vehicles")
 
 
 class ActiveTrip(Base):
@@ -104,52 +117,12 @@ class ActiveTrip(Base):
     pid: Mapped[int]
     rt = mapped_column(ForeignKey("route.id"))
     pdist: Mapped[int]
+    tatripid: Mapped[str]
     origtatripno: Mapped[str]
+    tablockid: Mapped[str]
+    destination: Mapped[str]
 
     route: Mapped[Route] = relationship(back_populates="active_trips")
-
-
-class ActiveTrain(Base):
-    __tablename__ = "active_train"
-
-    run: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
-    rt = mapped_column(ForeignKey("route.id"))
-    dest_station: Mapped[int]
-    dest_name: Mapped[str] = mapped_column(String(20))
-    direction: Mapped[int]
-    next_station: Mapped[int]
-    next_stop: Mapped[int]
-    arrival: Mapped[datetime.datetime]
-    approaching: Mapped[bool]
-    delayed: Mapped[bool]
-    lat: Mapped[float]
-    lon: Mapped[float]
-    heading: Mapped[int]
-
-    route: Mapped[Route] = relationship(back_populates="active_trains")
-
-"""
-                            "@name": "red",
-                            "train": [
-                                {
-                                    "rn": "825",
-                                    "destSt": "30173",
-                                    "destNm": "Howard",
-                                    "trDr": "1",
-                                    "nextStaId": "40240",
-                                    "nextStpId": "30046",
-                                    "nextStaNm": "79th",
-                                    "prdt": "2025-01-13T21:57:34",
-                                    "arrT": "2025-01-13T21:58:34",
-                                    "isApp": "1",
-                                    "isDly": "0",
-                                    "flags": null,
-                                    "lat": "41.74593",
-                                    "lon": "-87.62504",
-                                    "heading": "358"
-                                },
-"""
 
 
 """
@@ -174,6 +147,51 @@ class ActiveTrain(Base):
                             "stsd": "2025-01-07"
                         },
 """
+
+class ActiveTrain(Base):
+    __tablename__ = "active_train"
+
+    run: Mapped[int] = mapped_column(primary_key=True)
+    timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
+    rt = mapped_column(ForeignKey("route.id"))
+    dest_station: Mapped[int]
+    dest_name: Mapped[str] = mapped_column(String(20))
+    direction: Mapped[int]
+    next_station: Mapped[int]
+    next_stop: Mapped[int]
+    arrival: Mapped[datetime.datetime]
+    approaching: Mapped[bool]
+    delayed: Mapped[bool]
+    lat: Mapped[float]
+    lon: Mapped[float]
+    heading: Mapped[int]
+
+    route: Mapped[Route] = relationship(back_populates="active_trains")
+
+
+"""
+                            "@name": "red",
+                            "train": [
+                                {
+                                    "rn": "825",
+                                    "destSt": "30173",
+                                    "destNm": "Howard",
+                                    "trDr": "1",
+                                    "nextStaId": "40240",
+                                    "nextStpId": "30046",
+                                    "nextStaNm": "79th",
+                                    "prdt": "2025-01-13T21:57:34",
+                                    "arrT": "2025-01-13T21:58:34",
+                                    "isApp": "1",
+                                    "isDly": "0",
+                                    "flags": null,
+                                    "lat": "41.74593",
+                                    "lon": "-87.62504",
+                                    "heading": "358"
+                                },
+"""
+
+
 
 def db_init(echo=False):
     engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)

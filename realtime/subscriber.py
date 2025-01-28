@@ -13,6 +13,15 @@ from sqlalchemy.orm import Session
 from realtime.rtmodel import *
 
 
+"""
+Detecting a finished trip:
+ - 99% of way through route
+ - vid update with new pattern or trip no
+ 
+Grouped trip key:
+ - vid, route, pid, origtatripno, day of first update
+"""
+
 class DatabaseUpdater:
     def __init__(self, subscriber):
         self.subscriber = subscriber
@@ -89,9 +98,43 @@ class BusUpdater(DatabaseUpdater):
                     pid=v['pid'],
                     route=route,
                     pdist=v['pdist'],
-                    origtatripno=v['origtatripno']
+                    tatripid=v['tatripid'],
+                    origtatripno=v['origtatripno'],
+                    tablockid=v['tablockid'],
+                    destination=v['des'],
                 )
                 session.add(upd)
+                pattern = session.get(Pattern, v['pid'])
+                if pattern is None:
+                    pattern = Pattern(
+                        id=v['pid'],
+                        updated=datetime.datetime.fromtimestamp(0),
+                        route=route
+                    )
+                    session.add(pattern)
+                existing_state = session.get(CurrentVehicleState, vid)
+                if not existing_state:
+                    current_state = CurrentVehicleState(
+                        id=vid,
+                        last_update=timestamp,
+                        lat=float(v['lat']),
+                        lon=float(v['lon']),
+                        route=route,
+                        distance=v['pdist'],
+                        origtatripno=v['origtatripno'],
+                        pattern=pattern,
+                        destination=v['des'],
+                    )
+                    session.add(current_state)
+                elif timestamp > existing_state.last_update:
+                    existing_state.last_update = timestamp
+                    existing_state.lat = float(v['lat'])
+                    existing_state.lon = float(v['lon'])
+                    existing_state.route = route
+                    existing_state.distance = v['pdist']
+                    existing_state.origtatripno = v['origtatripno']
+                    existing_state.pattern = pattern
+                    existing_state.destination = v['des']
             session.commit()
 
 

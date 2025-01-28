@@ -37,6 +37,7 @@ def load():
                                            sequence=pattern_stop_obj['seq'],
                                            distance=pattern_stop_obj['pdist'])
                 session.add(pattern_stop)
+        session.commit()
     return engine
 
 

@@ -133,7 +133,7 @@ class ActiveTrip(Base):
 
 
 def db_init(echo=False):
-    engine = create_engine("sqlite+pysqlite:///:memory:", echo=echo)
+    engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     Base.metadata.create_all(engine)
     return engine
 

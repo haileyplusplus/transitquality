@@ -29,7 +29,6 @@ def load_routes():
             session.commit()
 
 
-
 def load():
     ph = PatternHistory(Path('~/transit/s3/getpatterns').expanduser())
     ph.traverse()

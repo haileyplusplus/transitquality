@@ -7,28 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
 
 
-"""
-                        {
-                            "vid": "1106",
-                            "tmstmp": "20250107 18:09:32",
-                            "lat": "41.85788345336914",
-                            "lon": "-87.66141510009766",
-                            "hdg": "92",
-                            "pid": 3916,
-                            "rt": "18",
-                            "des": "Michigan Avenue",
-                            "pdist": 25545,
-                            "dly": false,
-                            "tatripid": "87",
-                            "origtatripno": "259615897",
-                            "tablockid": "18 -205",
-                            "zone": "",
-                            "mode": 1,
-                            "psgld": "N/A",
-                            "stst": 63630,
-                            "stsd": "2025-01-07"
-                        },
-"""
 
 """
             row = {
@@ -119,9 +97,8 @@ class Vehicle(Base):
 class ActiveTrip(Base):
     __tablename__ = "active_trip"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    vid = mapped_column(ForeignKey("vehicle.id"))
-    tmstmp: Mapped[datetime.datetime]
+    vid: Mapped[int] = mapped_column(primary_key=True)
+    timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
     lat: Mapped[float]
     lon: Mapped[float]
     pid: Mapped[int]
@@ -131,6 +108,30 @@ class ActiveTrip(Base):
 
     route: Mapped[Route] = relationship(back_populates="active_trips")
 
+
+
+"""
+                        {
+                            "vid": "1106",
+                            "tmstmp": "20250107 18:09:32",
+                            "lat": "41.85788345336914",
+                            "lon": "-87.66141510009766",
+                            "hdg": "92",
+                            "pid": 3916,
+                            "rt": "18",
+                            "des": "Michigan Avenue",
+                            "pdist": 25545,
+                            "dly": false,
+                            "tatripid": "87",
+                            "origtatripno": "259615897",
+                            "tablockid": "18 -205",
+                            "zone": "",
+                            "mode": 1,
+                            "psgld": "N/A",
+                            "stst": 63630,
+                            "stsd": "2025-01-07"
+                        },
+"""
 
 def db_init(echo=False):
     engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)

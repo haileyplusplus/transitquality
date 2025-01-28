@@ -1,0 +1,131 @@
+import datetime
+from typing import List
+from typing import Optional
+
+from sqlalchemy import create_engine, String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase
+
+
+"""
+                        {
+                            "vid": "1106",
+                            "tmstmp": "20250107 18:09:32",
+                            "lat": "41.85788345336914",
+                            "lon": "-87.66141510009766",
+                            "hdg": "92",
+                            "pid": 3916,
+                            "rt": "18",
+                            "des": "Michigan Avenue",
+                            "pdist": 25545,
+                            "dly": false,
+                            "tatripid": "87",
+                            "origtatripno": "259615897",
+                            "tablockid": "18 -205",
+                            "zone": "",
+                            "mode": 1,
+                            "psgld": "N/A",
+                            "stst": 63630,
+                            "stsd": "2025-01-07"
+                        },
+"""
+
+"""
+            row = {
+                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
+                'arrival_time': interpolated_timestamp,
+                'departure_time': interpolated_timestamp,
+                'stop_id': pattern_stop.stop_id,
+                'stop_sequence': pattern_stop.sequence_no,
+                'shape_dist_traveled': pattern_stop.pattern_distance,
+            }
+
+            trip_row = {
+                'route_id': self.route.route,
+                'service_id': self.day,
+                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
+            }
+
+"""
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Route(Base):
+    __tablename__ = "route"
+
+    id: Mapped[str] = mapped_column(String(8), primary_key=True)
+    name: Mapped[str]
+
+
+class Stop(Base):
+    __tablename__ = "stop"
+
+    id: Mapped[str] = mapped_column(String(8), primary_key=True)
+    stop_name: Mapped[str]
+    lat: Mapped[float]
+    lon: Mapped[float]
+
+
+class Pattern(Base):
+    __tablename__ = "pattern"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    updated: Mapped[datetime.datetime]
+    rt = mapped_column(ForeignKey("route.id"))
+
+    route: Mapped[Route] = relationship(back_populates="patterns")
+
+
+class PatternStop(Base):
+    __tablename__ = "pattern_stop"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pattern_id = mapped_column(ForeignKey("pattern.id"))
+    stop_id = mapped_column(ForeignKey("stop.id"))
+    sequence: Mapped[int]
+    distance: Mapped[int]
+
+
+class Trip(Base):
+    __tablename__ = "trip"
+
+    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    service_id: Mapped[str] = mapped_column(String(8))
+    rt = mapped_column(ForeignKey("route.id"))
+
+    route: Mapped[Route] = relationship(back_populates="active_trips")
+
+
+class Vehicle(Base):
+    __tablename__ = "vehicle"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    last_update: Mapped[datetime.datetime]
+
+
+class ActiveTrip(Base):
+    __tablename__ = "active_trip"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vid = mapped_column(ForeignKey("vehicle.id"))
+    tmstmp: Mapped[datetime.datetime]
+    lat: Mapped[float]
+    lon: Mapped[float]
+    pid: Mapped[int]
+    rt = mapped_column(ForeignKey("route.id"))
+    pdist: Mapped[int]
+    origtatripno: Mapped[str]
+
+    route: Mapped[Route] = relationship(back_populates="active_trips")
+
+
+def db_init():
+    engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
+    Base.metadata.create_all(engine)
+
+
+if __name__ == "__main__":
+    db_init()

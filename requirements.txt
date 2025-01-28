@@ -11,3 +11,5 @@ python-git-info==0.8.3
 pandas==2.2.3
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
+pypubsub==4.0.3
+fastapi_websocket_pubsub==0.3.9

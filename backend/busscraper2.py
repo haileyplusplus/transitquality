@@ -219,8 +219,9 @@ class PatternTask(ScrapeTask):
 
 
 class VehicleTask(ScrapeTask):
-    def __init__(self, models: Iterable[Route]):
+    def __init__(self, models: Iterable[Route], callback):
         super().__init__(models)
+        self.callback = callback
 
     def get_key(self, model: Route):
         return model.route_id
@@ -234,6 +235,8 @@ class VehicleTask(ScrapeTask):
         resp_time = Util.utcnow()
         pattern_ids = set([])
         for v in response:
+            if self.callback:
+                self.callback(v)
             rt = v.get('rt')
             if not rt:
                 continue
@@ -347,8 +350,9 @@ class PredictionTask(ScrapeTask):
 
 
 class Routes:
-    def __init__(self, requestor):
+    def __init__(self, requestor, callback):
         self.requestor = requestor
+        self.callback = callback
         self.routes = {}
 
     def initialize(self, fetch_routes=False):
@@ -395,7 +399,7 @@ class Routes:
         #for r in models:
         #    r.scrape_state = ScrapeState.PENDING
         #    r.save()
-        return VehicleTask(models=routes)
+        return VehicleTask(models=routes, callback=self.callback)
 
     def choose_predictions(self, scrape_interval):
         # select up to 5 patterns without current prediction times
@@ -422,7 +426,7 @@ class BusScraper(ScraperInterface):
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
                  debug=False, dry_run=False, scrape_predictions=False,
-                 fetch_routes=False, write_local=False):
+                 fetch_routes=False, write_local=False, callback=None):
         super().__init__()
         self.start_time = Util.utcnow()
         self.dry_run = dry_run
@@ -432,7 +436,7 @@ class BusScraper(ScraperInterface):
         self.requestor = Requestor(self.BASE_URL,
                                    output_dir, output_dir, BusParser(),
                                    debug=debug, write_local=write_local)
-        self.routes = Routes(self.requestor)
+        self.routes = Routes(self.requestor, callback)
         self.count = 0
         self.scrape_predictions = scrape_predictions
         #self.routes.initialize(fetch_routes)

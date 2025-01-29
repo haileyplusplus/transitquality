@@ -147,15 +147,23 @@ class Subscriber:
         self.bus_updater = BusUpdater(self)
 
     async def callback(self, data, topic):
-        if topic == 'vehicles':
-            self.bus_updater.subscriber_callback(data)
-        elif topic == 'trains':
-            self.train_updater.subscriber_callback(data)
+        if 'catchup' in topic:
+            datalist = data
         else:
-            print(f'Warning! Unexpected topic {topic}')
+            datalist = [data]
+        for item in datalist:
+            response = item['response']
+            if 'getvehicles' in topic:
+                self.bus_updater.subscriber_callback(response['bustime-response']['vehicle'])
+            elif 'ttpositions' in topic:
+                self.train_updater.subscriber_callback(response['ctatt'])
+            else:
+                print(f'Warning! Unexpected topic {topic}')
 
     def initialize_clients(self):
-        self.client = PubSubClient(['vehicles', 'trains'], callback=self.callback)
+        self.client = PubSubClient(
+            ['getvehicles', 'ttpositions.aspx', 'catchup-getvehicles', 'catchup-ttpositions.aspx'],
+            callback=self.callback)
 
     async def start_clients(self):
         self.client.start_client(f'ws://{self.host}:8002/pubsub')

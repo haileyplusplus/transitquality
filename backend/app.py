@@ -66,7 +66,8 @@ class SubscriptionManager:
 
     def create_endpoint(self, app):
         async def connection_callback(channel: RpcChannel):
-            self.needs_init.add(channel)
+            self.needs_init.add('bus')
+            self.needs_init.add('train')
 
         endpoint = PubSubEndpoint(on_connect=[connection_callback])
         endpoint.register_route(app, '/pubsub')
@@ -74,7 +75,11 @@ class SubscriptionManager:
         return self.endpoint
 
     def common_callback(self, command, bundles):
-        if self.needs_init:
+        if command == 'ttpositions.aspx':
+            conntype = 'train'
+        else:
+            conntype = 'bus'
+        if conntype in self.needs_init:
             for k, v in bundles.items():
                 if k == command:
                     datalist = v[:-1]
@@ -82,7 +87,7 @@ class SubscriptionManager:
                     datalist = v
                 asyncio.create_task(self.endpoint.publish([f'catchup-{k}'],
                                                           data=datalist))
-        self.needs_init = set([])
+            self.needs_init.discard(conntype)
         objlist = bundles[command]
         asyncio.create_task(self.endpoint.publish([command], data=objlist[-1]))
 

@@ -103,7 +103,7 @@ class BusUpdater(DatabaseUpdater):
             current_key = (existing_vehicle_state.pid, existing_vehicle_state.origtatripno)
             if (datetime.datetime.now() - existing_vehicle_state.last_update) > datetime.timedelta(minutes=15):
                 include_current = True
-            statement = select(ActiveTrip).where(ActiveTrip.vid.is_(vid)).order_by(ActiveTrip.timestamp)
+            statement = select(ActiveTrip).where(ActiveTrip.vid == vid).order_by(ActiveTrip.timestamp)
             prev_key = None
             current_trip = None
             for trip_item in session.scalars(statement):

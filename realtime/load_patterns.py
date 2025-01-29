@@ -22,9 +22,9 @@ TRAIN_ROUTES = [
 ]
 
 
-def load_routes():
+def load_routes(path='~/transit/s3/getroutes/20250107/t025330z.json'):
     engine = db_init()
-    r = Path('~/transit/s3/getroutes/20250107/t025330z.json').expanduser()
+    r = Path(path).expanduser()
     with r.open() as fh:
         j = json.load(fh)
         routes = j['requests'][0]['response']['bustime-response']['routes']
@@ -42,8 +42,10 @@ def load_routes():
             session.commit()
 
 
-def load():
-    ph = PatternHistory(Path('~/transit/s3/getpatterns').expanduser())
+def load(path='~/transit/s3/getpatterns'):
+    pattern_path = Path(path).expanduser()
+    print(f'Pattern path: {pattern_path} exists {pattern_path.exists()}')
+    ph = PatternHistory(pattern_path)
     ph.traverse()
     engine = db_init()
     with Session(engine) as session:

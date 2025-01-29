@@ -12,6 +12,7 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 
 from realtime.rtmodel import *
+from realtime.load_patterns import load_routes, load
 
 
 """
@@ -228,6 +229,10 @@ class Subscriber:
 
 
 if __name__ == "__main__":
+    load_routes(path='realtime/routes.json')
+    engine = load(path='/patterns')
+    print(f'Loaded data')
     subscriber = Subscriber(sys.argv[1])
     subscriber.initialize_clients()
+    print(f'Starting subscriber')
     asyncio.run(subscriber.start_clients())

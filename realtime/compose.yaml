@@ -1,0 +1,61 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker Compose reference guide at
+# https://docs.docker.com/go/compose-spec-reference/
+
+# Here the instructions define your application as a service called "server".
+# This service is built from the Dockerfile in the current directory.
+# You can add other services your application may depend on here, such as a
+# database or a cache. For examples, see the Awesome Compose repository:
+# https://github.com/docker/awesome-compose
+services:
+  rtserver:
+    build:
+      context: ..
+      dockerfile: realtime/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 900M
+    volumes:
+      - ~/transit/bustracker/raw/getpatterns:/patterns
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+    network_mode: service:transit-realtime-sidecar
+    depends_on:
+      - transit-realtime-sidecar
+
+  ## Watchtower upgrades services automatically (optional)
+  ## see https://docs.transit-realtime.app/getting-started/updates/#watchtower
+  #
+  # watchtower:
+  #   restart: unless-stopped
+  #   image: containrrr/watchtower
+  #   environment:
+  #     WATCHTOWER_CLEANUP: "true"
+  #     WATCHTOWER_POLL_INTERVAL: 7200 # checks for updates every two hours
+  #   volumes:
+  #     - "/var/run/docker.sock:/var/run/docker.sock"
+  #     - "~/.docker/config.json:/config.json" # optional, for authentication if you have a Docker Hub account
+  transit-realtime-sidecar:
+    image: tailscale/tailscale:latest
+    container_name: ts-transit-realtime
+    hostname: rttransit
+    environment:
+      - TS_AUTHKEY=tskey-auth-kyhNRZiosi11CNTRL-EnHCSi8Hgq1HcC84oHd1r1qMTEnmWoM7F
+      #- TS_SERVE_CONFIG=/config/serve-transit-realtime.json
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - transit-realtime-tailscale-state:/var/lib/tailscale
+      - ${PWD}/tsconfig:/config
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+volumes:
+  transit-realtime-tailscale-state:  

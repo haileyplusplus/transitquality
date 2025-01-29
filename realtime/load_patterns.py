@@ -58,13 +58,13 @@ def load(path='~/transit/s3/getpatterns'):
                 if updated <= pattern.updated.replace(tzinfo=datetime.UTC):
                     continue
                 pattern.updated = updated
-                pattern.rt = pattern_obj['ln']
+                pattern.length = pattern_obj['ln']
                 stmt = delete(PatternStop).where(PatternStop.pattern_id.is_(pid))
                 session.execute(stmt)
             else:
                 pattern = Pattern(id=pid,
                                   updated=updated,
-                                  rt=pattern_obj['ln'])
+                                  length=pattern_obj['ln'])
                 session.add(pattern)
             for pattern_stop_obj in pattern_obj['pt']:
                 if pattern_stop_obj['typ'] != 'S':

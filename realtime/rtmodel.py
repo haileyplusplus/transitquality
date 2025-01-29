@@ -60,7 +60,8 @@ class Pattern(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     updated: Mapped[datetime.datetime]
-    rt = mapped_column(ForeignKey("route.id"))
+    rt = mapped_column(ForeignKey("route.id"), nullable=True)
+    length: Mapped[int]
 
     route: Mapped[Route] = relationship(back_populates="patterns")
     pattern_stops: Mapped[List["PatternStop"]] = relationship(back_populates="pattern")

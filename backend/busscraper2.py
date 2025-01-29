@@ -435,8 +435,9 @@ class BusScraper(ScraperInterface):
         self.output_dir = output_dir
         self.requestor = Requestor(self.BASE_URL,
                                    output_dir, output_dir, BusParser(),
-                                   debug=debug, write_local=write_local)
-        self.routes = Routes(self.requestor, callback)
+                                   debug=debug, write_local=write_local,
+                                   callback=callback)
+        self.routes = Routes(self.requestor, callback=None)
         self.count = 0
         self.scrape_predictions = scrape_predictions
         #self.routes.initialize(fetch_routes)

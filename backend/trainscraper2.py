@@ -72,7 +72,7 @@ class TrainScraper(ScraperInterface):
         self.output_dir = output_dir
         self.parser = TrainParser()
         self.requestor = Requestor(self.BASE_URL, output_dir, output_dir, self.parser,
-                                   debug=False, write_local=write_local)
+                                   debug=False, write_local=write_local, callback=callback)
         self.scrape_interval = scrape_interval
         self.callback = callback
         self.night = False
@@ -128,11 +128,12 @@ class TrainScraper(ScraperInterface):
         cmd = 'ttpositions.aspx'
         # response doesn't affect scraping logic but we do want to publish it to
         # any subscribers
-        response = self.requestor.make_request(
+        #response = (
+        self.requestor.make_request(
             cmd, rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
-        if self.callback and response.ok():
-            d = response.payload()
-            self.callback(d)
+        #if self.callback and response.ok():
+        #    d = response.payload()
+        #    self.callback(d)
         self.last_scraped = scrape_time
 
     def do_shutdown(self):

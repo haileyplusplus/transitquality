@@ -21,12 +21,13 @@ class Bundler:
     VERSION = '2.0'
     BATCH_TIME = datetime.timedelta(minutes=5)
 
-    def __init__(self, write_local=False, s3client=None, rawdatadir=None):
+    def __init__(self, write_local=False, s3client=None, rawdatadir=None, callback=None):
         self.bundles = {}
         self.write_local = write_local
         self.s3client = s3client
         self.rawdatadir = rawdatadir
         self.last_write_time = Util.utcnow()
+        self.callback = callback
 
     def maybe_write(self):
         elapsed = Util.utcnow() - self.last_write_time
@@ -64,6 +65,8 @@ class Bundler:
         bl.append({'request_args': request_args,
                    'request_time': request_time.isoformat(),
                    'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
+        if self.callback:
+            self.callback(command, bl)
 
     def status(self):
         d = {'last_write_time': self.last_write_time}
@@ -95,7 +98,7 @@ class Requestor:
 
     def __init__(self, base_url: str,
                  output_dir: Path, rawdatadir: Path, parser: ParserInterface,
-                 debug=False, write_local=False):
+                 debug=False, write_local=False, callback=None):
         self.start_time = Util.utcnow()
         self.api_key = None
         self.output_dir = output_dir
@@ -110,7 +113,8 @@ class Requestor:
             self.s3client = None
         else:
             self.s3client = S3Client()
-        self.bundler = Bundler(self.write_local, self.s3client, rawdatadir=self.rawdatadir)
+        self.bundler = Bundler(self.write_local, self.s3client, rawdatadir=self.rawdatadir,
+                               callback=callback)
         self.logfile = None
         self.initialize_logging()
 

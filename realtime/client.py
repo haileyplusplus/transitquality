@@ -11,8 +11,16 @@ async def updates(data, topic):
     print(f'Update on {topic}: {len(data)} str {len(datastr)} first {datastr[:100]}')
 
 
+TOPICS = [
+    'getvehicles',
+    'ttpositions.aspx',
+    'getpredictions',
+    'getpatterns'
+]
+
 async def main(host):
-    client = PubSubClient(['vehicles', 'trains'], callback=updates)
+    catchup_topics = [f'catchup-{x}' for x in TOPICS]
+    client = PubSubClient(catchup_topics + TOPICS, callback=updates)
     client.start_client(f'ws://{host}:8002/pubsub')
     await client.wait_until_done()
 

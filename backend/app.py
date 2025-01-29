@@ -14,6 +14,7 @@ import sys
 from playhouse.shortcuts import model_to_dict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_websocket_pubsub import PubSubEndpoint
+from fastapi_websocket_rpc import RpcChannel
 
 from backend.busscraper2 import BusScraper
 from backend.trainscraper2 import TrainScraper
@@ -47,25 +48,47 @@ else:
     #sys.exit(1)
 # logdir.mkdir(parents=True, exist_ok=True)
 
-endpoint = PubSubEndpoint()
+#
+# def pubsub_callback(obj):
+#     #pub.sendMessage('vehicles', obj)
+#     asyncio.create_task(endpoint.publish(['vehicles'], data=obj))
+#     #print(obj)
+#
+#
+# def train_callback(obj):
+#     asyncio.create_task(endpoint.publish(['trains'], data=obj))
 
 
-def pubsub_callback(obj):
-    #pub.sendMessage('vehicles', obj)
-    asyncio.create_task(endpoint.publish(['vehicles'], data=obj))
-    #print(obj)
+class SubscriptionManager:
+    def __init__(self):
+        self.needs_init = set([])
+        self.endpoint = None
+
+    def create_endpoint(self, app):
+        async def connection_callback(channel: RpcChannel):
+            self.needs_init.add(channel)
+
+        endpoint = PubSubEndpoint(on_connect=[connection_callback])
+        endpoint.register_route(app, '/pubsub')
+        self.endpoint = endpoint
+        return self.endpoint
+
+    def common_callback(self, command, objlist):
+        if self.needs_init and len(objlist) > 1:
+            asyncio.create_task(self.endpoint.publish([f'catchup-{command}'], data=objlist[:-1]))
+        self.needs_init = set([])
+        asyncio.create_task(self.endpoint.publish([command], data=objlist[-1]))
 
 
-def train_callback(obj):
-    asyncio.create_task(endpoint.publish(['trains'], data=obj))
+subscription_manager = SubscriptionManager()
 
 
 bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
                          fetch_routes=False, write_local=write_local,
-                         callback=pubsub_callback)
+                         callback=subscription_manager.common_callback)
 bus_runner = Runner(bus_scraper)
 train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60),
-                             write_local=write_local, callback=train_callback)
+                             write_local=write_local, callback=subscription_manager.common_callback)
 train_runner = Runner(train_scraper)
 
 #signal.signal(signal.SIGINT, runner.exithandler)
@@ -94,7 +117,7 @@ class Settings(BaseSettings):
 
 app = FastAPI(lifespan=lifespan)
 print(f'Registering app route for pubsub')
-endpoint.register_route(app, '/pubsub')
+subscription_manager.create_endpoint(app)
 
 
 def apply_settings():

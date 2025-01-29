@@ -133,7 +133,7 @@ class BusUpdater(DatabaseUpdater):
 
     def subscriber_callback(self, data):
         #print(f'Bus {len(data)}')
-        self.finish_past_trips()
+        #self.finish_past_trips()
         with Session(self.subscriber.engine) as session:
             for v in data:
                 vid = int(v['vid'])

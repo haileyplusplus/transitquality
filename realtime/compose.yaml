@@ -25,20 +25,31 @@ services:
           path: .
     network_mode: service:transit-realtime-sidecar
     depends_on:
-      - transit-realtime-sidecar
-
-  ## Watchtower upgrades services automatically (optional)
-  ## see https://docs.transit-realtime.app/getting-started/updates/#watchtower
-  #
-  # watchtower:
-  #   restart: unless-stopped
-  #   image: containrrr/watchtower
-  #   environment:
-  #     WATCHTOWER_CLEANUP: "true"
-  #     WATCHTOWER_POLL_INTERVAL: 7200 # checks for updates every two hours
-  #   volumes:
-  #     - "/var/run/docker.sock:/var/run/docker.sock"
-  #     - "~/.docker/config.json:/config.json" # optional, for authentication if you have a Docker Hub account
+      db:
+        condition: service_healthy
+      transit-realtime-sidecar:
+        condition: service_started
+  db:
+     image: postgis/postgis
+     restart: always
+     user: postgres
+     volumes:
+       - db-data:/var/lib/postgresql/data
+     network_mode: service:transit-realtime-sidecar
+     environment:
+       - POSTGRES_SERVER=db
+       - POSTGRES_DB=rttransitstate
+       - POSTGRES_PASSWORD=rttransit
+     #ports:
+     #  - 5432:5432
+     healthcheck:
+       test: [ "CMD", "pg_isready" ]
+       interval: 10s
+       timeout: 5s
+       retries: 5
+     depends_on:
+       transit-realtime-sidecar:
+         condition: service_started
   transit-realtime-sidecar:
     image: tailscale/tailscale:latest
     container_name: ts-transit-realtime
@@ -58,4 +69,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  transit-realtime-tailscale-state:  
+  transit-realtime-tailscale-state:
+  db-data:

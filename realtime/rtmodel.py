@@ -207,7 +207,8 @@ class ActiveTrain(Base):
 
 
 def db_init(echo=False):
-    engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
+    #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
+    engine = create_engine("postgresql://postgres:rttransit@localhost/rttransitstate", echo=echo)
     Base.metadata.create_all(engine)
     return engine
 

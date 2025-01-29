@@ -8,6 +8,7 @@ import asyncio
 import sys
 
 from fastapi_websocket_pubsub import PubSubClient
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 
 from realtime.rtmodel import *
@@ -21,6 +22,7 @@ Detecting a finished trip:
 Grouped trip key:
  - vid, route, pid, origtatripno, day of first update
 """
+
 
 class DatabaseUpdater:
     def __init__(self, subscriber):
@@ -42,6 +44,8 @@ class TrainUpdater(DatabaseUpdater):
                 route_db = session.get(Route, rt)
                 if route_db is None:
                     print(f'Unknown route {route_db}')
+                    continue
+                if 'train' not in route:
                     continue
                 if isinstance(route['train'], dict):
                     trains = [route['train']]
@@ -77,8 +81,58 @@ class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def finish_past_trips(self):
+        with Session(self.subscriber.engine) as session:
+            vids = select(ActiveTrip.vid, func.min(ActiveTrip.timestamp).label("ts")).group_by(ActiveTrip.vid).order_by("ts", "vid")
+            count = 0
+            for vid in session.scalars(vids):
+                self.finish_past_trip(vid)
+                count += 1
+                if count > 20:
+                    break
+            print(f'Finished {count} past trips')
+
+    def finish_past_trip(self, vid):
+        include_current = False
+        with Session(self.subscriber.engine) as session:
+            existing_vehicle_state = session.get(CurrentVehicleState, vid)
+            if not existing_vehicle_state:
+                print(f'No state for {vid}')
+                return
+            current_key = (existing_vehicle_state.pid, existing_vehicle_state.origtatripno)
+            if (datetime.datetime.now() - existing_vehicle_state.last_update) > datetime.timedelta(minutes=15):
+                include_current = True
+            statement = select(ActiveTrip).where(ActiveTrip.vid.is_(vid)).order_by(ActiveTrip.timestamp)
+            prev_key = None
+            current_trip = None
+            for trip_item in session.scalars(statement):
+                key = (trip_item.pid, trip_item.origtatripno)
+                if not include_current and current_key == key:
+                    break
+                if key != prev_key:
+                    ts = trip_item.timestamp.strftime('%Y%m%d%H%M%S')
+                    current_trip_id = f'{ts}.{vid}.{trip_item.pid}'
+                    current_trip = session.get(Trip, current_trip_id)
+                    if current_trip is None:
+                        current_trip = Trip(
+                            id=current_trip_id,
+                            rt=trip_item.route.id,
+                            pid=trip_item.pid
+                        )
+                        session.add(current_trip)
+                nt = TripUpdate(
+                    timestamp=trip_item.timestamp,
+                    distance=trip_item.pdist,
+                    trip=current_trip
+                )
+                session.add(nt)
+                session.delete(trip_item)
+                prev_key = key
+            session.commit()
+
     def subscriber_callback(self, data):
         #print(f'Bus {len(data)}')
+        self.finish_past_trips()
         with Session(self.subscriber.engine) as session:
             for v in data:
                 vid = int(v['vid'])
@@ -145,8 +199,11 @@ class Subscriber:
         self.engine = db_init()
         self.train_updater = TrainUpdater(self)
         self.bus_updater = BusUpdater(self)
+        #print(f'Finishing past trip')
+        #self.bus_updater.finish_past_trips(1744)
 
     async def callback(self, data, topic):
+        print(f'Received {topic} data len {len(str(data))}')
         if 'catchup' in topic:
             datalist = data
         else:

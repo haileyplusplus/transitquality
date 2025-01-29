@@ -83,11 +83,23 @@ class PatternStop(Base):
 class Trip(Base):
     __tablename__ = "trip"
 
-    id: Mapped[str] = mapped_column(String(20), primary_key=True)
-    service_id: Mapped[str] = mapped_column(String(8))
+    id: Mapped[str] = mapped_column(String(30), primary_key=True)
+    #service_id: Mapped[str] = mapped_column(String(8))
     rt = mapped_column(ForeignKey("route.id"))
+    pid = mapped_column(ForeignKey("pattern.id"))
 
     route: Mapped[Route] = relationship(back_populates="trips")
+    trip_updates: Mapped[List["TripUpdate"]] = relationship(back_populates="trip")
+
+
+class TripUpdate(Base):
+    __tablename__ = "trip_update"
+
+    timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
+    trip_id = mapped_column(ForeignKey("trip.id"), primary_key=True)
+    distance: Mapped[int]
+
+    trip: Mapped[Trip] = relationship(back_populates="trip_updates")
 
 
 class CurrentVehicleState(Base):
@@ -147,6 +159,7 @@ class ActiveTrip(Base):
                             "stsd": "2025-01-07"
                         },
 """
+
 
 class ActiveTrain(Base):
     __tablename__ = "active_train"

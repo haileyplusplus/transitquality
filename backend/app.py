@@ -73,10 +73,17 @@ class SubscriptionManager:
         self.endpoint = endpoint
         return self.endpoint
 
-    def common_callback(self, command, objlist):
-        if self.needs_init and len(objlist) > 1:
-            asyncio.create_task(self.endpoint.publish([f'catchup-{command}'], data=objlist[:-1]))
+    def common_callback(self, command, bundles):
+        if self.needs_init:
+            for k, v in bundles.items():
+                if k == command:
+                    datalist = v[:-1]
+                else:
+                    datalist = v
+                asyncio.create_task(self.endpoint.publish([f'catchup-{k}'],
+                                                          data=datalist))
         self.needs_init = set([])
+        objlist = bundles[command]
         asyncio.create_task(self.endpoint.publish([command], data=objlist[-1]))
 
 

@@ -66,7 +66,7 @@ class Bundler:
                    'request_time': request_time.isoformat(),
                    'latency_ms': latency.total_seconds() * 1000, 'response': response_dict})
         if self.callback:
-            self.callback(command, bl)
+            self.callback(command, self.bundles)
 
     def status(self):
         d = {'last_write_time': self.last_write_time}

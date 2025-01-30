@@ -30,7 +30,8 @@ services:
       transit-realtime-sidecar:
         condition: service_started
   db:
-     image: postgis/postgis
+     build:
+       context: postgis
      restart: always
      user: postgres
      volumes:

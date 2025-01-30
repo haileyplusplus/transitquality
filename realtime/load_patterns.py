@@ -72,10 +72,15 @@ def load(path='~/transit/s3/getpatterns'):
                 stop_id = int(pattern_stop_obj['stpid'])
                 stop = session.get(Stop, stop_id)
                 if stop is None:
+                    lat = lat=pattern_stop_obj['lat']
+                    lon = pattern_stop_obj['lon']
+                    geom = f'POINT({lon} {lat})'
                     stop = Stop(id=stop_id,
                                 stop_name=pattern_stop_obj['stpnm'],
-                                lat=pattern_stop_obj['lat'],
-                                lon=pattern_stop_obj['lon'])
+                                geom=geom,
+                                #lat=pattern_stop_obj['lat'],
+                                #lon=pattern_stop_obj['lon']
+                                )
                     session.add(stop)
                 pattern_stop = PatternStop(pattern=pattern, stop=stop,
                                            sequence=pattern_stop_obj['seq'],

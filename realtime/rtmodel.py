@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import create_engine, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
-
+from geoalchemy2 import Geometry
 
 
 """
@@ -49,8 +49,9 @@ class Stop(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     stop_name: Mapped[str]
-    lat: Mapped[float]
-    lon: Mapped[float]
+    #lat: Mapped[float]
+    #lon: Mapped[float]
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
 
     pattern_stops: Mapped[List["PatternStop"]] = relationship(back_populates="stop")
 
@@ -101,6 +102,7 @@ class TripUpdate(Base):
     distance: Mapped[int]
 
     trip: Mapped[Trip] = relationship(back_populates="trip_updates")
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
 
 
 class CurrentVehicleState(Base):
@@ -108,8 +110,9 @@ class CurrentVehicleState(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     last_update: Mapped[datetime.datetime]
-    lat: Mapped[float]
-    lon: Mapped[float]
+    #lat: Mapped[float]
+    #lon: Mapped[float]
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
     pid = mapped_column(ForeignKey("pattern.id"))
     rt = mapped_column(ForeignKey("route.id"))
     distance: Mapped[int]
@@ -125,8 +128,9 @@ class ActiveTrip(Base):
 
     vid: Mapped[int] = mapped_column(primary_key=True)
     timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
-    lat: Mapped[float]
-    lon: Mapped[float]
+    #lat: Mapped[float]
+    #lon: Mapped[float]
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
     pid: Mapped[int]
     rt = mapped_column(ForeignKey("route.id"))
     pdist: Mapped[int]
@@ -176,8 +180,9 @@ class ActiveTrain(Base):
     arrival: Mapped[datetime.datetime]
     approaching: Mapped[bool]
     delayed: Mapped[bool]
-    lat: Mapped[float]
-    lon: Mapped[float]
+    #lat: Mapped[float]
+    #lon: Mapped[float]
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
     heading: Mapped[int]
 
     route: Mapped[Route] = relationship(back_populates="active_trains")

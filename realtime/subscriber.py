@@ -58,6 +58,9 @@ class TrainUpdater(DatabaseUpdater):
                     existing = session.get(ActiveTrain, {'run': run, 'timestamp': timestamp})
                     if existing is not None:
                         continue
+                    lat = v['lat']
+                    lon = v['lon']
+                    geom = f'POINT({lon} {lat})'
                     upd = ActiveTrain(
                         run=run,
                         timestamp=timestamp,
@@ -69,8 +72,9 @@ class TrainUpdater(DatabaseUpdater):
                         arrival=datetime.datetime.strptime(v['arrT'], '%Y-%m-%dT%H:%M:%S'),
                         approaching=int(v['isApp']),
                         delayed=int(v['isDly']),
-                        lat=float(v['lat']),
-                        lon=float(v['lon']),
+                        #lat=float(v['lat']),
+                        #lon=float(v['lon']),
+                        geom=geom,
                         heading=int(v['heading']),
                         route=route_db,
                     )
@@ -145,11 +149,15 @@ class BusUpdater(DatabaseUpdater):
                     continue
                 if existing is not None:
                     continue
+                lat = v['lat']
+                lon = v['lon']
+                geom = f'POINT({lon} {lat})'
                 upd = ActiveTrip(
                     vid=vid,
                     timestamp=timestamp,
-                    lat=float(v['lat']),
-                    lon=float(v['lon']),
+                    #lat=float(v['lat']),
+                    #lon=float(v['lon']),
+                    geom=geom,
                     pid=v['pid'],
                     route=route,
                     pdist=v['pdist'],
@@ -169,11 +177,13 @@ class BusUpdater(DatabaseUpdater):
                     session.add(pattern)
                 existing_state = session.get(CurrentVehicleState, vid)
                 if not existing_state:
+
                     current_state = CurrentVehicleState(
                         id=vid,
                         last_update=timestamp,
-                        lat=float(v['lat']),
-                        lon=float(v['lon']),
+                        #lat=float(v['lat']),
+                        #lon=float(v['lon']),
+                        geom=geom,
                         route=route,
                         distance=v['pdist'],
                         origtatripno=v['origtatripno'],

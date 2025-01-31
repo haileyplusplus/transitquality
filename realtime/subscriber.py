@@ -24,6 +24,14 @@ Grouped trip key:
  - vid, route, pid, origtatripno, day of first update
 """
 
+"""
+Geo queries:
+
+select stop_name, 
+ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM('SRID=4326;POINT(-87.632892 41.903914)'::geometry, 26916) as dist
+from stop ORDER BY dist limit 10;
+
+"""
 
 class DatabaseUpdater:
     def __init__(self, subscriber):
@@ -55,13 +63,13 @@ class TrainUpdater(DatabaseUpdater):
                 for v in trains:
                     run = int(v['rn'])
                     timestamp = datetime.datetime.strptime(v['prdt'], '%Y-%m-%dT%H:%M:%S')
-                    existing = session.get(ActiveTrain, {'run': run, 'timestamp': timestamp})
+                    existing = session.get(TrainPosition, {'run': run, 'timestamp': timestamp})
                     if existing is not None:
                         continue
                     lat = v['lat']
                     lon = v['lon']
                     geom = f'POINT({lon} {lat})'
-                    upd = ActiveTrain(
+                    upd = TrainPosition(
                         run=run,
                         timestamp=timestamp,
                         dest_station=int(v['destSt']),
@@ -77,6 +85,7 @@ class TrainUpdater(DatabaseUpdater):
                         geom=geom,
                         heading=int(v['heading']),
                         route=route_db,
+                        completed=False,
                     )
                     session.add(upd)
             session.commit()
@@ -86,9 +95,16 @@ class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def periodic_cleanup(self):
+        """
+        select count(*) from active_trip where (now() at time zone 'America/Chicago' - active_trip.timestamp) > make_interval(hours => 24);
+        :return:
+        """
+        pass
+
     def finish_past_trips(self):
         with Session(self.subscriber.engine) as session:
-            vids = select(ActiveTrip.vid, func.min(ActiveTrip.timestamp).label("ts")).group_by(ActiveTrip.vid).order_by("ts", "vid")
+            vids = select(BusPosition.vid, func.min(BusPosition.timestamp).label("ts")).group_by(BusPosition.vid).order_by("ts", "vid")
             count = 0
             for vid in session.scalars(vids):
                 self.finish_past_trip(vid)
@@ -107,7 +123,7 @@ class BusUpdater(DatabaseUpdater):
             current_key = (existing_vehicle_state.pid, existing_vehicle_state.origtatripno)
             if (datetime.datetime.now() - existing_vehicle_state.last_update) > datetime.timedelta(minutes=15):
                 include_current = True
-            statement = select(ActiveTrip).where(ActiveTrip.vid == vid).order_by(ActiveTrip.timestamp)
+            statement = select(BusPosition).where(BusPosition.vid == vid).order_by(BusPosition.timestamp)
             prev_key = None
             current_trip = None
             for trip_item in session.scalars(statement):
@@ -142,7 +158,7 @@ class BusUpdater(DatabaseUpdater):
             for v in data:
                 vid = int(v['vid'])
                 timestamp = datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')
-                existing = session.get(ActiveTrip, {'vid': vid, 'timestamp': timestamp})
+                existing = session.get(BusPosition, {'vid': vid, 'timestamp': timestamp})
                 route = session.get(Route, v['rt'])
                 if route is None:
                     print(f'Unknown route {route}')
@@ -152,7 +168,7 @@ class BusUpdater(DatabaseUpdater):
                 lat = v['lat']
                 lon = v['lon']
                 geom = f'POINT({lon} {lat})'
-                upd = ActiveTrip(
+                upd = BusPosition(
                     vid=vid,
                     timestamp=timestamp,
                     #lat=float(v['lat']),
@@ -165,6 +181,7 @@ class BusUpdater(DatabaseUpdater):
                     origtatripno=v['origtatripno'],
                     tablockid=v['tablockid'],
                     destination=v['des'],
+                    completed=False
                 )
                 session.add(upd)
                 pattern = session.get(Pattern, v['pid'])

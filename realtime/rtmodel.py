@@ -38,9 +38,9 @@ class Route(Base):
     name: Mapped[str]
 
     patterns: Mapped[List["Pattern"]] = relationship(back_populates="route")
-    active_trips: Mapped[List["ActiveTrip"]] = relationship(back_populates="route")
+    bus_positions: Mapped[List["BusPosition"]] = relationship(back_populates="route")
     trips: Mapped[List["Trip"]] = relationship(back_populates="route")
-    active_trains: Mapped[List["ActiveTrain"]] = relationship(back_populates="route")
+    active_trains: Mapped[List["TrainPosition"]] = relationship(back_populates="route")
     current_vehicles: Mapped[List["CurrentVehicleState"]] = relationship(back_populates="route")
 
 
@@ -123,8 +123,8 @@ class CurrentVehicleState(Base):
     pattern: Mapped[Pattern] = relationship(back_populates="current_vehicles")
 
 
-class ActiveTrip(Base):
-    __tablename__ = "active_trip"
+class BusPosition(Base):
+    __tablename__ = "bus_position"
 
     vid: Mapped[int] = mapped_column(primary_key=True)
     timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
@@ -138,8 +138,9 @@ class ActiveTrip(Base):
     origtatripno: Mapped[str]
     tablockid: Mapped[str]
     destination: Mapped[str]
+    completed: Mapped[bool]
 
-    route: Mapped[Route] = relationship(back_populates="active_trips")
+    route: Mapped[Route] = relationship(back_populates="bus_positions")
 
 
 """
@@ -166,8 +167,8 @@ class ActiveTrip(Base):
 """
 
 
-class ActiveTrain(Base):
-    __tablename__ = "active_train"
+class TrainPosition(Base):
+    __tablename__ = "train_position"
 
     run: Mapped[int] = mapped_column(primary_key=True)
     timestamp: Mapped[datetime.datetime] = mapped_column(primary_key=True)
@@ -184,8 +185,9 @@ class ActiveTrain(Base):
     #lon: Mapped[float]
     geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
     heading: Mapped[int]
+    completed: Mapped[bool]
 
-    route: Mapped[Route] = relationship(back_populates="active_trains")
+    route: Mapped[Route] = relationship(back_populates="train_positions")
 
 
 """

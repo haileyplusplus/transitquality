@@ -110,6 +110,8 @@ class BusUpdater(DatabaseUpdater):
                                  ' > make_interval(mins => 5)'))
             session.execute(text('update bus_position set completed = true where origtatripno not in '
                                  '(select origtatripno from current_vehicle_state)'))
+            session.execute(text('UPDATE pattern t2 SET rt = t1.rt '
+                                 'FROM bus_position t1 WHERE t2.id = t1.pid'))
             session.commit()
 
     def finish_past_trips(self):
@@ -199,7 +201,8 @@ class BusUpdater(DatabaseUpdater):
                     pattern = Pattern(
                         id=v['pid'],
                         updated=datetime.datetime.fromtimestamp(0),
-                        route=route
+                        route=route,
+                        length=0,
                     )
                     session.add(pattern)
                 existing_state = session.get(CurrentVehicleState, vid)
@@ -270,13 +273,18 @@ class Subscriber:
         await self.client.wait_until_done()
 
 
-async def main():
+def initialize(host: str):
     load_routes(path='realtime/routes.json')
     engine = load(path='/patterns')
     print(f'Loaded data')
-    subscriber = Subscriber(sys.argv[1])
+    subscriber = Subscriber(host)
     subscriber.initialize_clients()
     print(f'Starting subscriber')
+    return subscriber
+
+
+async def main(host: str):
+    subscriber = initialize(host)
     async with asyncio.TaskGroup() as tg:
         client_task = tg.create_task(subscriber.start_clients())
         cleanup_task = tg.create_task(subscriber.periodic_cleanup())
@@ -285,5 +293,6 @@ async def main():
     print(f'Tasks finished.')
     #asyncio.run(subscriber.start_clients())
 
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(sys.argv[1]))

@@ -17,8 +17,8 @@ services:
         limits:
           cpus: '0.75'
           memory: 900M
-    volumes:
-      - ~/transit/bustracker/raw/getpatterns:/patterns
+    #volumes:
+    #  - ~/transit/bustracker/raw/getpatterns:/patterns
     develop:
       watch:
         - action: rebuild

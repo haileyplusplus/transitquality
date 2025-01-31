@@ -543,3 +543,21 @@ class BusScraper(ScraperInterface):
         if not self.requestor.api_key:
             return False
         return True
+
+    @staticmethod
+    def get_pattern_bundle():
+        # oops, we already had this. keeping for posterity
+        scrapetime = Util.utcnow()
+        patterns: Iterable[Pattern] = Pattern.select()
+        rv = []
+        for p in patterns:
+            rv.append({
+                'pid': p.pattern_id,
+                'route_id': p.route,
+                'scraped': p.timestamp.isoformat(),
+                'first_stop': p.first_stop,
+                'direction': p.direction,
+                'length': p.length,
+                'last_seen': p.predicted_time,
+            })
+        return {'patterns': rv, 'timestamp': scrapetime}

@@ -274,8 +274,10 @@ class Subscriber:
 
 
 def initialize(host: str):
-    load_routes(path='realtime/routes.json')
-    engine = load(path='/patterns')
+    #load_routes(path='realtime/routes.json')
+    #engine = load(path='/patterns')
+    load_routes()
+    engine = load()
     print(f'Loaded data')
     subscriber = Subscriber(host)
     subscriber.initialize_clients()

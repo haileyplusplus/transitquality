@@ -3,8 +3,14 @@
 from pathlib import Path
 import json
 
+
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import Session
+from s3path import S3Path
+import boto3
+import botocore
+from botocore.config import Config
+from botocore import UNSIGNED
 
 from tools.patternhistory import PatternHistory
 from realtime.rtmodel import *
@@ -21,12 +27,42 @@ TRAIN_ROUTES = [
     {'rt': 'y', 'rtnm': 'Yellow Line'},
 ]
 
+# boto3.setup_default_session(
+#     region_name='us-east-2',
+# )
 
-def load_routes(path='~/transit/s3/getroutes/20250107/t025330z.json'):
+
+# BUCKET = S3Path('/transitquality2024/bustracker/raw')
+# BUCKET.client = client
+
+
+class S3Getter:
+    def __init__(self):
+        self.client = boto3.client(
+            's3', region_name='us-east-2',
+            config=Config(signature_version=UNSIGNED)
+        )
+        self.bucket = 'transitquality2024'
+
+    def list_with_prefix(self, prefix):
+        return self.client.list_objects(Bucket=self.bucket, Prefix=prefix)
+
+    def get_json_contents(self, key):
+        obj = self.client.get_object(Bucket=self.bucket, Key=key)
+        data = obj['Body'].read()
+        return json.loads(data.decode('utf-8'))
+
+
+def load_routes():
+    # path='~/transit/s3/getroutes/20250107/t025330z.json'
     engine = db_init()
-    r = Path(path).expanduser()
-    with r.open() as fh:
-        j = json.load(fh)
+    #r = Path(path).expanduser()
+    #r = BUCKET / 'getroutes/20250107/t025330z.json'
+    #with r.open() as fh:
+    if True:
+        getter = S3Getter()
+        #j = json.load(fh)
+        j = getter.get_json_contents('bustracker/raw/getroutes/20250107/t025330z.json')
         routes = j['requests'][0]['response']['bustime-response']['routes']
         routes += TRAIN_ROUTES
         with Session(engine) as session:
@@ -42,14 +78,26 @@ def load_routes(path='~/transit/s3/getroutes/20250107/t025330z.json'):
             session.commit()
 
 
-def load(path='~/transit/s3/getpatterns'):
-    pattern_path = Path(path).expanduser()
-    print(f'Pattern path: {pattern_path} exists {pattern_path.exists()}')
-    ph = PatternHistory(pattern_path)
-    ph.traverse()
+def load():
+    # path='~/transit/s3/getpatterns'
+    #pattern_path = Path(path).expanduser()
+    #pattern_path = BUCKET / 'getpatterns'
+    #print(f'Pattern path: {pattern_path} exists {pattern_path.exists()}')
+    #ph = PatternHistory(pattern_path)
+    ph = PatternHistory(Path())
+    getter = S3Getter()
+    keys = getter.list_with_prefix('bustracker/raw/getpatterns/2025')
+    for k in keys['Contents']:
+        jd = getter.get_json_contents(k['Key'])
+        ph.read_json(jd)
+    #ph.traverse()
     engine = db_init()
+    count = 0
     with Session(engine) as session:
         for maxts, pattern_obj in ph.latest_patterns():
+            count += 1
+            if count % 100 == 0:
+                print(f'Read {count} patterns so far')
             pid = pattern_obj['pid']
             updated = maxts
             pattern = session.get(Pattern, pid)
@@ -59,7 +107,7 @@ def load(path='~/transit/s3/getpatterns'):
                     continue
                 pattern.updated = updated
                 pattern.length = pattern_obj['ln']
-                stmt = delete(PatternStop).where(PatternStop.pattern_id.is_(pid))
+                stmt = delete(PatternStop).where(PatternStop.pattern_id.in_([pid]))
                 session.execute(stmt)
             else:
                 pattern = Pattern(id=pid,

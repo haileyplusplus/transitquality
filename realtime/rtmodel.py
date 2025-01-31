@@ -40,7 +40,7 @@ class Route(Base):
     patterns: Mapped[List["Pattern"]] = relationship(back_populates="route")
     bus_positions: Mapped[List["BusPosition"]] = relationship(back_populates="route")
     trips: Mapped[List["Trip"]] = relationship(back_populates="route")
-    active_trains: Mapped[List["TrainPosition"]] = relationship(back_populates="route")
+    train_positions: Mapped[List["TrainPosition"]] = relationship(back_populates="route")
     current_vehicles: Mapped[List["CurrentVehicleState"]] = relationship(back_populates="route")
 
 

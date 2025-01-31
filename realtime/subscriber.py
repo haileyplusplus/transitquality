@@ -8,7 +8,7 @@ import asyncio
 import sys
 
 from fastapi_websocket_pubsub import PubSubClient
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 
 from realtime.rtmodel import *
@@ -98,9 +98,19 @@ class BusUpdater(DatabaseUpdater):
     def periodic_cleanup(self):
         """
         select count(*) from active_trip where (now() at time zone 'America/Chicago' - active_trip.timestamp) > make_interval(hours => 24);
+
+        select count(*) from current_vehicle_state where ((select max(last_update) from current_vehicle_state) - current_vehicle_state.last_update) > make_interval(mins => 5);
+        update bus_position set completed = true where origtatripno not in (select origtatripno from current_vehicle_state);
         :return:
         """
-        pass
+        print(f'Running cleanup')
+        with Session(self.subscriber.engine) as session:
+            session.execute(text('DELETE from current_vehicle_state where ((select max(last_update) from '
+                                 'current_vehicle_state) - current_vehicle_state.last_update)'
+                                 ' > make_interval(mins => 5)'))
+            session.execute(text('update bus_position set completed = true where origtatripno not in '
+                                 '(select origtatripno from current_vehicle_state)'))
+            session.commit()
 
     def finish_past_trips(self):
         with Session(self.subscriber.engine) as session:
@@ -230,6 +240,11 @@ class Subscriber:
         #print(f'Finishing past trip')
         #self.bus_updater.finish_past_trips(1744)
 
+    async def periodic_cleanup(self):
+        while True:
+            self.bus_updater.periodic_cleanup()
+            await asyncio.sleep(60)
+
     async def callback(self, data, topic):
         print(f'Received {topic} data len {len(str(data))}')
         if 'catchup' in topic:
@@ -255,11 +270,20 @@ class Subscriber:
         await self.client.wait_until_done()
 
 
-if __name__ == "__main__":
+async def main():
     load_routes(path='realtime/routes.json')
     engine = load(path='/patterns')
     print(f'Loaded data')
     subscriber = Subscriber(sys.argv[1])
     subscriber.initialize_clients()
     print(f'Starting subscriber')
-    asyncio.run(subscriber.start_clients())
+    async with asyncio.TaskGroup() as tg:
+        client_task = tg.create_task(subscriber.start_clients())
+        cleanup_task = tg.create_task(subscriber.periodic_cleanup())
+    print(client_task.result())
+    print(cleanup_task.result())
+    print(f'Tasks finished.')
+    #asyncio.run(subscriber.start_clients())
+
+if __name__ == "__main__":
+    asyncio.run(main())

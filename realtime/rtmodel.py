@@ -73,8 +73,8 @@ class PatternStop(Base):
     __tablename__ = "pattern_stop"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    pattern_id = mapped_column(ForeignKey("pattern.id"))
-    stop_id = mapped_column(ForeignKey("stop.id"))
+    pattern_id = mapped_column(ForeignKey("pattern.id"))  # manual index
+    stop_id = mapped_column(ForeignKey("stop.id"))  # manual indes
     sequence: Mapped[int]
     distance: Mapped[int]
 
@@ -113,7 +113,7 @@ class CurrentVehicleState(Base):
     #lat: Mapped[float]
     #lon: Mapped[float]
     geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
-    pid = mapped_column(ForeignKey("pattern.id"))
+    pid = mapped_column(ForeignKey("pattern.id"))  # index manually added
     rt = mapped_column(ForeignKey("route.id"))
     distance: Mapped[int]
     origtatripno: Mapped[str]

@@ -1,4 +1,5 @@
 import datetime
+import cProfile
 
 from sqlalchemy import text, select
 from sqlalchemy.orm import Session
@@ -76,12 +77,13 @@ class QueryManager:
                 patterns[row.pattern_id] = dxx
         return list(patterns.values())
 
-
     def get_position_dataframe(self, pid):
         with Session(self.engine) as session:
+            thresh = datetime.datetime.now() - datetime.timedelta(hours=5)
             # select timestamp, pdist, origtatripno from bus_position where pid = 5907 order by origtatripno, timestamp;
-            query = select(BusPosition).where(BusPosition.pid == pid).order_by(BusPosition.origtatripno,
-                                                                               BusPosition.timestamp)
+            query = select(BusPosition).where(BusPosition.pid == pid).where(
+                BusPosition.timestamp > thresh).order_by(
+                BusPosition.origtatripno, BusPosition.timestamp)
             #rows = session.execute(query)
             dfrows = []
             #for row in rows:
@@ -128,13 +130,24 @@ class QueryManager:
         return x1, x2
 
 
-if __name__ == "__main__":
+def main():
     engine = db_init()
     qm = QueryManager(engine)
     lon = -87.632892
     lat = 41.903914
     results = qm.nearest_stop_vehicles(lat, lon)
-    for row in results:
-        print(row)
-    df = qm.get_position_dataframe(5907)
-    inter = qm.interpolate(5907, 32922, 38913)
+    return results
+
+
+if __name__ == "__main__":
+    #engine = db_init()
+    #qm = QueryManager(engine)
+    #lon = -87.632892
+    #lat = 41.903914
+    #results = qm.nearest_stop_vehicles(lat, lon)
+    #cProfile.run('qm.nearest_stop_vehicles', 'lat', 'lon')
+    cProfile.run('main()', sort='cumtime')
+    # for row in results:
+    #     print(row)
+    # df = qm.get_position_dataframe(5907)
+    # inter = qm.interpolate(5907, 32922, 38913)

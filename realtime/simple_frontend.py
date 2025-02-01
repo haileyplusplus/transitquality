@@ -31,7 +31,7 @@ def estimates():
     results = resp.json()['results']
     directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
     for item in results:
-        dist_mi = item['vehicle_distance'] / 5280.0
+        dist_mi = item['bus_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
         directions.setdefault(item['direction'], []).append(item)
     raw = json.dumps(results, indent=4)

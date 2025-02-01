@@ -12,7 +12,7 @@ Bus status
         <td>
             <table><tr><td colspan="4">Northbound</td></tr>
             {% for item in results['Northbound'] %}
-                <tr><td>{{ item['route'] }}</td>
+                <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
                     <td>{{ item['last_stop_name'] }}</td>
                     <td>{{ item['mi'] }}</td>
                     <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>

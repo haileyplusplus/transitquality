@@ -37,3 +37,13 @@ def estimates():
         directions.setdefault(item['direction'], []).append(item)
     raw = json.dumps(d, indent=4)
     return render_template('bus_status.html', results=directions, raw=raw)
+
+
+@app.route('/detail')
+def deatail():
+    backend = 'http://localhost:8500/detail'
+    resp = requests.get(backend, params=request.args)
+    if resp.status_code != 200:
+        return f'Error handling request'
+    d = resp.json()
+    return render_template('detail.html', detail=d['detail'])

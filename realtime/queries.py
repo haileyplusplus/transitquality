@@ -124,7 +124,7 @@ class QueryManager:
     def estimate(self, pid, bus_dist, stop_dist):
         interp = self.interpolate(pid, bus_dist, stop_dist)
         if interp.empty:
-            return -1, -1
+            return -1, -1, -1
         x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
         x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
         return x1, x2, interp
@@ -144,9 +144,10 @@ class QueryManager:
                 x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
                 rv.append({
                     'bus_pattern_dist': bus_dist,
-                    'mi_from_here': f'{mi_from_here:02f}mi',
+                    'mi_from_here': f'{mi_from_here:0.2f}mi',
                     'timestamp': timestamp.isoformat(),
                     'vid': vid,
+                    'destination': row.destination,
                     'estimate': f'{x1}-{x2} min'
                 })
             return {

@@ -56,7 +56,7 @@ class QueryManager:
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
                 bus_distance = row.stop_pattern_distance - row.distance
-                el, eh = self.estimate(row.pattern_id, bus_distance, row.stop_pattern_distance)
+                el, eh = self.estimate(row.pattern_id, row.distance, row.stop_pattern_distance)
 
                 dxx = {'pattern': row.pattern_id,
                        'route': row.rt,

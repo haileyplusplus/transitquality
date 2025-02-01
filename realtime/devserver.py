@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from realtime.subscriber import initialize
 from realtime.rtmodel import db_init
+from realtime.queries import QueryManager
 
 logger = logging.getLogger(__file__)
 
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 engine = db_init()
+qm = QueryManager(engine)
 
 
 @app.get('/')
@@ -57,3 +59,8 @@ def nearest_stops(lat: float, lon: float):
                        'stop_name': row.stop_name,
                        'dist': row.dist})
     return {'results': rv}
+
+
+@app.get('/nearest-estimates')
+def nearest_estimates(lat: float, lon: float):
+    return {'results': qm.nearest_stop_vehicles(lat, lon)}

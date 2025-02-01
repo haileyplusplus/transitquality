@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, render_template, request
 
 
@@ -32,4 +34,5 @@ def estimates():
         dist_mi = item['vehicle_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
         directions.setdefault(item['direction'], []).append(item)
-    return render_template('bus_status.html', results=directions)
+    raw = json.dumps(results, indent=4)
+    return render_template('bus_status.html', results=directions, raw=raw)

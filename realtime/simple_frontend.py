@@ -28,11 +28,12 @@ def estimates():
     resp = requests.get(backend, params=request.args)
     if resp.status_code != 200:
         return f'Error handling request'
-    results = resp.json()['results']
+    d = resp.json()
+    results = d['results']
     directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
     for item in results:
         dist_mi = item['bus_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
         directions.setdefault(item['direction'], []).append(item)
-    raw = json.dumps(results, indent=4)
+    raw = json.dumps(d, indent=4)
     return render_template('bus_status.html', results=directions, raw=raw)

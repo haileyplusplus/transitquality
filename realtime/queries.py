@@ -8,7 +8,7 @@ import requests
 import pandas as pd
 import numpy as np
 
-from realtime.rtmodel import db_init, BusPosition
+from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState
 
 
 class QueryManager:
@@ -57,7 +57,7 @@ class QueryManager:
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
                 bus_distance = row.stop_pattern_distance - row.distance
-                el, eh = self.estimate(row.pattern_id, row.distance, row.stop_pattern_distance)
+                el, eh, _ = self.estimate(row.pattern_id, row.distance, row.stop_pattern_distance)
 
                 dxx = {'pattern': row.pattern_id,
                        'route': row.rt,
@@ -127,7 +127,34 @@ class QueryManager:
             return -1, -1
         x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
         x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
-        return x1, x2
+        return x1, x2, interp
+
+    def detail(self, pid: int, stop_dist):
+        with Session(self.engine) as session:
+            stmt = select(CurrentVehicleState).where(CurrentVehicleState.pid == pid).where(CurrentVehicleState.distance < stop_dist).order_by(CurrentVehicleState.distance)
+            result = session.scalars(stmt)
+            rt = None
+            rv = []
+            for row in result:
+                bus_dist = row.distance
+                mi_from_here = (stop_dist - bus_dist) / 5280.0
+                timestamp = row.last_update
+                vid = row.id
+                rt = row.rt
+                x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
+                rv.append({
+                    'bus_pattern_dist': bus_dist,
+                    'mi_from_here': f'{mi_from_here:02f}mi',
+                    'timestamp': timestamp.isoformat(),
+                    'vid': vid,
+                    'estimate': f'{x1}-{x2} min'
+                })
+            return {
+                'rt': rt,
+                'pid': pid,
+                'stop_distance': stop_dist,
+                'updates': rv
+            }
 
 
 def main():

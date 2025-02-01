@@ -63,4 +63,18 @@ def nearest_stops(lat: float, lon: float):
 
 @app.get('/nearest-estimates')
 def nearest_estimates(lat: float, lon: float):
-    return {'results': qm.nearest_stop_vehicles(lat, lon)}
+    start = datetime.datetime.now()
+    results = qm.nearest_stop_vehicles(lat, lon)
+    end = datetime.datetime.now()
+    latency = int((end - start).total_seconds())
+    return {'results': results, 'start': start.isoformat(), 'latency': latency,
+            'lat': lat, 'lon': lon}
+
+
+@app.get('/detail')
+def detail(pid: int, stop_dist: int):
+    start = datetime.datetime.now()
+    detail = qm.detail(pid, stop_dist)
+    end = datetime.datetime.now()
+    latency = int((end - start).total_seconds())
+    return {'detail': detail, 'start': start.isoformat(), 'latency': latency}

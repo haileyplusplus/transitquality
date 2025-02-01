@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bus Status</title>
+</head>
+<body>
+Bus status
+
+<table>
+    <tr>
+        <td>
+            <table><tr><td colspan="4">Northbound</td></tr>
+            {% for item in results['Northbound'] %}
+                <tr><td>{{ item['route'] }}</td>
+                    <td>{{ item['last_stop_name'] }}</td>
+                    <td>{{ item['mi'] }}</td>
+                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                </tr>
+            {% endfor %}
+            </table>
+        </td>
+    </tr>
+    <tr><td>            <table><tr><td colspan="4">Westbound</td></tr>
+            {% for item in results['Westbound'] %}
+                <tr><td>{{ item['route'] }}</td>
+                    <td>{{ item['last_stop_name'] }}</td>
+                    <td>{{ item['mi'] }}</td>
+                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                </tr>
+            {% endfor %}
+            </table>
+</td>
+        <td>            <table><tr><td colspan="4">Eastbound</td></tr>
+            {% for item in results['Eastbound'] %}
+                <tr><td>{{ item['route'] }}</td>
+                    <td>{{ item['last_stop_name'] }}</td>
+                    <td>{{ item['mi'] }}</td>
+                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                </tr>
+            {% endfor %}
+            </table>
+</td></tr>
+    <tr><td>            <table><tr><td colspan="4">Southbound</td></tr>
+            {% for item in results['Southbound'] %}
+                <tr><td>{{ item['route'] }}</td>
+                    <td>{{ item['last_stop_name'] }}</td>
+                    <td>{{ item['mi'] }}</td>
+                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                </tr>
+            {% endfor %}
+            </table>
+</td></tr>
+</table>
+</body>
+</html>

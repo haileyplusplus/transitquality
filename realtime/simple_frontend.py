@@ -10,14 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def main():
-    return """
-<p>Choose location</p>
-<form method="get" action="/estimates">
-Lat: <input type="text" name="lat" value="41.903914"/><br/>
-Lon: <input type="text" name="lon" value="-87.632892"/><br/>
-<input type="submit"/>
-</form>    
-    """
+    return render_template('main.html')
 
 
 @app.route('/estimates')

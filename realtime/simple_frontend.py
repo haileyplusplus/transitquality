@@ -28,6 +28,8 @@ def estimates():
         dist_mi = item['bus_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
         directions.setdefault(item['direction'], []).append(item)
+    for v in directions.values():
+        v.sort(key=lambda x: x['route'])
     raw = json.dumps(d, indent=4)
     return render_template('bus_status.html', results=directions, raw=raw)
 

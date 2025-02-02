@@ -2,7 +2,7 @@
 
 FROM ghcr.io/motis-project/motis:2.0.9
 
-RUN apk --no-cache add curl
+RUN sudo apk --no-cache add curl
 
 EXPOSE 7001
 #RUN addgroup -S motis && adduser -S motis -G motis && \

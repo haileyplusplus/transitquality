@@ -18,8 +18,8 @@ timetable:
   datasets:
     chicago:
       path: /data/google_transit.zip
-tiles:
-  profile: tiles-profiles/full.lua
+#tiles:
+#  profile: tiles-profiles/full.lua
 street_routing: true
 geocoding: true
 osr_footpath: true

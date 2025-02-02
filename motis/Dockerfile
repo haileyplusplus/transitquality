@@ -17,13 +17,13 @@ RUN chown motis /data
 
 USER motis
 RUN mkdir /data/rundir
-COPY motis-config.yaml /data/rundir/config.yml
+COPY motis-config.yaml /data/config.yml
 
 WORKDIR /data
 
 RUN curl -O https://download.bbbike.org/osm/bbbike/Chicago/Chicago.osm.pbf
 RUN curl -O https://www.transitchicago.com/downloads/sch_data/google_transit.zip
 
-#RUN /motis import -d /data -c /data/config.yml
+RUN /motis import -d /data/rundir -c /data/config.yml
 CMD ["/motis", "server", "-d", "/data/rundir"]
 #CMD ["tail", "-f", "/dev/null"]

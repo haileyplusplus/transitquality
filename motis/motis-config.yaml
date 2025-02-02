@@ -3,7 +3,7 @@ server:
 osm: /data/Chicago.osm.pbf
 timetable:
   first_day: 2025-01-01             # first day of timetable to load, format: "YYYY-MM-DD" (special value "TODAY")
-  num_days: 90                      # number of days to load, default is 365 days
+  num_days: 60                      # number of days to load, default is 365 days
   railviz: true                     # enable viewing vehicles in real-time on the map, requires some extra lookup data structures
   with_shapes: true                 # extract and serve shapes (if disabled, direct lines are used)
   ignore_errors: false              # ignore errors when a dataset could not be loaded

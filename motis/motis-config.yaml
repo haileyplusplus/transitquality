@@ -1,9 +1,9 @@
 server:
   port: 7001
-osm: /data/illinois-latest.osm.pbf
+osm: /data/Chicago.osm.pbf
 timetable:
   first_day: 2025-01-01             # first day of timetable to load, format: "YYYY-MM-DD" (special value "TODAY")
-  num_days: 7                     # number of days to load, default is 365 days
+  num_days: 90                      # number of days to load, default is 365 days
   railviz: true                     # enable viewing vehicles in real-time on the map, requires some extra lookup data structures
   with_shapes: true                 # extract and serve shapes (if disabled, direct lines are used)
   ignore_errors: false              # ignore errors when a dataset could not be loaded
@@ -17,7 +17,7 @@ timetable:
   max_footpath_length: 15           # maximum footpath length when transitively connecting stops or for routing footpaths if `osr_footpath` is set to true
   datasets:
     chicago:
-      path: /data/rt-cta-gtfs-20250101.zip
+      path: /data/google_transit.zip
 tiles:
   profile: tiles-profiles/full.lua
 street_routing: true

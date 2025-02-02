@@ -2,6 +2,8 @@
 
 FROM ghcr.io/motis-project/motis:2.0.9
 
+RUN apk --no-cache add curl
+
 EXPOSE 7001
 #RUN addgroup -S motis && adduser -S motis -G motis && \
 #    mkdir /data && \
@@ -10,6 +12,14 @@ EXPOSE 7001
 VOLUME ["/data"]
 USER motis
 COPY motis-config.yaml /data/data/config.yml
+
+WORKDIR /data/data
+
+RUN curl -O https://download.bbbike.org/osm/bbbike/Chicago/Chicago.osm.pbf
+RUN curl -O https://www.transitchicago.com/downloads/sch_data/google_transit.zip
+
+WORKDIR /motis
+
 #RUN /motis import -d /data -c /data/config.yml
 CMD ["/motis", "server", "-d", "/data/data"]
 #CMD ["tail", "-f", "/dev/null"]

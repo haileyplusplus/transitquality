@@ -15,11 +15,13 @@ VOLUME ["/data"]
 
 RUN chown motis /data
 
-USER motis
-RUN mkdir /data/rundir
 COPY motis-config.yaml /data/config.yml
 COPY downloads.sh /data/downloads.sh
 RUN chmod +x /data/downloads.sh
+RUN chown motis /data/*
+
+USER motis
+RUN mkdir /data/rundir
 
 WORKDIR /data
 

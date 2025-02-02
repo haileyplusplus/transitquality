@@ -24,8 +24,6 @@ WORKDIR /data
 RUN curl -O https://download.bbbike.org/osm/bbbike/Chicago/Chicago.osm.pbf
 RUN curl -O https://www.transitchicago.com/downloads/sch_data/google_transit.zip
 
-WORKDIR /motis
-
 #RUN /motis import -d /data -c /data/config.yml
 CMD ["/motis", "server", "-d", "/data/rundir"]
 #CMD ["tail", "-f", "/dev/null"]

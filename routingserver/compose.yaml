@@ -12,9 +12,6 @@ services:
     build:
       context: ..
       dockerfile: routingserver/Dockerfile
-    labels:
-      tsdproxy.enable: "true"
-      tsdproxy.name: "transitbundler"
     ports:
       - 8115:8000
     develop:

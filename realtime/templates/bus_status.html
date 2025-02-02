@@ -17,6 +17,11 @@ Bus status
                     <td>{{ item['mi'] }}</td>
                     <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
                 </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>Stop: {{ item['stop_name'] }}</td>
+                    <td>Dist to stop: TBD</td>
+                </tr>
             {% endfor %}
             </table>
         </td>

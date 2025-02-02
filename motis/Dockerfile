@@ -12,6 +12,9 @@ EXPOSE 7001
 #    chown motis:motis /data
 #EXPOSE 8080
 VOLUME ["/data"]
+
+RUN chown motis /data
+
 USER motis
 COPY motis-config.yaml /data/data/config.yml
 

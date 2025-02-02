@@ -1,6 +1,6 @@
 # https://github.com/motis-project/motis/blob/860da4d455e2bbb50186e5e0625ba611cb329a52/Dockerfile
 
-FROM ghcr.io/motis-project/motis:2.0.9
+FROM ghcr.io/motis-project/motis:latest
 
 USER root
 

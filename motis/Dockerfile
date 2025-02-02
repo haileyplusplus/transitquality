@@ -16,9 +16,10 @@ VOLUME ["/data"]
 RUN chown motis /data
 
 USER motis
-COPY motis-config.yaml /data/data/config.yml
+RUN mkdir /data/rundir
+COPY motis-config.yaml /data/rundir/config.yml
 
-WORKDIR /data/data
+WORKDIR /data
 
 RUN curl -O https://download.bbbike.org/osm/bbbike/Chicago/Chicago.osm.pbf
 RUN curl -O https://www.transitchicago.com/downloads/sch_data/google_transit.zip
@@ -26,5 +27,5 @@ RUN curl -O https://www.transitchicago.com/downloads/sch_data/google_transit.zip
 WORKDIR /motis
 
 #RUN /motis import -d /data -c /data/config.yml
-CMD ["/motis", "server", "-d", "/data/data"]
+CMD ["/motis", "server", "-d", "/data/rundir"]
 #CMD ["tail", "-f", "/dev/null"]

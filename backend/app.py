@@ -26,6 +26,9 @@ import os
 
 logger = logging.getLogger(__file__)
 
+# don't log every message the subscriber sends
+logging.getLogger('PubSubServer').setLevel(logging.WARNING)
+
 LOCALDIR = Path(__file__).parent.parent
 
 db_initialize()

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from realtime.subscriber import initialize
 from realtime.rtmodel import db_init
-from realtime.queries import QueryManager
+from realtime.queries import QueryManager, StopEstimates
 
 logger = logging.getLogger(__file__)
 
@@ -78,3 +78,12 @@ def detail(pid: int, stop_dist: int):
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
     return {'detail': detail, 'start': start.isoformat(), 'latency': latency}
+
+
+@app.post('/estimates/')
+def estimates(stop_estimates: StopEstimates):
+    pattern_estimate_dict = qm.get_estimates(stop_estimates.estimates)
+    rv = []
+    for k, v in pattern_estimate_dict.items():
+        rv.append({'pattern': k, 'estimate': v})
+    return {'estimates': rv}

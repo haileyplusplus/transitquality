@@ -15,12 +15,13 @@ Bus status
                 <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
                     <td>{{ item['last_stop_name'] }}</td>
                     <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                    <td>{{ item['estimate'] }}</td>
                 </tr>
                 <tr>
                     <td>&nbsp;</td>
                     <td>Stop: {{ item['stop_name'] }}</td>
-                    <td>Dist to stop: TBD</td>
+                    <td>walk {{ item['walk_dist'] }}mi</td>
+                    <td>walk {{ item['walk_time'] }} min</td>
                 </tr>
             {% endfor %}
             </table>
@@ -31,7 +32,13 @@ Bus status
                 <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
                     <td>{{ item['last_stop_name'] }}</td>
                     <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                    <td>{{ item['estimate'] }}</td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>Stop: {{ item['stop_name'] }}</td>
+                    <td>walk {{ item['walk_dist'] }}mi</td>
+                    <td>walk {{ item['walk_time'] }} min</td>
                 </tr>
             {% endfor %}
             </table>
@@ -41,7 +48,13 @@ Bus status
                 <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
                     <td>{{ item['last_stop_name'] }}</td>
                     <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                    <td>{{ item['estimate'] }}</td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>Stop: {{ item['stop_name'] }}</td>
+                    <td>walk {{ item['walk_dist'] }}mi</td>
+                    <td>walk {{ item['walk_time'] }} min</td>
                 </tr>
             {% endfor %}
             </table>
@@ -51,7 +64,13 @@ Bus status
                 <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
                     <td>{{ item['last_stop_name'] }}</td>
                     <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate_min'] }} - {{ item['estimate_max'] }} mins</td>
+                    <td>{{ item['estimate'] }}</td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>Stop: {{ item['stop_name'] }}</td>
+                    <td>walk {{ item['walk_dist'] }}mi</td>
+                    <td>walk {{ item['walk_time'] }} min</td>
                 </tr>
             {% endfor %}
             </table>

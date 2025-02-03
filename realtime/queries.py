@@ -1,14 +1,29 @@
 import datetime
 import cProfile
+from typing import Iterable
 
 from sqlalchemy import text, select
 from sqlalchemy.orm import Session
+from geoalchemy2.shape import to_shape
 import requests
 
 import pandas as pd
 import numpy as np
+import shapely
+from pydantic import BaseModel
 
-from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState
+
+from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop
+
+
+class StopEstimate(BaseModel):
+    pattern_id: int
+    bus_location: int
+    stop_pattern_distance: int
+
+
+class StopEstimates(BaseModel):
+    estimates: list[StopEstimate]
 
 
 class QueryManager:
@@ -37,11 +52,23 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
+    def get_single_estimate(self, row: StopEstimate):
+        print('row is', row, type(row))
+        el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        return f'{el}-{eh} min'
+
+    def get_estimates(self, rows: Iterable[StopEstimate]):
+        rv = {}
+        print(rows)
+        for row in rows:
+            rv[row.pattern_id] = self.get_single_estimate(row)
+        return rv
+
     def nearest_stop_vehicles(self, lat, lon):
         query = ('select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, '
-                 'pattern_id, x.rt, x.id as stop_id, stop_name, dist from ('
-                 'select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, dist, stop_pattern_distance from '
-                 '(select stop.id, pattern_stop.pattern_id, stop_name, pattern_stop.distance as stop_pattern_distance, '
+                 'pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist from ('
+                 'select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance from '
+                 '(select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, pattern_stop.distance as stop_pattern_distance, '
                  'pattern.rt, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist '
                  'from stop inner join pattern_stop on stop.id = pattern_stop.stop_id inner join pattern on '
                  'pattern_stop.pattern_id = pattern.id ORDER BY dist) WHERE dist < :thresh) as x inner join '
@@ -57,13 +84,17 @@ class QueryManager:
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
                 bus_distance = row.stop_pattern_distance - row.distance
-                el, eh, _ = self.estimate(row.pattern_id, row.distance, row.stop_pattern_distance)
+                # split this out into its own thing
+                #point = to_shape(row.stop_geom)
+                #lat, lon = point.y, point.x
 
                 dxx = {'pattern': row.pattern_id,
                        'route': row.rt,
                        'direction': direction,
                        'stop_id': row.stop_id,
                        'stop_name': row.stop_name,
+                       'stop_lat': row.stop_lat,
+                       'stop_lon': row.stop_lon,
                        'stop_pattern_distance': row.stop_pattern_distance,
                        'bus_distance': bus_distance,
                        'dist': row.dist,
@@ -71,11 +102,18 @@ class QueryManager:
                        'vehicle_distance': row.distance,
                        'last_stop_id': last_stop_id,
                        'last_stop_name': last_stop_name,
-                       'estimate_min': el,
-                       'estimate_max': eh
+                       'estimate': '?',
                        }
                 patterns[row.pattern_id] = dxx
         return list(patterns.values())
+
+    def get_stop_latlon(self, stop_id):
+        with Session(self.engine) as session:
+            stop = session.get(Stop, stop_id)
+            if stop is None:
+                return 0, 0
+            point = to_shape(stop.geom)
+            return point.y, point.x
 
     def get_position_dataframe(self, pid):
         with Session(self.engine) as session:

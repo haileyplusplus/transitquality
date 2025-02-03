@@ -134,7 +134,10 @@ class QueryManager:
                 del dr['_sa_instance_state']
                 dr['epochstamp'] = int(row.timestamp.timestamp())
                 dfrows.append(dr)
-            return pd.DataFrame(dfrows)
+            print(f'Found {len(dfrows)} rows')
+            df = pd.DataFrame(dfrows)
+            print(f'Got df {df}')
+            return df
 
     def interpolate(self, pid, bus_dist, stop_dist):
         df = self.get_position_dataframe(int(pid))

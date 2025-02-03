@@ -122,6 +122,7 @@ class QueryManager:
             query = select(BusPosition).where(BusPosition.pid == pid).where(
                 BusPosition.timestamp > thresh).order_by(
                 BusPosition.origtatripno, BusPosition.timestamp)
+            print('bus position query: ', query)
             #rows = session.execute(query)
             dfrows = []
             #for row in rows:
@@ -135,7 +136,7 @@ class QueryManager:
             return pd.DataFrame(dfrows)
 
     def interpolate(self, pid, bus_dist, stop_dist):
-        df = self.get_position_dataframe(pid)
+        df = self.get_position_dataframe(int(pid))
         if df.empty:
             print(f'Could not find df for {pid}, {bus_dist}, {stop_dist}')
             return pd.DataFrame()

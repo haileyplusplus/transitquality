@@ -122,7 +122,7 @@ class QueryManager:
             query = select(BusPosition).where(BusPosition.pid == pid).where(
                 BusPosition.timestamp > thresh).order_by(
                 BusPosition.origtatripno, BusPosition.timestamp)
-            print('bus position query: ', query)
+            print('bus position query: ', query, pid, thresh, thresh.isoformat())
             #rows = session.execute(query)
             dfrows = []
             #for row in rows:

@@ -30,7 +30,7 @@ services:
     hostname: businfo
     environment:
       - TS_AUTHKEY=tskey-auth-kyhNRZiosi11CNTRL-EnHCSi8Hgq1HcC84oHd1r1qMTEnmWoM7F
-      #- TS_SERVE_CONFIG=/config/serve-transit-realtime.json
+      - TS_SERVE_CONFIG=/config/serve-transit-realtimeinfo.json
       - TS_STATE_DIR=/var/lib/tailscale
     volumes:
       - transit-realtimeinfo-tailscale-state:/var/lib/tailscale

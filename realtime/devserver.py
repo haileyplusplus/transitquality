@@ -1,8 +1,6 @@
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
-import asyncio
-from pathlib import Path
 import datetime
 import logging
 import json
@@ -11,7 +9,6 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from realtime.subscriber import initialize
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, StopEstimates
 

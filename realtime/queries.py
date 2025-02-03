@@ -2,7 +2,7 @@ import datetime
 import cProfile
 from typing import Iterable
 
-from sqlalchemy import text, select
+from sqlalchemy import text, select, func
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape
 import requests
@@ -42,6 +42,14 @@ class QueryManager:
                 pid, stop_id, stop_name = row
                 self.last_stops[pid] = (stop_id, stop_name)
         self.load_pattern_info()
+        self.report()
+
+    def report(self):
+        print(f'Database stats at load time')
+        with self.engine.connect() as conn:
+            for table in [Stop, BusPosition]:
+                count = conn.execute(select(func.count('*')).select_from(table)).all()
+                print(f'table {table} has count {count}')
 
     def load_pattern_info(self):
         url = 'http://leonard.guineafowl-cloud.ts.net:8002/patterninfo'
@@ -123,7 +131,7 @@ class QueryManager:
             query = select(BusPosition).where(BusPosition.pid == pid).where(
                 BusPosition.timestamp > thresh).order_by(
                 BusPosition.origtatripno, BusPosition.timestamp)
-            print('bus position query: ', query, pid, thresh, thresh.isoformat())
+            print('bus position query: ', query, pid, type(pid), thresh, thresh.isoformat())
             #rows = session.execute(query)
             dfrows = []
             #for row in rows:

@@ -136,6 +136,9 @@ class QueryManager:
 
     def interpolate(self, pid, bus_dist, stop_dist):
         df = self.get_position_dataframe(pid)
+        if df.empty:
+            print(f'Could not find df for {pid}, {bus_dist}, {stop_dist}')
+            return pd.DataFrame()
         rows = []
         for trip in df.origtatripno.unique():
             tdf = df[df.origtatripno == trip]

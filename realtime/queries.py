@@ -80,7 +80,7 @@ class QueryManager:
                  '(select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, pattern_stop.distance as stop_pattern_distance, '
                  'pattern.rt, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist '
                  'from stop inner join pattern_stop on stop.id = pattern_stop.stop_id inner join pattern on '
-                 'pattern_stop.pattern_id = pattern.id ORDER BY dist) WHERE dist < :thresh) as x inner join '
+                 'pattern_stop.pattern_id = pattern.id ORDER BY dist) WHERE dist < :thresh ORDER BY pattern_id, dist) as x inner join '
                  'current_vehicle_state on current_vehicle_state.pid = pattern_id where '
                  'distance < stop_pattern_distance order by dist, distance')
         routes = {}

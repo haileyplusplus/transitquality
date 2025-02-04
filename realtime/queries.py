@@ -113,7 +113,8 @@ class QueryManager:
                        'last_stop_name': last_stop_name,
                        'estimate': '?',
                        }
-                routes[row.rt] = dxx
+                key = (row.rt, row.last_stop_name)
+                routes[key] = dxx
         return list(routes.values())
 
     def get_stop_latlon(self, stop_id):
@@ -141,6 +142,8 @@ class QueryManager:
                 dfrows.append(dr)
             print(f'Found {len(dfrows)} rows')
             df = pd.DataFrame(dfrows)
+            # TODO: remove this later
+            df.to_csv(f'/tmp/df-{pid}.csv', index=False)
             print(f'Got df {df}')
             return df
 

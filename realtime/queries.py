@@ -83,7 +83,7 @@ class QueryManager:
                  'pattern_stop.pattern_id = pattern.id ORDER BY dist) WHERE dist < :thresh) as x inner join '
                  'current_vehicle_state on current_vehicle_state.pid = pattern_id where '
                  'distance < stop_pattern_distance order by dist, distance')
-        patterns = {}
+        routes = {}
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
             for row in result:
@@ -113,8 +113,8 @@ class QueryManager:
                        'last_stop_name': last_stop_name,
                        'estimate': '?',
                        }
-                patterns[row.pattern_id] = dxx
-        return list(patterns.values())
+                routes[row.rt] = dxx
+        return list(routes.values())
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:

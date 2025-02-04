@@ -46,7 +46,7 @@ def estimates():
             "units":"miles",
             "id": str(item['pattern'])}
         jp = json.dumps(routing_json)
-        urls.append(f'http://brie:8902/route?json={jp}')
+        urls.append(f'http://brie.guineafowl-cloud.ts.net:8902/route?json={jp}')
         estimate_params.append(
             {
                 'pattern_id': item['pattern'],

@@ -113,7 +113,7 @@ class QueryManager:
                        'last_stop_name': last_stop_name,
                        'estimate': '?',
                        }
-                key = (row.rt, row.last_stop_name)
+                key = (row.rt, last_stop_name)
                 routes[key] = dxx
         return list(routes.values())
 

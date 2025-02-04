@@ -84,6 +84,7 @@ class QueryManager:
                  'current_vehicle_state on current_vehicle_state.pid = pattern_id where '
                  'distance < stop_pattern_distance order by dist, distance')
         routes = {}
+        all_items = []
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
             for row in result:
@@ -115,7 +116,9 @@ class QueryManager:
                        }
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
-        return list(routes.values())
+                all_items.append(dxx)
+        #return list(routes.values())
+        return all_items
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:

@@ -126,17 +126,14 @@ class QueryManager:
 
     def get_position_dataframe(self, pid):
         with Session(self.engine) as session:
-            thresh = datetime.datetime.now(tz=Util.CTA_TIMEZONE) - datetime.timedelta(hours=5)
+            #thresh = datetime.datetime.now(tz=Util.CTA_TIMEZONE) - datetime.timedelta(hours=5)
+            thresh = datetime.datetime.now() - datetime.timedelta(hours=5)
             # select timestamp, pdist, origtatripno from bus_position where pid = 5907 order by origtatripno, timestamp;
             query = select(BusPosition).where(BusPosition.pid == pid).where(
                 BusPosition.timestamp > thresh).order_by(
                 BusPosition.origtatripno, BusPosition.timestamp)
             print('bus position query: ', query, pid, type(pid), thresh, thresh.isoformat())
-            #rows = session.execute(query)
             dfrows = []
-            #for row in rows:
-            #    dfrows.append(dict(rows))
-            #df = pd.DataFrame([row._mapping for row in rows])
             for row in session.scalars(query):
                 dr = row.__dict__
                 del dr['_sa_instance_state']

@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-engine = db_init()
+engine = db_init(echo=True)
 qm = QueryManager(engine)
 
 

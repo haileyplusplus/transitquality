@@ -12,7 +12,7 @@ from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 
 from realtime.rtmodel import *
-from realtime.load_patterns import load_routes, load
+from realtime.load_patterns import load_routes, load, S3Getter
 
 
 """
@@ -163,6 +163,21 @@ class BusUpdater(DatabaseUpdater):
                 prev_key = key
             session.commit()
 
+    def s3_refresh(self, daystr, hour):
+        cmd = 'getvehicles'
+        getter = S3Getter()
+        keys = getter.list_with_prefix(f'bustracker/raw/{cmd}/{daystr}/t{hour}')
+        refreshed = 0
+        for k in keys['Contents']:
+            print(f'Refreshing {k["Key"]}')
+            jd = getter.get_json_contents(k['Key'])
+            datalist = jd['requests']
+            refreshed += 1
+            for item in datalist:
+                response = item['response']
+                self.subscriber_callback(response['bustime-response']['vehicle'])
+        return {'refreshed': refreshed}
+
     def subscriber_callback(self, data):
         #print(f'Bus {len(data)}')
         #self.finish_past_trips()
@@ -277,7 +292,7 @@ def initialize(host: str):
     #load_routes(path='realtime/routes.json')
     #engine = load(path='/patterns')
     load_routes()
-    engine = load()
+    #engine = load()
     print(f'Loaded data')
     subscriber = Subscriber(host)
     subscriber.initialize_clients()

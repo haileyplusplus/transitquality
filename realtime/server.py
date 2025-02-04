@@ -16,9 +16,9 @@ from realtime.rtmodel import db_init
 
 logger = logging.getLogger(__file__)
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global subscriber
     logger.info(f'App starting up')
     subscriber = initialize('leonard.guineafowl-cloud.ts.net')
     #async with asyncio.TaskGroup() as tg:
@@ -63,3 +63,15 @@ def nearest_stops(lat: float, lon: float):
                        'stop_name': row.stop_name,
                        'dist': row.dist})
     return {'results': rv}
+
+
+@app.get('/refresh')
+def refresh(daystr: str, hour: str):
+    global subscriber
+    start = datetime.datetime.now()
+    results = subscriber.bus_updater.s3_refresh(daystr, hour)
+    end = datetime.datetime.now()
+    latency = int((end - start).total_seconds())
+    return {'refresh': results, 'start': start.isoformat(), 'latency': latency,
+            'daystr': daystr, 'hour': hour}
+

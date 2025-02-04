@@ -18,6 +18,17 @@ ENV PYTHONUNBUFFERED=1
 
 #ENV TRANSITQUALITY_DEV=$TRANSITQUALITY_DEV
 
+RUN apt-get update && apt-get install -y git
+
+
+RUN mkdir /transit
+
+WORKDIR /transit
+RUN git clone https://github.com/permitio/fastapi_websocket_pubsub.git
+
+WORKDIR /transit/fastapi_websocket_pubsub
+RUN python setup.py install
+
 WORKDIR /app
 
 # Create a non-privileged user that the app will run under.
@@ -40,7 +51,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
     python -m pip install -r requirements.txt
 
-RUN mkdir /transit
 RUN chown appuser /transit
 
 RUN mkdir /transitdata

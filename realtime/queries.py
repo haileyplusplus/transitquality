@@ -127,7 +127,7 @@ class QueryManager:
     def get_position_dataframe(self, pid):
         with Session(self.engine) as session:
             #thresh = datetime.datetime.now(tz=Util.CTA_TIMEZONE) - datetime.timedelta(hours=5)
-            thresh = datetime.datetime.now() - datetime.timedelta(hours=5)
+            thresh = datetime.datetime.now() - datetime.timedelta(hours=11)
             # select timestamp, pdist, origtatripno from bus_position where pid = 5907 order by origtatripno, timestamp;
             query = select(BusPosition).where(BusPosition.pid == pid).where(
                 BusPosition.timestamp > thresh).order_by(

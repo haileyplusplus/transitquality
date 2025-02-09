@@ -12,6 +12,7 @@ services:
     build:
       context: ..
       dockerfile: bundler/Dockerfile
+    restart: always
     labels:
       tsdproxy.enable: "true"
       tsdproxy.name: "transitbundler"

@@ -117,8 +117,8 @@ class QueryManager:
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
                 all_items.append(dxx)
-        #return list(routes.values())
-        return all_items
+        return list(routes.values())
+        #return all_items
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:

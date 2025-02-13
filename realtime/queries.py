@@ -13,6 +13,7 @@ import shapely
 from pydantic import BaseModel
 
 
+
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop
 from backend.util import Util
 
@@ -87,7 +88,7 @@ class QueryManager:
         all_items = []
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
-            startquery = datetime.datetime.now()
+            startquery = Util.ctanow().replace(tz=None)
             for row in result:
                 last_stop_id, last_stop_name = self.last_stops.get(row.pattern_id, (None, None))
                 if last_stop_id is None:

@@ -94,6 +94,7 @@ class TrainUpdater(DatabaseUpdater):
 class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
         super().__init__(*args)
+        self.cleanup_iteration = 0
 
     def periodic_cleanup(self):
         """
@@ -103,7 +104,7 @@ class BusUpdater(DatabaseUpdater):
         update bus_position set completed = true where origtatripno not in (select origtatripno from current_vehicle_state);
         :return:
         """
-        print(f'Running cleanup')
+        start = datetime.datetime.now()
         with Session(self.subscriber.engine) as session:
             session.execute(text('DELETE from current_vehicle_state where ((select max(last_update) from '
                                  'current_vehicle_state) - current_vehicle_state.last_update)'
@@ -112,7 +113,14 @@ class BusUpdater(DatabaseUpdater):
                                  '(select origtatripno from current_vehicle_state)'))
             session.execute(text('UPDATE pattern t2 SET rt = t1.rt '
                                  'FROM bus_position t1 WHERE t2.id = t1.pid'))
+            if self.cleanup_iteration % 10 == 0:
+                session.execute(text('delete from bus_position where timestamp < '
+                                     '(select max(timestamp) - interval \'24 hours\' from bus_position)'))
+            self.cleanup_iteration += 1
             session.commit()
+        finish = datetime.datetime.now()
+        td = finish - start
+        print(f'Cleanup run {self.cleanup_iteration} took {td}')
 
     def finish_past_trips(self):
         with Session(self.subscriber.engine) as session:

@@ -22,6 +22,7 @@ def main():
 def estimates():
     lat = request.args.get('lat')
     lon = request.args.get('lon')
+    skip_estimates = request.args.get('skip')
     backend = 'http://localhost:8500/nearest-estimates'
     resp = requests.get(backend, params=request.args)
     if resp.status_code != 200:
@@ -58,7 +59,8 @@ def estimates():
     reqs = []
     for u in urls:
         reqs.append(grequests.get(u))
-    reqs.append(grequests.post('http://localhost:8500/estimates/', json={'estimates': estimate_params}))
+    if not skip_estimates:
+        reqs.append(grequests.post('http://localhost:8500/estimates/', json={'estimates': estimate_params}))
     #print(f'estimate params: ', estimate_params)
     #print(reqs)
 

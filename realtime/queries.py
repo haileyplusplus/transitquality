@@ -87,6 +87,7 @@ class QueryManager:
         all_items = []
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
+            startquery = datetime.datetime.now()
             for row in result:
                 last_stop_id, last_stop_name = self.last_stops.get(row.pattern_id, (None, None))
                 if last_stop_id is None:
@@ -97,8 +98,10 @@ class QueryManager:
                 # split this out into its own thing
                 #point = to_shape(row.stop_geom)
                 #lat, lon = point.y, point.x
+                age = (startquery - row.last_update).total_seconds()
 
                 dxx = {'pattern': row.pattern_id,
+                       'startquery': startquery.isoformat(),
                        'route': row.rt,
                        'direction': direction,
                        'stop_id': row.stop_id,
@@ -109,6 +112,7 @@ class QueryManager:
                        'bus_distance': bus_distance,
                        'dist': row.dist,
                        'last_update': row.last_update.isoformat(),
+                       'age': age,
                        'vehicle_distance': row.distance,
                        'last_stop_id': last_stop_id,
                        'last_stop_name': last_stop_name,

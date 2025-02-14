@@ -223,7 +223,7 @@ class BusUpdater(DatabaseUpdater):
                 redis_key = f'busposition:{v["pid"]}:{v["origtatripno"]}'
                 if not self.r.exists(redis_key):
                     self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                self.r.ts().add(redis_key, timestamp.timestamp(), int(v['pdist']))
+                self.r.ts().add(redis_key, int(timestamp.timestamp()), int(v['pdist']))
                 session.add(upd)
                 pattern = session.get(Pattern, v['pid'])
                 if pattern is None:

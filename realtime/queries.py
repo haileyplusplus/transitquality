@@ -68,8 +68,8 @@ class QueryManager:
 
     def get_single_estimate(self, row: StopEstimate):
         #print('row is', row, type(row))
-        self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        el, eh = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         return f'{el}-{eh} min'
 
     def get_estimates(self, rows: Iterable[StopEstimate]):
@@ -218,9 +218,10 @@ class QueryManager:
         r = self.redis
         ts = r.ts()
         thresh = 3000
-        left = ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1000,
+        # name msec seems inaccurate - do they mean seconds?
+        left = ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
                         filter_by_min_value=dist-thresh, filter_by_max_value=dist)
-        right = ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1000,
+        right = ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
                          filter_by_min_value=dist, filter_by_max_value=dist+thresh)
         #  print(f'closest to {dist} in {redis_key}: {left}, {right}')
         if not left or not right:
@@ -237,10 +238,29 @@ class QueryManager:
 
     def estimate_redis(self, pid, bus_dist, stop_dist):
         trips = self.get_latest_redis(pid)
+        if bus_dist >= stop_dist:
+            return -1, -1
+        estimates = []
         for ts, redis_key in trips:
             closest_bus = self.get_closest(redis_key, bus_dist)
             closest_stop = self.get_closest(redis_key, stop_dist)
             print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key {redis_key}: closest bus {closest_bus}  closest stop {closest_stop}')
+            if not closest_bus or not closest_stop:
+                continue
+            bus_time_samp, bus_dist_samp = closest_bus
+            stop_time_samp, stop_dist_samp = closest_stop
+            travel_time = stop_time_samp - bus_time_samp
+            travel_dist = stop_dist_samp - bus_dist_samp
+            if travel_dist <= 0 or travel_time <= 0:
+                continue
+            travel_rate = travel_dist / travel_time
+            actual_dist = stop_dist - bus_dist
+            estimates.append(actual_dist * travel_rate)
+        if not estimates:
+            return -1, -1
+        # consider more sophisticated percentile stuff
+        return min(estimates), max(estimates)
+
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:

@@ -1,11 +1,13 @@
 import datetime
 import cProfile
+import heapq
 from typing import Iterable
 
 from sqlalchemy import text, select, func
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape
 import requests
+import redis
 
 import pandas as pd
 import numpy as np
@@ -32,6 +34,8 @@ class QueryManager:
     def __init__(self, engine):
         self.engine = engine
         self.patterns = {}
+        self.redis = redis.Redis(host='rttransit.guineafowl-cloud.ts.net')
+        print(f'Initialize redis: {self.redis.ping()}')
         query = ('select p.pattern_id, pattern_stop.stop_id, stop.stop_name from pattern_stop inner join '
                  '(select pattern_id, max(sequence) as endseq from pattern_stop group by pattern_id) as p '
                  'on p.endseq = pattern_stop.sequence and p.pattern_id = pattern_stop.pattern_id inner join '
@@ -63,7 +67,8 @@ class QueryManager:
             self.patterns[p['pattern_id']] = p
 
     def get_single_estimate(self, row: StopEstimate):
-        print('row is', row, type(row))
+        #print('row is', row, type(row))
+        self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         return f'{el}-{eh} min'
 
@@ -190,6 +195,52 @@ class QueryManager:
         x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
         x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
         return x1, x2, interp
+
+    def get_latest_redis(self, pid):
+        cursor = 0
+        r = self.redis
+        ts = r.ts()
+        heap = []
+        heapsize = 10
+        while True:
+            cursor, items = r.scan(cursor, match=f'busposition:{pid}:*')
+            for item in items:
+                value = ts.get(item)
+                heapq.heappush(heap, (value[0], item))
+                if len(heap) > heapsize:
+                    heapq.heappop(heap)
+            if cursor == 0:
+                break
+        heap.sort()
+        return heap
+
+    def get_closest(self, redis_key, dist):
+        r = self.redis
+        ts = r.ts()
+        thresh = 3000
+        left = ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1000,
+                        filter_by_min_value=dist-thresh, filter_by_max_value=dist)
+        right = ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1000,
+                         filter_by_min_value=dist, filter_by_max_value=dist+thresh)
+        #  print(f'closest to {dist} in {redis_key}: {left}, {right}')
+        if not left or not right:
+            return None
+        left_ts, left_dist = left[0]
+        right_ts, right_dist = right[0]
+        if abs(dist - left_dist) < abs(dist - right_dist):
+            return left[0]
+        return right[0]
+
+    @staticmethod
+    def printable_ts(ts: int):
+        return datetime.datetime.fromtimestamp(ts).isoformat()
+
+    def estimate_redis(self, pid, bus_dist, stop_dist):
+        trips = self.get_latest_redis(pid)
+        for ts, redis_key in trips:
+            closest_bus = self.get_closest(redis_key, bus_dist)
+            closest_stop = self.get_closest(redis_key, stop_dist)
+            print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key {redis_key}: closest bus {closest_bus}  closest stop {closest_stop}')
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:

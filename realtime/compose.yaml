@@ -29,6 +29,11 @@ services:
         condition: service_healthy
       transit-realtime-sidecar:
         condition: service_started
+      memstore:
+        condition: service_started
+  memstore:
+    image: redis/redis-stack:latest
+    network_mode: service:transit-realtime-sidecar
   db:
      build:
        context: postgis

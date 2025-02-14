@@ -244,7 +244,6 @@ class QueryManager:
         for ts, redis_key in trips:
             closest_bus = self.get_closest(redis_key, bus_dist)
             closest_stop = self.get_closest(redis_key, stop_dist)
-            print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key {redis_key}: closest bus {closest_bus}  closest stop {closest_stop}')
             if not closest_bus or not closest_stop:
                 continue
             bus_time_samp, bus_dist_samp = closest_bus
@@ -255,12 +254,16 @@ class QueryManager:
                 continue
             travel_rate = travel_dist / travel_time
             actual_dist = stop_dist - bus_dist
-            estimates.append(actual_dist * travel_rate)
+            estimates.append(actual_dist / travel_rate)
+            print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
+                  f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
+                  f'travel time {travel_time} travel dist {travel_dist} '
+                  f'travel rate {travel_rate} actual dist {actual_dist} '
+                  f'estimate {actual_dist * travel_rate}')
         if not estimates:
             return -1, -1
         # consider more sophisticated percentile stuff
-        return min(estimates), max(estimates)
-
+        return int(min(estimates) / 60), int(max(estimates) / 60)
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:

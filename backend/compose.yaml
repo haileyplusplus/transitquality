@@ -45,10 +45,16 @@ services:
           path: .
     depends_on:
       db:
-       condition: service_healthy
+        condition: service_healthy
+      memstore:
+        condition: service_started
     restart: always
     #networks:
     #  - transitquality
+  memstore:
+    image: redis/redis-stack:latest
+    ports:
+      - 6379:6379
   db:
      image: postgres
      restart: always

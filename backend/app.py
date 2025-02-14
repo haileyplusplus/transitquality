@@ -11,6 +11,7 @@ import json
 import sys
 
 
+import redis.asyncio as redis
 from playhouse.shortcuts import model_to_dict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fastapi_websocket_pubsub import PubSubEndpoint
@@ -66,6 +67,13 @@ class SubscriptionManager:
     def __init__(self):
         self.needs_init = set([])
         self.endpoint = None
+        self.redis_client = redis.Redis(host='memstore')
+        #ping_status = await asyncio.run(self.redis_client.ping()
+        #print(f'Redis ping status: {)}')
+        #self.redis_pubsub = self.redis_client.pubsub()
+        task = asyncio.create_task(self.redis_client.ping())
+        print(f'create task {task}')
+        task.add_done_callback(lambda x: print(f'ping status: {x}'))
 
     def create_endpoint(self, app):
         async def connection_callback(channel: RpcChannel):
@@ -82,6 +90,8 @@ class SubscriptionManager:
             conntype = 'train'
         else:
             conntype = 'bus'
+        channel_name = f'channel:{command}'
+        #print(f'publishing to redis channel {channel_name}')
         if conntype in self.needs_init:
             for k, v in bundles.items():
                 if k == command:
@@ -90,9 +100,15 @@ class SubscriptionManager:
                     datalist = v
                 asyncio.create_task(self.endpoint.publish([f'catchup-{k}'],
                                                           data=datalist))
+                asyncio.create_task(self.redis_client.publish(
+                    channel_name, json.dumps(datalist)
+                ))
             self.needs_init.discard(conntype)
         objlist = bundles[command]
         asyncio.create_task(self.endpoint.publish([command], data=objlist[-1]))
+        asyncio.create_task(self.redis_client.publish(
+            channel_name, json.dumps([objlist[-1]])
+        ))
 
 
 subscription_manager = SubscriptionManager()

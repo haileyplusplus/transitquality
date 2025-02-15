@@ -214,23 +214,26 @@ class QueryManager:
         heap.sort()
         return heap
 
-    def get_closest(self, redis_key, dist):
-        r = self.redis
-        ts = r.ts()
+    def get_closest(self, pipeline, redis_key, dist):
+        ts = pipeline.ts()
         thresh = 3000
         # name msec seems inaccurate - do they mean seconds?
-        left = ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
-                        filter_by_min_value=dist-thresh, filter_by_max_value=dist)
-        right = ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
-                         filter_by_min_value=dist, filter_by_max_value=dist+thresh)
+        ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
+                 filter_by_min_value=dist-thresh, filter_by_max_value=dist)
+        ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
+                 filter_by_min_value=dist, filter_by_max_value=dist+thresh)
         #  print(f'closest to {dist} in {redis_key}: {left}, {right}')
-        if not left or not right:
-            return None
-        left_ts, left_dist = left[0]
-        right_ts, right_dist = right[0]
-        if abs(dist - left_dist) < abs(dist - right_dist):
-            return left[0]
-        return right[0]
+
+        def callback(left, right):
+            if not left or not right:
+                return None
+            left_ts, left_dist = left[0]
+            right_ts, right_dist = right[0]
+            if abs(dist - left_dist) < abs(dist - right_dist):
+                return left[0]
+            return right[0]
+
+        return 2, callback
 
     @staticmethod
     def printable_ts(ts: int):
@@ -240,26 +243,48 @@ class QueryManager:
         trips = self.get_latest_redis(pid)
         if bus_dist >= stop_dist:
             return -1, -1
+        pipeline = self.redis.pipeline()
         estimates = []
+        pipeline_stack = []
         for ts, redis_key in trips:
-            closest_bus = self.get_closest(redis_key, bus_dist)
-            closest_stop = self.get_closest(redis_key, stop_dist)
+            #closest_bus = self.get_closest(pipeline, redis_key, bus_dist)
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist))
+            #closest_stop = self.get_closest(pipeline, redis_key, stop_dist)
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist))
+
+        results = pipeline.execute()
+
+        def process(closest_bus, closest_stop):
             if not closest_bus or not closest_stop:
-                continue
+                return None
             bus_time_samp, bus_dist_samp = closest_bus
             stop_time_samp, stop_dist_samp = closest_stop
             travel_time = stop_time_samp - bus_time_samp
             travel_dist = stop_dist_samp - bus_dist_samp
             if travel_dist <= 0 or travel_time <= 0:
-                continue
+                return None
             travel_rate = travel_dist / travel_time
             actual_dist = stop_dist - bus_dist
-            estimates.append(actual_dist / travel_rate)
+            # estimates.append(actual_dist / travel_rate)
             print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
                   f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
                   f'travel time {travel_time} travel dist {travel_dist} '
                   f'travel rate {travel_rate} actual dist {actual_dist} '
-                  f'estimate {actual_dist * travel_rate}')
+                  f'estimate {actual_dist / travel_rate}')
+            return actual_dist / travel_rate
+
+        while pipeline_stack:
+            count, cb1 = pipeline_stack.pop(0)
+            result1 = cb1(results.pop(0), results.pop(0))
+
+            count, cb2 = pipeline_stack.pop(0)
+            result2 = cb2(results.pop(0), results.pop(0))
+
+            result = process(result1, result2)
+
+            if result:
+                estimates.append(result)
+
         if not estimates:
             return -1, -1
         # consider more sophisticated percentile stuff

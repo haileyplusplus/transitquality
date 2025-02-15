@@ -188,6 +188,66 @@ class BusUpdater(DatabaseUpdater):
                 self.subscriber_callback(response['bustime-response']['vehicle'])
         return {'refreshed': refreshed}
 
+
+    """
+        stop_id: Mapped[int] = mapped_column(primary_key=True)
+    destination: Mapped[str] = mapped_column(primary_key=True)
+    route: Mapped[str] = mapped_column(primary_key=True)
+    timestamp: Mapped[datetime.datetime]
+    origtatripno: Mapped[str]
+    prediction: Mapped[int]
+                {
+                    "tmstmp": "20250214 21:58",
+                    "typ": "D",
+                    "stpnm": "Neva & North Ave",
+                    "stpid": "845",
+                    "vid": "8548",
+                    "dstp": 763,
+                    "rt": "72",
+                    "rtdd": "72",
+                    "rtdir": "Eastbound",
+                    "des": "Pulaski",
+                    "prdtm": "20250214 21:59",
+                    "tablockid": "72 -853",
+                    "tatripid": "1075659",
+                    "origtatripno": "259624668",
+                    "dly": false,
+                    "dyn": 0,
+                    "prdctdn": "DUE",
+                    "zone": "",
+                    "psgld": "",
+                    "stst": 78300,
+                    "stsd": "2025-02-14",
+                    "flagstop": 0
+                },
+
+    """
+    def position_callback(self, data):
+        with Session(self.subscriber.engine) as session:
+            for v in data:
+                stop_id = int(v['stpid'])
+                destination = v['des']
+                route = v['rt']
+                key = (stop_id, destination, route)
+                prediction = session.get(BusPrediction, key)
+                if not prediction:
+                    prediction = BusPrediction(
+                        stop_id=stop_id,
+                        destination=destination,
+                        route=route
+                    )
+                    session.add(prediction)
+                prediction.origtatripno = v['origtatripno']
+                if v['prdctdn'] == 'DUE':
+                    prediction.prediction = 1
+                elif v['prdctdn'] == 'DLY':
+                    prediction.prediction = -1
+                else:
+                    prediction.prediction = int(v['prdctdn'])
+                prediction.timestamp = datetime.datetime.strptime(
+                    v['tmstmp'], '%Y%m%d %H:%M')
+            session.commit()
+
     def subscriber_callback(self, data):
         #print(f'Bus {len(data)}')
         #self.finish_past_trips()
@@ -289,12 +349,16 @@ class Subscriber:
                 self.bus_updater.subscriber_callback(response['bustime-response']['vehicle'])
             elif 'ttpositions' in topic:
                 self.train_updater.subscriber_callback(response['ctatt'])
+            elif 'getpredictions' in topic:
+                self.bus_updater.position_callback(response['bustime-response']['prd'])
             else:
                 print(f'Warning! Unexpected topic {topic}')
 
     def initialize_clients(self):
         self.client = PubSubClient(
-            ['getvehicles', 'ttpositions.aspx', 'catchup-getvehicles', 'catchup-ttpositions.aspx'],
+            ['getvehicles', 'ttpositions.aspx',
+                    'catchup-getvehicles', 'catchup-ttpositions.aspx'
+                    'catchup-getpredictions', 'getpredictions'],
             callback=self.callback)
 
     async def start_clients(self):

@@ -213,6 +213,16 @@ class TrainPosition(Base):
 """
 
 
+class BusPrediction(Base):
+    __tablename__ = "bus_prediction"
+
+    stop_id: Mapped[int] = mapped_column(primary_key=True)
+    destination: Mapped[str] = mapped_column(primary_key=True)
+    route: Mapped[str] = mapped_column(primary_key=True)
+    timestamp: Mapped[datetime.datetime]
+    origtatripno: Mapped[str]
+    prediction: Mapped[int]
+
 
 def db_init(echo=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)

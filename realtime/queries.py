@@ -79,7 +79,7 @@ class QueryManager:
             rv[row.pattern_id] = self.get_single_estimate(row)
         return rv
 
-    def nearest_stop_vehicles(self, lat, lon):
+    def nearest_stop_vehicles(self, lat, lon, include_estimate=False):
         query = ('select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, '
                  'pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist from ('
                  'select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance from '
@@ -106,6 +106,13 @@ class QueryManager:
                 #lat, lon = point.y, point.x
                 age = (startquery - row.last_update).total_seconds()
 
+                estimate = '?'
+                if include_estimate:
+                    se = StopEstimate(pattern_id=row.pattern_id,
+                                      bus_location=row.distance,
+                                      stop_pattern_distance=row.stop_pattern_distance)
+                    estimate = self.get_single_estimate(se)
+
                 dxx = {'pattern': row.pattern_id,
                        'startquery': startquery.isoformat(),
                        'route': row.rt,
@@ -122,7 +129,7 @@ class QueryManager:
                        'vehicle_distance': row.distance,
                        'last_stop_id': last_stop_id,
                        'last_stop_name': last_stop_name,
-                       'estimate': '?',
+                       'estimate': estimate,
                        }
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
@@ -197,20 +204,25 @@ class QueryManager:
         return x1, x2, interp
 
     def get_latest_redis(self, pid):
-        cursor = 0
+        #cursor = 0
         r = self.redis
         ts = r.ts()
         heap = []
         heapsize = 10
-        while True:
-            cursor, items = r.scan(cursor, match=f'busposition:{pid}:*')
-            for item in items:
-                value = ts.get(item)
-                heapq.heappush(heap, (value[0], item))
-                if len(heap) > heapsize:
-                    heapq.heappop(heap)
-            if cursor == 0:
-                break
+        for item in r.keys(pattern=f'busposition:{pid}:*'):
+            value = ts.get(item)
+            heapq.heappush(heap, (value[0], item))
+            if len(heap) > heapsize:
+                heapq.heappop(heap)
+        # while True:
+        #     cursor, items = r.scan(cursor, match=f'busposition:{pid}:*')
+        #     for item in items:
+        #         value = ts.get(item)
+        #         heapq.heappush(heap, (value[0], item))
+        #         if len(heap) > heapsize:
+        #             heapq.heappop(heap)
+        #     if cursor == 0:
+        #         break
         heap.sort()
         return heap
 
@@ -322,9 +334,12 @@ class QueryManager:
 def main():
     engine = db_init()
     qm = QueryManager(engine)
-    lon = -87.632892
-    lat = 41.903914
-    results = qm.nearest_stop_vehicles(lat, lon)
+    # ,
+    lon = -87.610056
+    lat = 41.822556
+    #lon = -87.632892
+    #lat = 41.903914
+    results = qm.nearest_stop_vehicles(lat, lon, include_estimate=True)
     return results
 
 

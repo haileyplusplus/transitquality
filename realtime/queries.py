@@ -79,7 +79,7 @@ class QueryManager:
             rv[row.pattern_id] = self.get_single_estimate(row)
         return rv
 
-    def nearest_stop_vehicles(self, lat, lon, include_estimate=False):
+    def nearest_stop_vehicles(self, lat, lon, include_estimate=False, include_all_items=False):
         query = ('select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, '
                  'pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist from ('
                  'select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance from '
@@ -134,8 +134,10 @@ class QueryManager:
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
                 all_items.append(dxx)
+        if include_all_items:
+            return all_items
         return list(routes.values())
-        #return all_items
+
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:
@@ -203,14 +205,25 @@ class QueryManager:
         x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
         return x1, x2, interp
 
+    def get_redis_keys(self, pid):
+        redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
+        return redis_keys
+
     def get_latest_redis(self, pid):
         #cursor = 0
         r = self.redis
-        ts = r.ts()
+        pipeline = self.redis.pipeline()
+        ts = pipeline.ts()
         heap = []
         heapsize = 10
-        for item in r.keys(pattern=f'busposition:{pid}:*'):
-            value = ts.get(item)
+        redis_keys = self.get_redis_keys(pid)
+        for item in redis_keys:
+            ts.get(item)
+        results = pipeline.execute()
+        index = 0
+        for item in redis_keys:
+            value = results[index]
+            index += 1
             heapq.heappush(heap, (value[0], item))
             if len(heap) > heapsize:
                 heapq.heappop(heap)

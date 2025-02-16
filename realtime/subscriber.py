@@ -7,6 +7,7 @@ Subscribe to streaming updates and insert them into the database.
 import asyncio
 import sys
 
+import requests
 from fastapi_websocket_pubsub import PubSubClient
 from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
@@ -337,7 +338,7 @@ class Subscriber:
             self.bus_updater.periodic_cleanup()
             await asyncio.sleep(60)
 
-    async def callback(self, data, topic):
+    def handler(self, data, topic):
         print(f'Received {topic} data len {len(str(data))}')
         if 'catchup' in topic:
             datalist = data
@@ -354,14 +355,34 @@ class Subscriber:
             else:
                 print(f'Warning! Unexpected topic {topic}')
 
+    async def callback(self, data, topic):
+        self.handler(data, topic)
+
     def initialize_clients(self):
         self.client = PubSubClient(
-            ['getvehicles', 'ttpositions.aspx',
-                    'catchup-getvehicles', 'catchup-ttpositions.aspx'
-                    'catchup-getpredictions', 'getpredictions'],
+            ['getvehicles', 'ttpositions.aspx', 'getpredictions'],
             callback=self.callback)
 
+    def catchup(self):
+        response = requests.get(f'http://{self.host}:8002/train-bundle')
+        if response.status_code != 200:
+            print(f'Error getting train bundle: {response.status_code}')
+            return
+        train_bundle = response.json()['train_bundle']
+        for k, v in train_bundle.items():
+            self.handler(v, f'catchup-{k}')
+        response = requests.get(f'http://{self.host}:8002/bus-bundle')
+        if response.status_code != 200:
+            print(f'Error getting bus bundle: {response.status_code}')
+            return
+        bus_bundle = response.json()['bus_bundle']
+        for k, v in bus_bundle.items():
+            self.handler(v, f'catchup-{k}')
+
     async def start_clients(self):
+        print('catching up')
+        self.catchup()
+        print('caught up')
         self.client.start_client(f'ws://{self.host}:8002/pubsub')
         await self.client.wait_until_done()
 

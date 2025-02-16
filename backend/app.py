@@ -130,15 +130,23 @@ train_runner = Runner(train_scraper)
 START_TIME = datetime.datetime.now(datetime.UTC)
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f'App starting up')
+    print('App starting up in lifespan')
+    bus_runner.syncstart()
+    bus_task = asyncio.create_task(bus_runner.loop())
+    train_runner.syncstart()
+    train_task = asyncio.create_task(train_runner.loop())
     yield
+    print('App lifespan done')
     logger.info(f'App lifespan done')
+    bus_task.cancel()
     bus_runner.syncstop()
+    train_task.cancel()
     train_runner.syncstop()
     logger.info(f'Syncstop done')
+    print('Tasks stopped')
 
 
 class Settings(BaseSettings):
@@ -230,38 +238,30 @@ def status():
     return d
 
 
-@app.get('/setkey/{key}')
-def setkey(key: str, trainkey: str | None = None):
-    bus_scraper.set_api_key(key)
-    if trainkey is not None:
-        train_scraper.set_api_key(trainkey)
-    return {'command': 'setkey', 'result': 'success'}
+# @app.get('/setkey/{key}')
+# def setkey(key: str, trainkey: str | None = None):
+#     bus_scraper.set_api_key(key)
+#     if trainkey is not None:
+#         train_scraper.set_api_key(trainkey)
+#     return {'command': 'setkey', 'result': 'success'}
 
 
-@app.get('/startbus')
-async def startbus(background_tasks: BackgroundTasks):
-    if not bus_scraper.has_api_key():
-        return {'result': 'error', 'message': 'API key must first be set'}
-    bus_runner.syncstart()
-    #train_runner.syncstart()
-    # check whether running
-    #asyncio.run(runner.start())
-    background_tasks.add_task(bus_runner.loop)
-    #background_tasks.add_task(train_runner.loop)
-    return {'command': 'startbus', 'result': 'success'}
+# @app.get('/startbus')
+# async def startbus(background_tasks: BackgroundTasks):
+#     if not bus_scraper.has_api_key():
+#         return {'result': 'error', 'message': 'API key must first be set'}
+#     bus_runner.syncstart()
+#     background_tasks.add_task(bus_runner.loop)
+#     return {'command': 'startbus', 'result': 'success'}
 
 
-@app.get('/starttrain')
-async def starttrain(background_tasks: BackgroundTasks):
-    if not train_scraper.has_api_key():
-        return {'result': 'error', 'message': 'API key must first be set'}
-    #bus_runner.syncstart()
-    train_runner.syncstart()
-    # check whether running
-    #asyncio.run(runner.start())
-    #background_tasks.add_task(bus_runner.loop)
-    background_tasks.add_task(train_runner.loop)
-    return {'command': 'starttrain', 'result': 'success'}
+# @app.get('/starttrain')
+# async def starttrain(background_tasks: BackgroundTasks):
+#     if not train_scraper.has_api_key():
+#         return {'result': 'error', 'message': 'API key must first be set'}
+#     train_runner.syncstart()
+#     background_tasks.add_task(train_runner.loop)
+#     return {'command': 'starttrain', 'result': 'success'}
 
 
 @app.get('/stop')

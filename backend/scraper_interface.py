@@ -84,6 +84,14 @@ class ScraperInterface(ABC):
     def get_bundle_status(self) -> dict:
         pass
 
+    @abstractmethod
+    def get_requestor(self):
+        pass
+
+    def get_bundle(self):
+        requestor = self.get_requestor()
+        return requestor.bundler.bundles
+
 
 class ParserInterface(ABC):
     @staticmethod

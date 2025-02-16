@@ -25,6 +25,8 @@ from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
 import os
 
+from backend.util import Util
+
 logger = logging.getLogger(__file__)
 
 # don't log every message the subscriber sends
@@ -286,3 +288,17 @@ def loghead():
 def logtail():
     v = bus_scraper.requestor.readlog(tail=True)
     return {'log_contents': v}
+
+
+@app.get('/bus-bundle')
+def bus_bundle():
+    request_time = Util.utcnow()
+    return {'bus_bundle': bus_scraper.get_bundle(),
+            'request_time': request_time.isoformat()}
+
+
+@app.get('/train-bundle')
+def train_bundle():
+    request_time = Util.utcnow()
+    return {'train_bundle': train_scraper.get_bundle(),
+            'request_time': request_time.isoformat()}

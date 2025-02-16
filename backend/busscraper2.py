@@ -451,6 +451,9 @@ class BusScraper(ScraperInterface):
         self.subdir = 'unknown'
         logger.info(f'Starting scraper. Local environment: {os.environ}')
 
+    def get_requestor(self):
+        return self.requestor
+
     def daily_action(self, new_day: str):
         logger.info(f'New day: {new_day}')
         self.subdir = new_day

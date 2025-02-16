@@ -110,6 +110,9 @@ class TrainScraper(ScraperInterface):
         #self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
         #self.initialize_logging()
 
+    def get_requestor(self):
+        return self.requestor
+
     def get_bundle_status(self) -> dict:
         d = self.requestor.bundler.status()
         d['last_scraped'] = self.last_scraped.isoformat()

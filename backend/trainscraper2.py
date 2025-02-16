@@ -60,6 +60,36 @@ class TrainParser(ParserInterface):
 class TrainScraper(ScraperInterface):
     BASE_URL = 'https://lapi.transitchicago.com/api/1.0'
     ERROR_REST = datetime.timedelta(minutes=30)
+    TERMINAL_STATIONS = [
+        # Green
+        40290,
+        40720,
+        40020,
+
+        # Red
+        40900,
+        40450,
+
+        # Blue
+        40890,
+        40350,
+        40390,
+
+        # Orange
+        40930,
+
+        # Brown
+        41290,
+
+        # Pink
+        40580,
+
+        # Purple
+        41050,
+
+        # Yellow
+        40140,
+    ]
 
     def __init__(self, output_dir: Path, scrape_interval: datetime.timedelta,
                  write_local=False, callback=None):
@@ -134,6 +164,13 @@ class TrainScraper(ScraperInterface):
         #if self.callback and response.ok():
         #    d = response.payload()
         #    self.callback(d)
+        for mapid in self.TERMINAL_STATIONS:
+            self.requestor.make_request(
+                'ttarrivals.aspx',
+                mapid=mapid,
+                outputType='JSON',
+                noformat=1
+            )
         self.last_scraped = scrape_time
 
     def do_shutdown(self):

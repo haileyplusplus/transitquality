@@ -10,12 +10,10 @@ import json
 import sys
 
 import requests
-from fastapi_websocket_pubsub import PubSubClient
 from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 import redis
 import redis.asyncio as redis_async
-import traceback
 
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
@@ -360,14 +358,10 @@ class BusUpdater(DatabaseUpdater):
 class Subscriber:
     def __init__(self, host):
         self.host = host
-        #self.client = None
-        #self.subscriber_task = None
         self.engine = db_init()
         self.train_updater = TrainUpdater(self)
         self.bus_updater = BusUpdater(self)
         self.redis_client = redis_async.Redis(host=self.host)
-        #print(f'Finishing past trip')
-        #self.bus_updater.finish_past_trips(1744)
 
     async def periodic_cleanup(self):
         while True:
@@ -375,14 +369,9 @@ class Subscriber:
             await asyncio.sleep(60)
 
     def handler(self, data, topic):
-        print(f'Received {topic} data len {len(str(data))} first {str(data)[:250]}')
-        # if 'catchup' in topic:
-        #     datalist = data
-        # else:
-        #     datalist = [data]
+        print(f'Received {topic} data len {len(str(data))} first {str(data)[:100]}')
         datalist = data
         for item in datalist:
-            print(f'Processing item {str(item)[:200]}')
             response = item['response']
             if 'getvehicles' in topic:
                 self.bus_updater.subscriber_callback(response['bustime-response']['vehicle'])
@@ -394,26 +383,6 @@ class Subscriber:
                 self.bus_updater.position_callback(response['bustime-response']['prd'])
             else:
                 print(f'Warning! Unexpected topic {topic}')
-            print(f'Done processing')
-
-    async def callback(self, data, topic):
-        self.handler(data, topic)
-
-    async def message_handler(self, channel: redis_async.client.PubSub):
-        while True:
-            message = await channel.get_message(ignore_subscribe_messages=True)
-            if message is not None:
-                print(f'Got non-empty message')
-                channel = message['channel'].decode('utf-8')
-                data = message['data'].decode('utf-8')
-                #self.handler(data, channel)
-                print(f'Handler for {channel} done')
-
-    def initialize_clients(self):
-        pass
-        # self.client = PubSubClient(
-        #     ['getvehicles', 'ttpositions.aspx', 'getpredictions'],
-        #     callback=self.callback)
 
     def catchup(self):
         response = requests.get(f'http://{self.host}:8002/train-bundle')
@@ -432,56 +401,30 @@ class Subscriber:
             self.handler(v, f'catchup-{k}')
 
     async def catchup_wrapper(self):
+        print('catching up')
         self.catchup()
+        print('caught up')
 
     async def start_clients(self):
-        print('catching up')
-        #self.catchup()
-        print('caught up')
-        #if self.subscriber_task:
-        #    self.subscriber_task.cancel()
         print(f'Creating subscriber task')
         print(f'Starting listener')
         pubsub = self.redis_client.pubsub(ignore_subscribe_messages=True)
         channels = ['getvehicles', 'ttpositions.aspx', 'getpredictions']
-        #await pubsub.subscribe(**{f'channel:{channel}': self.message_handler for channel in channels})
         await pubsub.subscribe(*[f'channel:{channel}' for channel in channels])
         print(f'Starting async')
-        #task = asyncio.create_task(self.message_handler(pubsub))
-        #await task
         while True:
             message = await pubsub.get_message(ignore_subscribe_messages=True)
             if message is not None:
-                print(f'Got non-empty message')
                 channel = message['channel'].decode('utf-8')
                 data = message['data'].decode('utf-8')
                 self.handler(json.loads(data), channel)
-                print(f'Handler for {channel} done')
-        #print(f'Done awaiting task')
-        # async for message in pubsub.listen():
-        #     channel = message['channel'].decode('utf-8')
-        #     data = message['data'].decode('utf-8')
-        #     self.handler(data, channel)
-        #     print(f'Handler for {channel} done')
-        #self.client.start_client(f'ws://{self.host}:8002/pubsub')
-        #await self.client.wait_until_done()
-
-
-def signal_handler(*args):
-    print('Current stack')
-    print(traceback.format_exc())
 
 
 def initialize(host: str):
-    #load_routes(path='realtime/routes.json')
-    #engine = load(path='/patterns')
-    #signal.signal(signal.SIGUSR1, signal_handler)
     faulthandler.enable()
     load_routes()
-    #engine = load()
     print(f'Loaded data')
     subscriber = Subscriber(host)
-    subscriber.initialize_clients()
     print(f'Starting subscriber')
     return subscriber
 
@@ -495,10 +438,7 @@ async def main(host: str):
     print(client_task.result())
     print(cleanup_task.result())
     print(catchup_task.result())
-    #if subscriber.subscriber_task:
-    #    subscriber.subscriber_task.cancel()
     print(f'Tasks finished.')
-    #asyncio.run(subscriber.start_clients())
 
 
 if __name__ == "__main__":

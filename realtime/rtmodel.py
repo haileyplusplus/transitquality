@@ -78,6 +78,8 @@ class PatternStop(Base):
     stop_id = mapped_column(ForeignKey("stop.id"))  # manual indes
     sequence: Mapped[int]
     distance: Mapped[int]
+    # only used for train lines
+    direction_change: Mapped[int] = mapped_column(nullable=True)
 
     pattern: Mapped[Pattern] = relationship(back_populates="pattern_stops")
     stop: Mapped[Stop] = relationship(back_populates="pattern_stops")
@@ -271,6 +273,12 @@ def db_init(echo=False, dev=False):
     Base.metadata.create_all(engine)
     return engine
 
+
+"""
+Figure out how to handle views:
+
+create view last_stop as select distinct on (pattern_id) pattern_id, sequence, distance, stop_id from pattern_stop order by pattern_id, sequence desc;
+"""
 
 if __name__ == "__main__":
     db_init()

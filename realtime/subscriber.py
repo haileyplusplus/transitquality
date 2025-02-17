@@ -97,6 +97,27 @@ class TrainUpdater(DatabaseUpdater):
                         completed=False,
                     )
                     session.add(upd)
+                    current = session.get(CurrentTrainState, run)
+                    if not current:
+                        current = CurrentTrainState(
+                            id=run,
+                            last_update=timestamp
+                        )
+                        session.add(current)
+                    elif timestamp <= current.last_update:
+                        continue
+                    current.last_update = timestamp
+                    current.dest_station = int(v['destSt'])
+                    current.dest_station_name = v['destNm']
+                    current.direction = int(v['trDr'])
+                    current.next_station = int(v['nextStaId'])
+                    current.next_stop = int(v['nextStpId'])
+                    current.next_arrival = datetime.datetime.strptime(v['arrT'], '%Y-%m-%dT%H:%M:%S')
+                    current.approaching = int(v['isApp'])
+                    current.delayed = int(v['isDly'])
+                    current.geom = geom
+                    current.heading = int(v['heading'])
+                    current.route = route_db
             session.commit()
 
     def prediction_callback(self, data):
@@ -256,7 +277,7 @@ class BusUpdater(DatabaseUpdater):
                 },
 
     """
-    def position_callback(self, data):
+    def bus_prediction_callback(self, data):
         with Session(self.subscriber.engine) as session:
             for v in data:
                 stop_id = int(v['stpid'])
@@ -386,7 +407,7 @@ class Subscriber:
             elif 'ttarrivals' in topic:
                 self.train_updater.prediction_callback(response['ctatt'])
             elif 'getpredictions' in topic:
-                self.bus_updater.position_callback(response['bustime-response']['prd'])
+                self.bus_updater.bus_prediction_callback(response['bustime-response']['prd'])
             else:
                 print(f'Warning! Unexpected topic {topic}')
 

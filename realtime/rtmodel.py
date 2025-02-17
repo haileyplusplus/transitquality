@@ -42,6 +42,7 @@ class Route(Base):
     trips: Mapped[List["Trip"]] = relationship(back_populates="route")
     train_positions: Mapped[List["TrainPosition"]] = relationship(back_populates="route")
     current_vehicles: Mapped[List["CurrentVehicleState"]] = relationship(back_populates="route")
+    current_trains: Mapped[List["CurrentTrainState"]] = relationship(back_populates="route")
 
 
 class Stop(Base):
@@ -213,6 +214,26 @@ class TrainPosition(Base):
 """
 
 
+class CurrentTrainState(Base):
+    __tablename__ = "current_train_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    last_update: Mapped[datetime.datetime]
+    geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
+    rt = mapped_column(ForeignKey("route.id"))
+    dest_station: Mapped[int]
+    dest_station_name: Mapped[str]
+    direction: Mapped[int]
+    next_station: Mapped[int]
+    next_stop: Mapped[int]
+    next_arrival: Mapped[datetime.datetime]
+    approaching: Mapped[bool]
+    delayed: Mapped[bool]
+    heading: Mapped[int]
+
+    route: Mapped[Route] = relationship(back_populates="current_trains")
+
+
 class BusPrediction(Base):
     __tablename__ = "bus_prediction"
 
@@ -241,8 +262,8 @@ class TrainPrediction(Base):
 def db_init(echo=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development
-    #conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
-    conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
+    conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
+    #conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
     print(f'Connecting to {conn_str}')
     engine = create_engine(conn_str, echo=echo)
     Base.metadata.create_all(engine)

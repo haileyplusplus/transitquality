@@ -19,6 +19,7 @@ class ScheduleAnalyzer:
                                        dist_units='mi')
         self.xfm = pyproj.Transformer.from_crs('EPSG:4326', self.CHICAGO)
         self.joined_shapes = None
+        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(self.CHICAGO).set_index('shape_id')
 
     def calc_midpoint(self, shape):
         splitlen = shape.line_locate_point(shapely.Point(self.xfm.transform(*self.LOOP_MIDPOINT)))
@@ -58,6 +59,7 @@ class ScheduleAnalyzer:
         shape_with_counts['last_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[-1][1], axis=1)
         shape_with_counts['first_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[0][0], axis=1)
         shape_with_counts['last_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[-1][0], axis=1)
+        shape_with_counts = shape_with_counts.reset_index().join(sa.geo_shapes, on='shape_id')
         self.joined_shapes = shape_with_counts
         return self.joined_shapes
 

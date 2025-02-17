@@ -12,13 +12,63 @@ from geoalchemy2.shape import to_shape, from_shape
 from realtime.rtmodel import *
 
 
-class ScheduleAnalyzer:
+class ShapeManager:
     # Clark / Lake
     LOOP_MIDPOINT = (41.885737, -87.630886)
     # geometry lengths are in meters
     CHICAGO = 'EPSG:26916'
     FEET_TO_METERS = 0.3048
+    XFM = pyproj.Transformer.from_crs('EPSG:4326', CHICAGO)
 
+    def __init__(self, shape):
+        self.shape = shape
+        self.front = None
+        self.back = None
+        self.split_length = None
+        self.calc_midpoint()
+
+    def calc_midpoint(self):
+        shape = self.shape
+        loop_midpoint = shapely.Point(self.XFM.transform(*self.LOOP_MIDPOINT))
+        distance = shape.distance(loop_midpoint)
+        if distance > 50:
+            loop_midpoint = shape.interpolate(0.5, normalized=1)
+            distance = shape.distance(loop_midpoint)
+            if distance > 50:
+                return
+        splitlen = shape.line_locate_point(loop_midpoint)
+        self.split_length = splitlen
+        print(f'Splitting at len {splitlen}')
+        #shape.line_locate_point(shapely.Point(xfm.transform(*LOOP_MIDPOINT)))
+        splitpoint = shape.interpolate(splitlen)
+        print(f'Calculating midpoint: distance from line is {distance}')
+        splitsnap = shapely.snap(shape, splitpoint, tolerance=1)
+        segments = split(splitsnap, splitpoint)
+        self.front, self.back = segments.geoms
+
+    def get_distance_along_shape(self, previous_distance, stop_point):
+        coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
+        if self.front is None:
+            distance = self.shape.geometry.line_locate_point(coord_point)
+            return distance
+        if previous_distance >= self.split_length:
+            # look in the second part
+            distance = self.back.line_locate_point(coord_point)
+            distance += self.front.length
+            return distance
+        if previous_distance <= 0.9 * self.split_length:
+            # only in first
+            distance = self.front.line_locate_point(coord_point)
+            return distance
+        # otherwise try both
+        front_distance = self.front.line_locate_point(coord_point)
+        back_distance = self.back.line_locate_point(coord_point) + self.front.length
+        if front_distance <= previous_distance:
+            return back_distance
+        return front_distance
+
+
+class ScheduleAnalyzer:
     def __init__(self, schedule_location: Path):
         self.schedule_location = schedule_location
         self.feed = gtfs_kit.read_feed(self.schedule_location,
@@ -27,9 +77,8 @@ class ScheduleAnalyzer:
         self.schedule_date = datetime.datetime.strptime(schedule_datestr, '%Y%m%d').date()
         print(f'Schedule: {self.schedule_date}')
         self.engine = db_init(dev=True)
-        self.xfm = pyproj.Transformer.from_crs('EPSG:4326', self.CHICAGO)
         self.joined_shapes = None
-        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(self.CHICAGO).set_index('shape_id')
+        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(ShapeManager.CHICAGO).set_index('shape_id')
 
     def schedule_start(self):
         return self.feed.get_dates()[0]
@@ -46,7 +95,7 @@ class ScheduleAnalyzer:
                 if pattern:
                     continue
                 print(f'Inserting shape {row.shape_id}')
-                dist_feet = row.geometry.length / self.FEET_TO_METERS
+                dist_feet = row.geometry.length / ShapeManager.FEET_TO_METERS
                 pattern = Pattern(
                     id=shape_id,
                     rt=route_id,
@@ -55,6 +104,8 @@ class ScheduleAnalyzer:
                 )
                 session.add(pattern)
                 sequence = 1
+                shape_manager = ShapeManager(row.geometry)
+                previous_distance = 0
                 for stop_id_str, stop_name in row.stop_list:
                     stop_id = int(stop_id_str)
                     stop = session.get(Stop, stop_id)
@@ -69,8 +120,10 @@ class ScheduleAnalyzer:
                         )
                         session.add(stop)
                     stop_point = to_shape(stop.geom)
-                    coord_point = shapely.Point(self.xfm.transform(stop_point.y, stop_point.x))
-                    distance = row.geometry.line_locate_point(coord_point)
+                    distance = shape_manager.get_distance_along_shape(previous_distance, stop_point)
+                    previous_distance = distance
+                    #coord_point = shapely.Point(ShapeManager.XFM.transform(stop_point.y, stop_point.x))
+                    #distance = row.geometry.line_locate_point(coord_point)
                     pattern_stop = PatternStop(
                         sequence=sequence,
                         distance=distance,
@@ -81,15 +134,6 @@ class ScheduleAnalyzer:
                     sequence += 1
             session.commit()
         print(f'Database updated')
-
-    def calc_midpoint(self, shape):
-        splitlen = shape.line_locate_point(shapely.Point(self.xfm.transform(*self.LOOP_MIDPOINT)))
-        #shape.line_locate_point(shapely.Point(xfm.transform(*LOOP_MIDPOINT)))
-        splitpoint = shape.interpolate(splitlen)
-        splitsnap = shapely.snap(shape, splitpoint, tolerance=1)
-        segments = split(splitsnap, splitpoint)
-        inbound, outbound = segments.geoms
-        return inbound, outbound
 
     def train_shapes(self):
         feed = self.feed

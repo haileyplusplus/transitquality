@@ -226,7 +226,11 @@ class BusPrediction(Base):
 
 def db_init(echo=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
-    engine = create_engine("postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate", echo=echo)
+    # for local development
+    #conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
+    conn_str = "postgresql://postgres:rttransit@rttransit-guineafowl-cloud.ts.net/rttransitstate"
+    print(f'Connecting to {conn_str}')
+    engine = create_engine(conn_str, echo=echo)
     Base.metadata.create_all(engine)
     return engine
 

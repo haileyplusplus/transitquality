@@ -1,3 +1,4 @@
+import faulthandler
 
 from fastapi import FastAPI, BackgroundTasks
 from contextlib import asynccontextmanager
@@ -16,6 +17,9 @@ from realtime.rtmodel import db_init
 
 logger = logging.getLogger(__file__)
 
+import traceback
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global subscriber
@@ -23,11 +27,11 @@ async def lifespan(app: FastAPI):
     subscriber = initialize('leonard.guineafowl-cloud.ts.net')
     #async with asyncio.TaskGroup() as tg:
     client_task = asyncio.create_task(subscriber.start_clients())
-    cleanup_task = asyncio.create_task(subscriber.periodic_cleanup())
+    #cleanup_task = asyncio.create_task(subscriber.periodic_cleanup())
     print('serving')
     yield
     client_task.cancel()
-    cleanup_task.cancel()
+    #cleanup_task.cancel()
     logger.info(f'App lifespan done')
 
 
@@ -42,6 +46,8 @@ def main():
 
 @app.get('/status')
 def status():
+    print('hello')
+    faulthandler.dump_traceback(file=sys.stdout, all_threads=True)
     return {'status': 'running'}
 
 

@@ -52,5 +52,5 @@ EXPOSE 8000
 
 # Run the application.
 #CMD uvicorn 'realtime.bundleapp:app' --host=0.0.0.0 --port=8000
-#CMD python -m realtime.subscriber leonard.guineafowl-cloud.ts.net
-CMD uvicorn 'realtime.server:app' --host=0.0.0.0 --port=8000
+CMD python -m realtime.subscriber leonard.guineafowl-cloud.ts.net
+#CMD uvicorn 'realtime.server:app' --host=0.0.0.0 --port=8000

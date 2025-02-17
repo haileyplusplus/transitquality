@@ -9,6 +9,7 @@ import datetime
 import logging
 import json
 import sys
+import faulthandler
 
 
 import redis.asyncio as redis
@@ -33,6 +34,8 @@ logger = logging.getLogger(__file__)
 logging.getLogger('PubSubServer').setLevel(logging.WARNING)
 
 LOCALDIR = Path(__file__).parent.parent
+
+faulthandler.enable()
 
 db_initialize()
 #outdir = Path('~/transit/scraping/bustracker').expanduser()

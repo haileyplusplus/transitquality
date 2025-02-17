@@ -8,6 +8,7 @@ import asyncio
 import faulthandler
 import json
 import sys
+import time
 
 import requests
 from sqlalchemy import select, delete, func, text
@@ -406,18 +407,24 @@ class Subscriber:
         print('caught up')
 
     async def start_clients(self):
-        print(f'Creating subscriber task')
-        print(f'Starting listener')
-        pubsub = self.redis_client.pubsub(ignore_subscribe_messages=True)
-        channels = ['getvehicles', 'ttpositions.aspx', 'getpredictions']
-        await pubsub.subscribe(*[f'channel:{channel}' for channel in channels])
-        print(f'Starting async')
         while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True)
-            if message is not None:
-                channel = message['channel'].decode('utf-8')
-                data = message['data'].decode('utf-8')
-                self.handler(json.loads(data), channel)
+            print(f'Creating subscriber task')
+            print(f'Starting listener')
+            pubsub = self.redis_client.pubsub(ignore_subscribe_messages=True)
+            channels = ['getvehicles', 'ttpositions.aspx', 'getpredictions']
+            await pubsub.subscribe(*[f'channel:{channel}' for channel in channels])
+            print(f'Starting async')
+            while True:
+                try:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True)
+                except redis.exceptions.ConnectionError as e:
+                    print(f'Redis connection error: {e}. Retrying')
+                    time.sleep(5)
+                    break
+                if message is not None:
+                    channel = message['channel'].decode('utf-8')
+                    data = message['data'].decode('utf-8')
+                    self.handler(json.loads(data), channel)
 
 
 def initialize(host: str):

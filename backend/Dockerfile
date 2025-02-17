@@ -23,11 +23,6 @@ RUN apt-get update && apt-get install -y git
 
 RUN mkdir /transit
 
-WORKDIR /transit
-RUN git clone https://github.com/permitio/fastapi_websocket_pubsub.git
-
-WORKDIR /transit/fastapi_websocket_pubsub
-RUN python setup.py install
 
 WORKDIR /app
 

@@ -1,7 +1,6 @@
 from functools import lru_cache
 
 from fastapi import FastAPI, BackgroundTasks
-from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import asyncio
 from pathlib import Path
@@ -15,8 +14,6 @@ import faulthandler
 import redis.asyncio as redis
 from playhouse.shortcuts import model_to_dict
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from fastapi_websocket_pubsub import PubSubEndpoint
-from fastapi_websocket_rpc import RpcChannel
 
 from backend.busscraper2 import BusScraper
 from backend.trainscraper2 import TrainScraper
@@ -38,14 +35,7 @@ LOCALDIR = Path(__file__).parent.parent
 faulthandler.enable()
 
 db_initialize()
-#outdir = Path('~/transit/scraping/bustracker').expanduser()
-#outdir = Path('/transit/scraping/bustracker')
 outdir = Path('/transit/scraping/bustracker')
-# os.mkdir('/transit/scraping')
-# os.mkdir('/transit/scraping/bustracker')
-# os.mkdir('/transit/scraping/bustracker/logs')
-# outdir.mkdir(parents=True, exist_ok=True)
-# logdir = outdir / 'logs'
 tracker_env = os.getenv('TRACKERWRITE')
 if tracker_env == 's3':
     write_local = False
@@ -54,63 +44,18 @@ elif tracker_env == 'local':
 else:
     print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
     write_local = False
-    #sys.exit(1)
-# logdir.mkdir(parents=True, exist_ok=True)
-
-#
-# def pubsub_callback(obj):
-#     #pub.sendMessage('vehicles', obj)
-#     asyncio.create_task(endpoint.publish(['vehicles'], data=obj))
-#     #print(obj)
-#
-#
-# def train_callback(obj):
-#     asyncio.create_task(endpoint.publish(['trains'], data=obj))
 
 
 class SubscriptionManager:
     def __init__(self):
-        self.needs_init = set([])
-        self.endpoint = None
         self.redis_client = redis.Redis(host='memstore')
-        #ping_status = await asyncio.run(self.redis_client.ping()
-        #print(f'Redis ping status: {)}')
-        #self.redis_pubsub = self.redis_client.pubsub()
         task = asyncio.create_task(self.redis_client.ping())
         print(f'create task {task}')
         task.add_done_callback(lambda x: print(f'ping status: {x}'))
 
-    def create_endpoint(self, app):
-        async def connection_callback(channel: RpcChannel):
-            self.needs_init.add('bus')
-            self.needs_init.add('train')
-
-        endpoint = PubSubEndpoint(on_connect=[connection_callback])
-        endpoint.register_route(app, '/pubsub')
-        self.endpoint = endpoint
-        return self.endpoint
-
     def common_callback(self, command, bundles):
-        if command == 'ttpositions.aspx':
-            conntype = 'train'
-        else:
-            conntype = 'bus'
         channel_name = f'channel:{command}'
-        #print(f'publishing to redis channel {channel_name}')
-        if conntype in self.needs_init:
-            for k, v in bundles.items():
-                if k == command:
-                    datalist = v[:-1]
-                else:
-                    datalist = v
-                asyncio.create_task(self.endpoint.publish([f'catchup-{k}'],
-                                                          data=datalist))
-                asyncio.create_task(self.redis_client.publish(
-                    channel_name, json.dumps(datalist)
-                ))
-            self.needs_init.discard(conntype)
         objlist = bundles[command]
-        asyncio.create_task(self.endpoint.publish([command], data=objlist[-1]))
         asyncio.create_task(self.redis_client.publish(
             channel_name, json.dumps([objlist[-1]])
         ))
@@ -126,9 +71,6 @@ bus_runner = Runner(bus_scraper)
 train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60),
                              write_local=write_local, callback=subscription_manager.common_callback)
 train_runner = Runner(train_scraper)
-
-#signal.signal(signal.SIGINT, runner.exithandler)
-#signal.signal(signal.SIGTERM, runner.exithandler)
 
 START_TIME = datetime.datetime.now(datetime.UTC)
 
@@ -160,8 +102,6 @@ class Settings(BaseSettings):
 
 
 app = FastAPI(lifespan=lifespan)
-print(f'Registering app route for pubsub')
-subscription_manager.create_endpoint(app)
 
 
 def apply_settings():
@@ -241,35 +181,8 @@ def status():
     return d
 
 
-# @app.get('/setkey/{key}')
-# def setkey(key: str, trainkey: str | None = None):
-#     bus_scraper.set_api_key(key)
-#     if trainkey is not None:
-#         train_scraper.set_api_key(trainkey)
-#     return {'command': 'setkey', 'result': 'success'}
-
-
-# @app.get('/startbus')
-# async def startbus(background_tasks: BackgroundTasks):
-#     if not bus_scraper.has_api_key():
-#         return {'result': 'error', 'message': 'API key must first be set'}
-#     bus_runner.syncstart()
-#     background_tasks.add_task(bus_runner.loop)
-#     return {'command': 'startbus', 'result': 'success'}
-
-
-# @app.get('/starttrain')
-# async def starttrain(background_tasks: BackgroundTasks):
-#     if not train_scraper.has_api_key():
-#         return {'result': 'error', 'message': 'API key must first be set'}
-#     train_runner.syncstart()
-#     background_tasks.add_task(train_runner.loop)
-#     return {'command': 'starttrain', 'result': 'success'}
-
-
 @app.get('/stop')
 def stop():
-    #asyncio.run(runner.stop())
     bus_runner.syncstop()
     train_runner.syncstop()
     return {'result': 'success'}

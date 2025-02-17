@@ -93,7 +93,7 @@ def estimates():
     for v in directions.values():
         v.sort(key=lambda x: x['route'])
     raw = json.dumps(d, indent=4)
-    return render_template('bus_status.html', results=directions, raw=raw)
+    return render_template('bus_status.html', results=directions, raw=raw, lat=lat, lon=lon)
 
 
 @app.route('/detail')

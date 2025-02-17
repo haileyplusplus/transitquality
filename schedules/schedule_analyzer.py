@@ -106,7 +106,10 @@ class ScheduleAnalyzer:
                 sequence = 1
                 shape_manager = ShapeManager(row.geometry)
                 previous_distance = 0
-                for stop_id_str, stop_name in row.stop_list:
+                first_headsign = None
+                for stop_id_str, stop_name, stop_headsign in row.stop_list:
+                    if first_headsign is None:
+                        first_headsign = stop_headsign
                     stop_id = int(stop_id_str)
                     stop = session.get(Stop, stop_id)
                     if not stop:
@@ -124,11 +127,15 @@ class ScheduleAnalyzer:
                     previous_distance = distance
                     #coord_point = shapely.Point(ShapeManager.XFM.transform(stop_point.y, stop_point.x))
                     #distance = row.geometry.line_locate_point(coord_point)
+                    direction_change = 0
+                    if isinstance(stop_headsign, str) and stop_headsign != first_headsign:
+                        direction_change = 1
                     pattern_stop = PatternStop(
                         sequence=sequence,
                         distance=distance,
                         pattern_id=shape_id,
-                        stop_id=stop_id
+                        stop_id=stop_id,
+                        direction_change=direction_change,
                     )
                     session.add(pattern_stop)
                     sequence += 1
@@ -158,7 +165,7 @@ class ScheduleAnalyzer:
             columns={'service_id': 'count'})
         shape_with_counts = self.shape_trips().join(counts_df)
         shape_with_counts['stop_list'] = shape_with_counts.apply(
-            lambda x: [(z.stop_id, z.stop_name) for _, z in self.get_stop_list(x.trip_id).iterrows()], axis=1)
+            lambda x: [(z.stop_id, z.stop_name, z.stop_headsign) for _, z in self.get_stop_list(x.trip_id).iterrows()], axis=1)
         shape_with_counts['stop_count'] = shape_with_counts.apply(lambda x: len(x.stop_list), axis=1)
         shape_with_counts['first_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[0][1], axis=1)
         shape_with_counts['last_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[-1][1], axis=1)

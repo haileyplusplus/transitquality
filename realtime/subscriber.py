@@ -150,6 +150,8 @@ class BusUpdater(DatabaseUpdater):
             if self.cleanup_iteration % 10 == 0:
                 session.execute(text('delete from bus_position where timestamp < '
                                      '(select max(timestamp) - interval \'24 hours\' from bus_position)'))
+                session.execute(text('delete from train_position where timestamp < '
+                                     '(select max(timestamp) - interval \'24 hours\' from train_position)'))
             self.cleanup_iteration += 1
             session.commit()
         finish = datetime.datetime.now()

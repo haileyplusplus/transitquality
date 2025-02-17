@@ -224,11 +224,25 @@ class BusPrediction(Base):
     prediction: Mapped[int]
 
 
+class TrainPrediction(Base):
+    __tablename__ = "train_prediction"
+
+    station_id: Mapped[int] = mapped_column(primary_key=True)
+    route: Mapped[str] = mapped_column(primary_key=True)
+    destination: Mapped[str] = mapped_column(primary_key=True)
+    destination_stop_id: Mapped[int]
+    stop_id: Mapped[int]
+    stop_description: Mapped[str]
+    run: Mapped[int]
+    timestamp: Mapped[datetime.datetime]
+    predicted_time: Mapped[datetime.datetime]
+
+
 def db_init(echo=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development
-    #conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
-    conn_str = "postgresql://postgres:rttransit@rttransit-guineafowl-cloud.ts.net/rttransitstate"
+    conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
+    #conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
     print(f'Connecting to {conn_str}')
     engine = create_engine(conn_str, echo=echo)
     Base.metadata.create_all(engine)

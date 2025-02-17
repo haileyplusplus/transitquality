@@ -100,6 +100,31 @@ class TrainUpdater(DatabaseUpdater):
                     session.add(upd)
             session.commit()
 
+    def prediction_callback(self, data):
+        with Session(self.subscriber.engine) as session:
+            for estimate in data['eta']:
+                station_id = int(estimate['staId'])
+                destination = estimate['destNm']
+                destination_stop_id = int(estimate['destSt'])
+                key = (station_id, estimate['rt'], destination)
+                prediction = session.get(TrainPrediction, key)
+                if not prediction:
+                    prediction = TrainPrediction(
+                        station_id=station_id,
+                        route=estimate['rt'],
+                        destination=destination,
+                    )
+                    session.add(prediction)
+                prediction.stop_id = int(estimate['stpId'])
+                prediction.destination_stop_id = destination_stop_id
+                prediction.stop_description = estimate['stpDe']
+                prediction.run = int(estimate['rn']),
+                prediction.timestamp = datetime.datetime.strptime(
+                    estimate['prdt'], '%Y-%m-%dT%H:%M:%S'),
+                prediction.predicted_time = datetime.datetime.strptime(
+                    estimate['arrT'], '%Y-%m-%dT%H:%M:%S')
+            session.commit()
+
 
 class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
@@ -363,6 +388,8 @@ class Subscriber:
                 self.bus_updater.subscriber_callback(response['bustime-response']['vehicle'])
             elif 'ttpositions' in topic:
                 self.train_updater.subscriber_callback(response['ctatt'])
+            elif 'ttarrivals' in topic:
+                self.train_updater.prediction_callback(response['ctatt'])
             elif 'getpredictions' in topic:
                 self.bus_updater.position_callback(response['bustime-response']['prd'])
             else:

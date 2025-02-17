@@ -259,11 +259,13 @@ class TrainPrediction(Base):
     predicted_time: Mapped[datetime.datetime]
 
 
-def db_init(echo=False):
+def db_init(echo=False, dev=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development
-    #conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
-    conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
+    if dev:
+        conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
+    else:
+        conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
     print(f'Connecting to {conn_str}')
     engine = create_engine(conn_str, echo=echo)
     Base.metadata.create_all(engine)

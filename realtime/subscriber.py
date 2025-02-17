@@ -318,9 +318,12 @@ class BusUpdater(DatabaseUpdater):
                     completed=False
                 )
                 redis_key = f'busposition:{v["pid"]}:{v["origtatripno"]}'
-                if not self.r.exists(redis_key):
-                    self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                self.r.ts().add(redis_key, int(timestamp.timestamp()), int(v['pdist']))
+                try:
+                    if not self.r.exists(redis_key):
+                        self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
+                    self.r.ts().add(redis_key, int(timestamp.timestamp()), int(v['pdist']))
+                except redis.exceptions.ResponseError as e:
+                    print(f'Redis summarizer error: {e}')
                 session.add(upd)
                 pattern = session.get(Pattern, v['pid'])
                 if pattern is None:

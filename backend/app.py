@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+import botocore
 from fastapi import FastAPI, BackgroundTasks
 from contextlib import asynccontextmanager
 import asyncio
@@ -23,7 +24,10 @@ from backend.scrapemodels import db_initialize, Route, Pattern, Stop, Count
 from backend.s3client import S3Client
 import os
 
+
 from backend.util import Util
+
+from bundler.schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__file__)
 
@@ -218,3 +222,13 @@ def train_bundle():
     request_time = Util.utcnow()
     return {'train_bundle': train_scraper.get_bundle(),
             'request_time': request_time.isoformat()}
+
+
+@app.get('/schedule_update')
+def schedule_update():
+    try:
+        schedule_manager = ScheduleManager()
+        return schedule_manager.retrieve()
+    except botocore.exceptions.NoCredentialsError as e:
+        return {'schedule_update': 'failed',
+                'error': str(e)}

@@ -52,10 +52,12 @@ class ScheduleAnalyzer:
             columns={'service_id': 'count'})
         shape_with_counts = self.shape_trips().join(counts_df)
         shape_with_counts['stop_list'] = shape_with_counts.apply(
-            lambda x: list(self.stop_sequence(x.trip_id).stop_name), axis=1)
+            lambda x: [(z.stop_id, z.stop_name) for _, z in self.get_stop_list(x.trip_id).iterrows()], axis=1)
         shape_with_counts['stop_count'] = shape_with_counts.apply(lambda x: len(x.stop_list), axis=1)
-        shape_with_counts['first_stop'] = shape_with_counts.apply(lambda x: x.stop_list[0], axis=1)
-        shape_with_counts['last_stop'] = shape_with_counts.apply(lambda x: x.stop_list[-1], axis=1)
+        shape_with_counts['first_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[0][1], axis=1)
+        shape_with_counts['last_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[-1][1], axis=1)
+        shape_with_counts['first_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[0][0], axis=1)
+        shape_with_counts['last_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[-1][0], axis=1)
         self.joined_shapes = shape_with_counts
         return self.joined_shapes
 
@@ -65,12 +67,33 @@ class ScheduleAnalyzer:
                   join(feed.stops.set_index('stop_id')[['stop_name']], on='stop_id'))
         return result
 
+    def get_stop_list(self, trip_id):
+        feed = self.feed
+        return feed.stop_times[feed.stop_times.trip_id == trip_id].join(
+            feed.stops.set_index('stop_id')[['stop_name']], on='stop_id')
+
     def shape_list(self):
         train_summary = self.shape_trips()
         feed = self.feed
-        train_summary['stop_list'] = train_summary.apply(lambda x: list(
-            feed.stop_times[feed.stop_times.trip_id == x.trip_id].join(feed.stops.set_index('stop_id')[['stop_name']],
-                                                                       on='stop_id')['stop_name']), axis=1)
+        train_summary['stop_list'] = train_summary.apply(
+            lambda x: [(z.stop_id, z.stop_name) for _, z in self.get_stop_list(x.trip_id).iterrows()], axis=1)
+        return train_summary
+
+    def train_stops(self):
+        """
+        train platforms (matches stop in train feed)
+        - feed.stops[(feed.stops.location_type == 0) & ~(feed.stops.parent_station.isna()) & (feed.stops.stop_id.str.startswith('3'))]
+        train stations (matches station in train feed)
+        - feed.stops[feed.stops.location_type == 1]
+        aux entrances
+        - feed.stops[feed.stops.location_type == 2]
+        :return:
+
+        For now, group by and use parent station
+        GTFS doesn't have specific station entrances. Maybe use OSM data eventually
+
+        """
+        pass
 
 
 if __name__ == "__main__":

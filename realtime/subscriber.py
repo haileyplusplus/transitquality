@@ -164,6 +164,9 @@ class BusUpdater(DatabaseUpdater):
             session.execute(text('DELETE from current_vehicle_state where ((select max(last_update) from '
                                  'current_vehicle_state) - current_vehicle_state.last_update)'
                                  ' > make_interval(mins => 5)'))
+            session.execute(text('DELETE from current_train_state where ((select max(last_update) from '
+                                 'current_train_state) - current_train_state.last_update)'
+                                 ' > make_interval(mins => 10)'))
             #session.execute(text('update bus_position set completed = true where origtatripno not in '
             #                     '(select origtatripno from current_vehicle_state)'))
             session.execute(text('UPDATE pattern t2 SET rt = t1.rt '

@@ -38,6 +38,7 @@ from stop ORDER BY dist limit 10;
 
 """
 
+
 class DatabaseUpdater:
     def __init__(self, subscriber):
         self.subscriber = subscriber
@@ -48,6 +49,13 @@ class DatabaseUpdater:
 
 
 class TrainUpdater(DatabaseUpdater):
+    """
+    Finding pattern for route
+
+    trivial or mostly trivial: yellow, red, pink, brown, orange
+    easy choice: green
+    more complexity: blue, purple
+    """
     def __init__(self, *args):
         super().__init__(*args)
 

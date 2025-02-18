@@ -233,6 +233,8 @@ class CurrentTrainState(Base):
     approaching: Mapped[bool]
     delayed: Mapped[bool]
     heading: Mapped[int]
+    # For simplicity and nullability there is no foreign key
+    current_pattern: Mapped[int] = mapped_column(nullable=True)
 
     route: Mapped[Route] = relationship(back_populates="current_trains")
 

@@ -19,8 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('pattern_stop', sa.Column(' stop_headsign', sa.String, nullable=True))
+    op.add_column('pattern_stop', sa.Column('stop_headsign', sa.String, nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column('pattern_stop', ' stop_headsign')
+    op.drop_column('pattern_stop', 'stop_headsign')

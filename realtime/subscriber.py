@@ -388,7 +388,7 @@ class BusUpdater(DatabaseUpdater):
 class Subscriber:
     def __init__(self, host):
         self.host = host
-        self.engine = db_init()
+        self.engine = db_init(local=True)
         self.train_updater = TrainUpdater(self)
         self.bus_updater = BusUpdater(self)
         self.redis_client = redis_async.Redis(host=self.host)

@@ -3,9 +3,11 @@ import cProfile
 import heapq
 from typing import Iterable
 
+import geoalchemy2
 from sqlalchemy import text, select, func
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape
+
 import requests
 import redis
 
@@ -18,6 +20,7 @@ from pydantic import BaseModel
 
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop
 from backend.util import Util
+from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 
 
 class StopEstimate(BaseModel):
@@ -344,8 +347,151 @@ class QueryManager:
             }
 
 
+class TrainQuery:
+    DIRECTION_MAPPING = {
+        ("blue", "Forest Park"): 5,
+        ("blue", "Jefferson Park"): 1,
+        ("blue", "O'Hare"): 1,
+        ("blue", "Racine"): 5,
+        ("blue", "UIC-Halsted"): 5,
+        ("brn", "Kimball"): 1,
+        ("brn", "Loop"): 5,
+        ("g", ""): 5,
+        ("g", "Ashland/63rd"): 5,
+        ("g", "Cottage Grove"): 5,
+        ("g", "Harlem/Lake"): 1,
+        ("org", "Loop"): 1,
+        ("org", "Midway"): 5,
+        ("p", "Howard"): 5,
+        ("p", "Linden"): 1,
+        ("p", "Loop"): 5,
+        ("pink", "54th/Cermak"): 5,
+        ("pink", "Loop"): 1,
+        ("red", "95th/Dan Ryan"): 5,
+        ("red", "Howard"): 1,
+        ("y", "Howard"): 5,
+        ("y", "Skokie"): 1,
+    }
+    """
+    Maintains state for train position queries. There are far fewer trains and the live updates don't have pattern info,
+    so we gather the data from the database and join here
+    """
+    def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer, lat, lon):
+        self.engine = engine
+        self.schedule_analyzer = schedule_analyzer
+        self.lat = lat
+        self.lon = lon
+
+    def get_relevant_stops(self):
+        # TODO: handle rare trips better
+        query = """
+        select 
+            stop_pattern_distance, pid, 
+            x.rt as xrt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist, last_stop.stop_id as last_stop_id, stop_headsign, direction_change
+            from 
+            (
+             select DISTINCT ON (pattern_id, stop_headsign) pattern_id as pid, rt, id, stop_name, stop_geom, dist, stop_pattern_distance, stop_headsign, direction_change from (
+        
+                select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, pattern_stop.distance as stop_pattern_distance, pattern.rt, 
+                pattern_stop.stop_headsign, pattern_stop.direction_change,
+                ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM('SRID=4326;POINT(:lon :lat)'\\:\\:geometry, 26916) as dist from 
+                  stop 
+                    inner join pattern_stop on stop.id = pattern_stop.stop_id inner join pattern on pattern_stop.pattern_id = pattern.id 
+                    WHERE pattern.id > 300000000
+                    ORDER BY dist
+                ) 
+        
+              WHERE dist < :thresh ORDER BY pattern_id, stop_headsign, dist
+                )
+            as x 
+            INNER JOIN last_stop on last_stop.pattern_id = x.pid
+            WHERE pid not in ('308500040', '308500084', '308500128', '308500129', '308500022', '308500029', '308500038', '308500039')
+            order by dist
+        """
+        startquery = Util.ctanow().replace(tzinfo=None)
+        with Session(self.engine) as session:
+            # routes = set([])
+            # result = [x for x in resultx]
+            # #
+            # for row in result:
+            #     routes.add(row.xrt)
+
+            #state_query = 'select *, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist from current_train_state where rt in (:routes) order by dist;'
+            #state_query = 'select *, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist from current_train_state order by dist;'
+            #routestr = ', '.join([f"'{rt}'" for rt in routes])
+            # current_state = session.execute(text(state_query),
+            #                                 {"lat": float(self.lat), "lon": float(self.lon)})
+            #                                  #"routes": routestr})
+            state_query = 'select * from current_train_state'
+            trains = {}
+            current_state = session.execute(text(state_query))
+            for row in current_state:
+                print(f'Found {row.dest_station}')
+                key = (row.dest_station, row.direction)
+                trains.setdefault(key, []).append(row)
+
+            rv = []
+
+            result = session.execute(text(query), {"lat": float(self.lat), "lon": float(self.lon),
+                                                   "thresh": 1000})
+
+            for row in result:
+                print(f'Found {row}')
+                shape_manager: ShapeManager = self.schedule_analyzer.managed_shapes.get(row.pid)
+                direction = self.DIRECTION_MAPPING.get((row.xrt, row.stop_headsign))
+                if not direction:
+                    print(f'Unrecognized route / headsign combo: {row.xrt}, {row.stop_headsign}')
+                    continue
+                key = (row.last_stop_id, direction)
+                if direction == 1:
+                    dirname = "Northbound"
+                else:
+                    dirname = "Southbound"
+                pattern_trains = trains.get(key)
+                if not pattern_trains:
+                    continue
+                stop_id = row.stop_id
+                rt = row.xrt
+                for train in pattern_trains:
+                    print(train.geom, type(train.geom))
+                    # The ORM would do this for us automatically, but we have a manual query here
+                    train_wkb = geoalchemy2.elements.WKBElement(train.geom)
+                    train_point = to_shape(train_wkb)
+                    train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
+                    if train_dist > row.stop_pattern_distance:
+                        continue
+                    dist_from_train = row.stop_pattern_distance - train_dist
+                    age = (startquery - train.last_update).total_seconds()
+                    result = {
+                        "pattern": row.pid,
+                        "startquery": startquery.isoformat(),
+                        "route": rt,
+                        "direction": dirname,
+                        "stop_id": stop_id,
+                        "stop_name": row.stop_name,
+                        "stop_lat": row.stop_lat,
+                        "stop_lon": row.stop_lon,
+                        "stop_pattern_distance": row.stop_pattern_distance,
+                        # needs to be renamed. this is the distance of the train from the station
+                        "bus_distance": dist_from_train,
+                        "dist": row.dist,
+                        "last_update": train.last_update.isoformat(),
+                        "age": age,
+                        "vehicle_distance": train_dist,
+                        "last_stop_id": train.dest_station,
+                        "last_stop_name": train.dest_station_name,
+                        "estimate": "?",
+                        "mi": "2.01mi",
+                        "walk_time": -1,
+                        "walk_dist": "?"
+                    }
+                    rv.append(result)
+
+            return {'results': rv}
+
+
 def main():
-    engine = db_init()
+    engine = db_init(local=True)
     qm = QueryManager(engine)
     # ,
     lon = -87.610056

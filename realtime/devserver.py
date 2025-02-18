@@ -1,3 +1,4 @@
+from pathlib import Path
 
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
@@ -10,7 +11,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from realtime.rtmodel import db_init
-from realtime.queries import QueryManager, StopEstimates
+from realtime.queries import QueryManager, StopEstimates, TrainQuery
+
+from schedules.schedule_analyzer import ScheduleAnalyzer
 
 logger = logging.getLogger(__file__)
 
@@ -26,6 +29,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 engine = db_init(echo=True)
 qm = QueryManager(engine)
+# fix for prod
+#schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
+schedule_file = Path('/app/cta_gtfs_20250206.zip')
+if schedule_file.exists():
+    sa = ScheduleAnalyzer(schedule_file, engine=engine)
+else:
+    sa = None
+
+#def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer, lat, lon):
 
 
 @app.get('/')
@@ -37,6 +49,13 @@ def main():
 def status():
     return {'status': 'running'}
 
+
+@app.get('/nearest-trains')
+def nearest_trains(lat: float, lon: float):
+    if sa is None:
+        return {'nearest-trains': 'not implemented'}
+    tq = TrainQuery(engine, sa, lat, lon)
+    return tq.get_relevant_stops()
 
 @app.get('/nearest-stops')
 def nearest_stops(lat: float, lon: float):

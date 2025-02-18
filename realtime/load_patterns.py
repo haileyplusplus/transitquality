@@ -55,7 +55,7 @@ class S3Getter:
 
 def load_routes():
     # path='~/transit/s3/getroutes/20250107/t025330z.json'
-    engine = db_init()
+    engine = db_init(local=True)
     #r = Path(path).expanduser()
     #r = BUCKET / 'getroutes/20250107/t025330z.json'
     #with r.open() as fh:

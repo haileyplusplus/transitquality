@@ -20,12 +20,13 @@ class ShapeManager:
     FEET_TO_METERS = 0.3048
     XFM = pyproj.Transformer.from_crs('EPSG:4326', CHICAGO)
 
-    def __init__(self, shape):
-        self.shape = shape
+    def __init__(self, row):
+        self.shape = row.geometry
         self.front = None
         self.back = None
         self.split_length = None
-        self.calc_midpoint()
+        if row.first_stop_name == row.last_stop_name:
+            self.calc_midpoint()
 
     def calc_midpoint(self):
         shape = self.shape
@@ -49,7 +50,7 @@ class ShapeManager:
     def get_distance_along_shape(self, previous_distance, stop_point):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
         if self.front is None:
-            distance = self.shape.geometry.line_locate_point(coord_point)
+            distance = self.shape.line_locate_point(coord_point)
             return distance
         if previous_distance >= self.split_length:
             # look in the second part
@@ -67,21 +68,54 @@ class ShapeManager:
             return back_distance
         return front_distance
 
+    def get_distance_along_shape_dc(self, direction_change, stop_point):
+        coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
+        if self.front is None:
+            distance = self.shape.line_locate_point(coord_point)
+            return distance
+        dist_from_front = self.front.distance(stop_point)
+        dist_from_back = self.back.distance(stop_point)
+        use_front = None
+        if dist_from_front > 50:
+            use_front = False
+        if dist_from_back > 50:
+            use_front = True
+        if use_front is None:
+            if direction_change == 0:
+                use_front = True
+            else:
+                use_front = False
+        if use_front:
+            # only in first
+            distance = self.front.line_locate_point(coord_point)
+            return distance
+        distance = self.back.line_locate_point(coord_point)
+        distance += self.front.length
+        return distance
+
 
 class ScheduleAnalyzer:
-    def __init__(self, schedule_location: Path):
+    def __init__(self, schedule_location: Path, engine=None):
         self.schedule_location = schedule_location
         self.feed = gtfs_kit.read_feed(self.schedule_location,
                                        dist_units='ft')
         schedule_datestr = schedule_location.name.replace('cta_gtfs_', '').replace('.zip', '')
         self.schedule_date = datetime.datetime.strptime(schedule_datestr, '%Y%m%d').date()
         print(f'Schedule: {self.schedule_date}')
-        self.engine = db_init(dev=True)
+        self.engine = engine
         self.joined_shapes = None
         self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(ShapeManager.CHICAGO).set_index('shape_id')
+        self.managed_shapes = {}
+        self.setup_shapes()
 
     def schedule_start(self):
         return self.feed.get_dates()[0]
+
+    def setup_shapes(self):
+        shape_df = self.shape_trips_joined()
+        for _, row in shape_df.iterrows():
+            shape_id = int(row.shape_id)
+            self.managed_shapes[shape_id] = ShapeManager(row)
 
     def update_db(self):
         feed = self.feed
@@ -104,7 +138,7 @@ class ScheduleAnalyzer:
                 )
                 session.add(pattern)
                 sequence = 1
-                shape_manager = ShapeManager(row.geometry)
+                shape_manager = ShapeManager(row)
                 previous_distance = 0
                 first_headsign = None
                 for stop_id_str, stop_name, stop_headsign in row.stop_list:
@@ -130,12 +164,15 @@ class ScheduleAnalyzer:
                     direction_change = 0
                     if isinstance(stop_headsign, str) and stop_headsign != first_headsign:
                         direction_change = 1
+                    if not isinstance(stop_headsign, str):
+                        stop_headsign = ''
                     pattern_stop = PatternStop(
                         sequence=sequence,
                         distance=distance,
                         pattern_id=shape_id,
                         stop_id=stop_id,
                         direction_change=direction_change,
+                        stop_headsign=stop_headsign
                     )
                     session.add(pattern_stop)
                     sequence += 1
@@ -171,7 +208,7 @@ class ScheduleAnalyzer:
         shape_with_counts['last_stop_name'] = shape_with_counts.apply(lambda x: x.stop_list[-1][1], axis=1)
         shape_with_counts['first_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[0][0], axis=1)
         shape_with_counts['last_stop_id'] = shape_with_counts.apply(lambda x: x.stop_list[-1][0], axis=1)
-        shape_with_counts = shape_with_counts.reset_index().join(sa.geo_shapes, on='shape_id')
+        shape_with_counts = shape_with_counts.reset_index().join(self.geo_shapes, on='shape_id')
         self.joined_shapes = shape_with_counts
         return self.joined_shapes
 
@@ -212,5 +249,5 @@ class ScheduleAnalyzer:
 
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
-    sa = ScheduleAnalyzer(schedule_file)
-    sa.update_db()
+    sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=False))
+    #sa.update_db()

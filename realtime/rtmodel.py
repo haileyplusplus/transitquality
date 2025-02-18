@@ -80,6 +80,7 @@ class PatternStop(Base):
     distance: Mapped[int]
     # only used for train lines
     direction_change: Mapped[int] = mapped_column(nullable=True)
+    stop_headsign: Mapped[str] = mapped_column(nullable=True)
 
     pattern: Mapped[Pattern] = relationship(back_populates="pattern_stops")
     stop: Mapped[Stop] = relationship(back_populates="pattern_stops")
@@ -261,11 +262,13 @@ class TrainPrediction(Base):
     predicted_time: Mapped[datetime.datetime]
 
 
-def db_init(echo=False, dev=False):
+def db_init(echo=False, dev=False, local=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development
     if dev:
         conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
+    elif local:
+        conn_str = "postgresql://postgres:rttransit@localhost/rttransitstate"
     else:
         conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
     print(f'Connecting to {conn_str}')

@@ -150,6 +150,8 @@ class TrainUpdater(DatabaseUpdater):
                             print(f'Redis summarizer error: {e}')
                         except KeyError as e:
                             print(f'Bad pattern: {e}')
+                        except shapely.errors.GEOSException as e:
+                            print(f'GEOS error: {e}')
             session.commit()
 
     def prediction_callback(self, data):

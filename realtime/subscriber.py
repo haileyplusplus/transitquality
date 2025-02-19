@@ -131,13 +131,17 @@ class TrainUpdater(DatabaseUpdater):
                     current.heading = int(v['heading'])
                     current.route = route_db
                     train_point = shapely.Point(lon, lat)
+                    if current.synthetic_trip_id is None:
+                        current.synthetic_trip_id = 0
                     if current.dest_station == current.next_stop:
+                        if current.current_pattern is not None:
+                            current.synthetic_trip_id += 1
                         current.current_pattern = None
                     else:
                         current.current_pattern = self.schedule_analyzer.get_pattern(
                             rt, current.dest_station, train_point)
                     if current.current_pattern:
-                        redis_key = f'trainposition:{current.current_pattern}:{run}'
+                        redis_key = f'trainposition:{current.current_pattern}:{run}-{current.synthetic_trip_id}'
                         try:
                             debug = run == 423
                             shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]

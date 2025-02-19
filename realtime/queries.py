@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 
 
-from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop
+from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 
@@ -376,13 +376,19 @@ class TrainQuery:
     Maintains state for train position queries. There are far fewer trains and the live updates don't have pattern info,
     so we gather the data from the database and join here
     """
-    def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer, lat, lon):
+    def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer):
         self.engine = engine
         self.schedule_analyzer = schedule_analyzer
-        self.lat = lat
-        self.lon = lon
 
-    def get_relevant_stops(self):
+    # def distance_along_pattern(self, train_position: TrainPosition):
+    #     shape_manager: ShapeManager = self.schedule_analyzer.managed_shapes.get(row.pid)
+    #     train_wkb = geoalchemy2.elements.WKBElement(train_position.geom)
+    #     train_point = to_shape(train_wkb)
+    #     train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
+    #     dist_from_train = row.stop_pattern_distance - train_dist
+    #     return dist_from_train
+
+    def get_relevant_stops(self, lat, lon):
         # TODO: handle rare trips better
         query = """
         select 
@@ -432,7 +438,7 @@ class TrainQuery:
 
             rv = []
 
-            result = session.execute(text(query), {"lat": float(self.lat), "lon": float(self.lon),
+            result = session.execute(text(query), {"lat": float(lat), "lon": float(lon),
                                                    "thresh": 1000})
 
             for row in result:
@@ -453,7 +459,7 @@ class TrainQuery:
                 stop_id = row.stop_id
                 rt = row.xrt
                 for train in pattern_trains:
-                    print(train.geom, type(train.geom))
+                    #print(train.geom, type(train.geom))
                     # The ORM would do this for us automatically, but we have a manual query here
                     train_wkb = geoalchemy2.elements.WKBElement(train.geom)
                     train_point = to_shape(train_wkb)

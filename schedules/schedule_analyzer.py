@@ -108,6 +108,30 @@ class ScheduleAnalyzer:
         self.managed_shapes = {}
         self.setup_shapes()
 
+    def get_pattern(self, rt: str, last_station: int, train_point: shapely.Point):
+        """
+        Shapely point is assumed to be lat/lon
+        :param rt:
+        :param last_station:
+        :param train_point:
+        :return:
+        """
+        j = self.shape_trips_joined()
+        candidates = j[(j.last_stop_id == str(last_station)) & (j.route_id.str.lower() == rt)]
+        rdist = None
+        transformed = ShapeManager.XFM.transform(train_point.y, train_point.x)
+        train_point_chicago = shapely.Point(*transformed)
+        for _, c in candidates.iterrows():
+            dist = c.geometry.distance(train_point_chicago)
+            key = (dist, c.shape_id)
+            if rdist is None:
+                rdist = key
+            elif key < rdist:
+                rdist = key
+        if rdist is None:
+            return None
+        return rdist[1]
+
     def schedule_start(self):
         return self.feed.get_dates()[0]
 

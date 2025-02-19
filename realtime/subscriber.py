@@ -9,8 +9,10 @@ import faulthandler
 import json
 import sys
 import time
+from pathlib import Path
 
 import requests
+import shapely
 from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 import redis
@@ -19,6 +21,7 @@ import redis.asyncio as redis_async
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
 
+from schedules.schedule_analyzer import ScheduleAnalyzer
 
 """
 Detecting a finished trip:
@@ -56,8 +59,9 @@ class TrainUpdater(DatabaseUpdater):
     easy choice: green
     more complexity: blue, purple
     """
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args)
+        self.schedule_analyzer = kwargs['schedule_analyzer']
 
     def subscriber_callback(self, data):
         with Session(self.subscriber.engine) as session:
@@ -126,6 +130,12 @@ class TrainUpdater(DatabaseUpdater):
                     current.geom = geom
                     current.heading = int(v['heading'])
                     current.route = route_db
+                    if current.dest_station == current.next_stop:
+                        current.current_pattern = None
+                    else:
+                        train_point = shapely.Point(lon, lat)
+                        current.current_pattern = self.schedule_analyzer.get_pattern(
+                            rt, current.dest_station, train_point)
             session.commit()
 
     def prediction_callback(self, data):
@@ -394,10 +404,10 @@ class BusUpdater(DatabaseUpdater):
 
 
 class Subscriber:
-    def __init__(self, host):
+    def __init__(self, host, schedule_analyzer):
         self.host = host
         self.engine = db_init(local=True)
-        self.train_updater = TrainUpdater(self)
+        self.train_updater = TrainUpdater(self, schedule_analyzer=schedule_analyzer)
         self.bus_updater = BusUpdater(self)
         self.redis_client = redis_async.Redis(host=self.host)
 
@@ -464,17 +474,13 @@ class Subscriber:
                     self.handler(json.loads(data), channel)
 
 
-def initialize(host: str):
-    faulthandler.enable()
+async def main(host: str):
     load_routes()
     print(f'Loaded data')
-    subscriber = Subscriber(host)
     print(f'Starting subscriber')
-    return subscriber
-
-
-async def main(host: str):
-    subscriber = initialize(host)
+    schedule_file = Path('/app/cta_gtfs_20250206.zip').expanduser()
+    schedule_analyzer = ScheduleAnalyzer(schedule_file, engine=None)
+    subscriber = Subscriber(host, schedule_analyzer)
     async with asyncio.TaskGroup() as tg:
         client_task = tg.create_task(subscriber.start_clients())
         catchup_task = tg.create_task(subscriber.catchup_wrapper())

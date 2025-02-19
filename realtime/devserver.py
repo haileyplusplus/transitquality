@@ -54,8 +54,8 @@ def status():
 def nearest_trains(lat: float, lon: float):
     if sa is None:
         return {'nearest-trains': 'not implemented'}
-    tq = TrainQuery(engine, sa, lat, lon)
-    return tq.get_relevant_stops()
+    tq = TrainQuery(engine, sa)
+    return tq.get_relevant_stops(lat, lon)
 
 @app.get('/nearest-stops')
 def nearest_stops(lat: float, lon: float):

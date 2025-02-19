@@ -98,6 +98,7 @@ def detail(pid: int, stop_dist: int):
 
 @app.post('/estimates/')
 def estimates(stop_estimates: StopEstimates):
+    print(f'Estimates: ', stop_estimates)
     pattern_estimate_dict = qm.get_estimates(stop_estimates.estimates)
     rv = []
     for k, v in pattern_estimate_dict.items():

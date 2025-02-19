@@ -19,8 +19,18 @@ class ShapeManager:
     CHICAGO = 'EPSG:26916'
     FEET_TO_METERS = 0.3048
     XFM = pyproj.Transformer.from_crs('EPSG:4326', CHICAGO)
+    FRONT_DIRECTIONS = {
+        308500017: 5,  # Brown Kimball-Kimball
+        308500034: 1,  # Orange Midway-Midway
+        308500024: 5,  # Purple Linden-Linden
+        308500036: 5,  # Purple Linden-Linden
+        308500102: 1,  # Purple Howard-Howard
+        308500035: 1,  # Pink 54th - 54th
+        308500033: 1,  # Yellow Howard - Howard
+    }
 
     def __init__(self, row):
+        self.row = row
         self.shape = row.geometry
         self.front = None
         self.back = None
@@ -39,7 +49,7 @@ class ShapeManager:
                 return
         splitlen = shape.line_locate_point(loop_midpoint)
         self.split_length = splitlen
-        print(f'Splitting at len {splitlen}')
+        print(f'Splitting shape {self.row.shape_id} at len {splitlen}')
         #shape.line_locate_point(shapely.Point(xfm.transform(*LOOP_MIDPOINT)))
         splitpoint = shape.interpolate(splitlen)
         print(f'Calculating midpoint: distance from line is {distance}')
@@ -93,6 +103,31 @@ class ShapeManager:
         distance += self.front.length
         return distance
 
+    def get_distance_along_shape_direction(self, direction, train_point, debug=False):
+        coord_point = shapely.Point(self.XFM.transform(train_point.y, train_point.x))
+        if debug:
+            print(f'Get distance for {direction} point {train_point} coord point {coord_point}')
+        if self.front is None:
+            distance = self.shape.line_locate_point(coord_point)
+            return distance
+        dist_from_front = self.front.distance(coord_point)
+        dist_from_back = self.back.distance(coord_point)
+        use_front = None
+        if dist_from_front > 50:
+            use_front = False
+        if dist_from_back > 50:
+            use_front = True
+        if use_front is None:
+            use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.row.shape_id))
+        if debug:
+            print(f'  Use front: {use_front} dist from front {dist_from_front} back {dist_from_back}')
+        if use_front:
+            # only in first
+            distance = self.front.line_locate_point(coord_point)
+            return distance
+        distance = self.back.line_locate_point(coord_point)
+        distance += self.front.length
+        return distance
 
 class ScheduleAnalyzer:
     def __init__(self, schedule_location: Path, engine=None):

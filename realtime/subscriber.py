@@ -130,12 +130,26 @@ class TrainUpdater(DatabaseUpdater):
                     current.geom = geom
                     current.heading = int(v['heading'])
                     current.route = route_db
+                    train_point = shapely.Point(lon, lat)
                     if current.dest_station == current.next_stop:
                         current.current_pattern = None
                     else:
-                        train_point = shapely.Point(lon, lat)
                         current.current_pattern = self.schedule_analyzer.get_pattern(
                             rt, current.dest_station, train_point)
+                    if current.current_pattern:
+                        redis_key = f'trainposition:{current.current_pattern}:{run}'
+                        try:
+                            debug = run == 423
+                            shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]
+                            train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
+                                                                                              train_point, debug=debug)
+                            if not self.r.exists(redis_key):
+                                self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
+                            self.r.ts().add(redis_key, int(timestamp.timestamp()), train_distance)
+                        except redis.exceptions.ResponseError as e:
+                            print(f'Redis summarizer error: {e}')
+                        except KeyError as e:
+                            print(f'Bad pattern: {e}')
             session.commit()
 
     def prediction_callback(self, data):

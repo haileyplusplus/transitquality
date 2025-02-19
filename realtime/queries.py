@@ -209,7 +209,10 @@ class QueryManager:
         return x1, x2, interp
 
     def get_redis_keys(self, pid):
-        redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
+        if pid >= 308500000:
+            redis_keys = self.redis.keys(pattern=f'trainposition:{pid}:*')
+        else:
+            redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
         return redis_keys
 
     def get_latest_redis(self, pid):

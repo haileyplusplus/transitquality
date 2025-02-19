@@ -29,6 +29,9 @@ def estimates():
         return f'Error handling request'
     d = resp.json()
     results = d['results']
+    train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
+    if resp.status_code == 200:
+        results += train_resp.json()['results']
     directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
     urls = []
     estimate_params: list[dict] = []

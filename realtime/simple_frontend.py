@@ -64,14 +64,14 @@ def estimates():
         reqs.append(grequests.get(u))
     if not skip_estimates:
         reqs.append(grequests.post('http://localhost:8500/estimates/', json={'estimates': estimate_params}))
-    print(f'estimate params: ', estimate_params)
+    #print(f'estimate params: ', estimate_params)
     #print(reqs)
 
     def handler(request, exception):
         print(f'Issue with {request}: {exception}')
 
     responses = grequests.map(reqs, exception_handler=handler)
-    print('index', index.keys(), 'estimate params', estimate_params)
+    print('index', index.keys())
     for resp in responses:
         #print(resp)
         if resp is None:

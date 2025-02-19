@@ -118,6 +118,10 @@ class ScheduleAnalyzer:
         """
         j = self.shape_trips_joined()
         candidates = j[(j.last_stop_id == str(last_station)) & (j.route_id.str.lower() == rt)]
+        if len(candidates) == 1:
+            return candidates.iloc[0].shape_id
+        if candidates.empty:
+            return None
         rdist = None
         transformed = ShapeManager.XFM.transform(train_point.y, train_point.x)
         train_point_chicago = shapely.Point(*transformed)
@@ -129,6 +133,8 @@ class ScheduleAnalyzer:
             elif key < rdist:
                 rdist = key
         if rdist is None:
+            return None
+        if rdist[0] > 200:
             return None
         return rdist[1]
 

@@ -147,8 +147,11 @@ class TrainUpdater(DatabaseUpdater):
                         #         current.synthetic_trip_id += 1
                     if current.current_pattern is None:
                         start_of_trip = True
+                    dest_station = current.dest_station
+                    if dest_station == 0 and current.dest_station_name == 'UIC-Halsted':
+                        dest_station = 30069
                     current.current_pattern = self.schedule_analyzer.get_pattern(
-                        rt, current.dest_station, train_point)
+                        rt, dest_station, train_point)
                     upd.pattern = current.current_pattern
                     try:
                         debug = run == 423

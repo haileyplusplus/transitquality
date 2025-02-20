@@ -73,13 +73,20 @@ class QueryManager:
         #print('row is', row, type(row))
         el, eh = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        return f'{el}-{eh} min'
+        #return f'{el}-{eh} min'
+        return el, eh
 
     def get_estimates(self, rows: Iterable[StopEstimate]):
-        rv = {}
-        print(rows)
+        rv = []
+        #print(rows)
         for row in rows:
-            rv[row.pattern_id] = self.get_single_estimate(row)
+            el, eh = self.get_single_estimate(row)
+            rv.append({
+                'pattern': row.pattern_id,
+                'bus_location': row.bus_location,
+                'low': el,
+                'high': eh,
+            })
         return rv
 
     def nearest_stop_vehicles(self, lat, lon, include_estimate=False, include_all_items=False):

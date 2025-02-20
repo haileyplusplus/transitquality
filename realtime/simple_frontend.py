@@ -58,7 +58,9 @@ def estimates():
                 'stop_pattern_distance': item['stop_pattern_distance']
             }
         )
-        index[int(item['pattern'])] = item
+        pattern_id = int(item['pattern'])
+        vehicle_distance = item['vehicle_distance']
+        index.setdefault(pattern_id, {})[vehicle_distance] = item
     reqs = []
     for u in urls:
         reqs.append(grequests.get(u))
@@ -82,15 +84,21 @@ def estimates():
         if 'estimates' in jd:
             print(jd)
             for e in jd['estimates']:
-                index[e['pattern']]['estimate'] = e['estimate']
+                pattern = e['pattern']
+                vehicle_dist = e['bus_location']
+                eh = e['high']
+                el = e['low']
+                eststr = f'{el}-{eh} min'
+                index[pattern][vehicle_dist]['estimate'] = eststr
         else:
             summary = jd['trip']['summary']
             #print(jd)
             seconds = summary['time']
             miles = summary['length']
             pattern = int(jd['id'])
-            index[pattern]['walk_time'] = round(seconds / 60.0)
-            index[pattern]['walk_dist'] = f'{miles:0.2f}'
+            for vd in index[pattern].values():
+                vd['walk_time'] = round(seconds / 60.0)
+                vd['walk_dist'] = f'{miles:0.2f}'
     for item in results:
         directions.setdefault(item['direction'], []).append(item)
     for v in directions.values():

@@ -111,7 +111,9 @@ class TrainUpdater(DatabaseUpdater):
                     if not current:
                         current = CurrentTrainState(
                             id=run,
-                            last_update=timestamp
+                            last_update=timestamp,
+                            update_count=0,
+                            synthetic_trip_id=0,
                         )
                         session.add(current)
                     elif timestamp <= current.last_update:
@@ -129,36 +131,59 @@ class TrainUpdater(DatabaseUpdater):
                     current.heading = int(v['heading'])
                     current.route = route_db
                     train_point = shapely.Point(lon, lat)
-                    if current.dest_station == current.next_stop:
-                        upd.current_pattern = current.current_pattern
-                        current.current_pattern = None
-                    else:
+                    start_of_trip = None
+                    if current.update_count is None:
+                        current.update_count = 0
+                    # if current.dest_station == current.next_stop:
+                    #     upd.current_pattern = current.current_pattern
+                    #     current.current_pattern = None
+                    #     #start_of_trip = False
+                    #     continue
+                    #else:
+                        # if current.current_pattern is None:
+                        #     if current.synthetic_trip_id is None:
+                        #         current.synthetic_trip_id = 0
+                        #     else:
+                        #         current.synthetic_trip_id += 1
+                    if current.current_pattern is None:
+                        start_of_trip = True
+                    current.current_pattern = self.schedule_analyzer.get_pattern(
+                        rt, current.dest_station, train_point)
+                    upd.pattern = current.current_pattern
+                    try:
+                        debug = run == 423
                         if current.current_pattern is None:
-                            if current.synthetic_trip_id is None:
-                                current.synthetic_trip_id = 0
-                            else:
-                                current.synthetic_trip_id += 1
-                        current.current_pattern = self.schedule_analyzer.get_pattern(
-                            rt, current.dest_station, train_point)
+                            print(f'Error finding pattern for run {run}')
+                            continue
+                        shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]
+                        train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
+                                                                                          train_point, debug=debug)
+                        if current.pattern_distance is None:
+                            start_of_trip = True
+                        elif current.pattern_distance < 500 and current.update_count > 4:
+                            start_of_trip = True
+
+                        current.pattern_distance = int(train_distance)
+                        upd.pattern_distance = int(train_distance)
+
+                        if start_of_trip:
+                            current.update_count = 0
+                            current.synthetic_trip_id += 1
+                        current.update_count += 1
+
+                        upd.synthetic_trip_id = current.synthetic_trip_id
                         upd.current_pattern = current.current_pattern
-                    if current.current_pattern:
+
                         redis_key = f'trainposition:{current.current_pattern}:{run}-{current.synthetic_trip_id}'
-                        try:
-                            debug = run == 423
-                            shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]
-                            train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
-                                                                                              train_point, debug=debug)
-                            current.pattern_distance = int(train_distance)
-                            upd.pattern_distance = int(train_distance)
-                            if not self.r.exists(redis_key):
-                                self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                            self.r.ts().add(redis_key, int(timestamp.timestamp()), train_distance)
-                        except redis.exceptions.ResponseError as e:
-                            print(f'Redis summarizer error: {e}')
-                        except KeyError as e:
-                            print(f'Bad pattern: {e}')
-                        except shapely.errors.GEOSException as e:
-                            print(f'GEOS error: {e}')
+                        if not self.r.exists(redis_key):
+                            self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
+                        self.r.ts().add(redis_key, int(timestamp.timestamp()), train_distance)
+                    except redis.exceptions.ResponseError as e:
+                        print(f'Redis summarizer error: {e}')
+                    except KeyError as e:
+                        print(f'Bad pattern: {e}')
+                    except shapely.errors.GEOSException as e:
+                        print(f'GEOS error: {e}')
             session.commit()
 
     def prediction_callback(self, data):

@@ -101,8 +101,6 @@ class TrainUpdater(DatabaseUpdater):
                         arrival=datetime.datetime.strptime(v['arrT'], '%Y-%m-%dT%H:%M:%S'),
                         approaching=int(v['isApp']),
                         delayed=int(v['isDly']),
-                        #lat=float(v['lat']),
-                        #lon=float(v['lon']),
                         geom=geom,
                         heading=int(v['heading']),
                         route=route_db,
@@ -132,6 +130,7 @@ class TrainUpdater(DatabaseUpdater):
                     current.route = route_db
                     train_point = shapely.Point(lon, lat)
                     if current.dest_station == current.next_stop:
+                        upd.current_pattern = current.current_pattern
                         current.current_pattern = None
                     else:
                         if current.current_pattern is None:
@@ -141,6 +140,7 @@ class TrainUpdater(DatabaseUpdater):
                                 current.synthetic_trip_id += 1
                         current.current_pattern = self.schedule_analyzer.get_pattern(
                             rt, current.dest_station, train_point)
+                        upd.current_pattern = current.current_pattern
                     if current.current_pattern:
                         redis_key = f'trainposition:{current.current_pattern}:{run}-{current.synthetic_trip_id}'
                         try:
@@ -148,6 +148,8 @@ class TrainUpdater(DatabaseUpdater):
                             shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]
                             train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
                                                                                               train_point, debug=debug)
+                            current.pattern_distance = int(train_distance)
+                            upd.pattern_distance = int(train_distance)
                             if not self.r.exists(redis_key):
                                 self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
                             self.r.ts().add(redis_key, int(timestamp.timestamp()), train_distance)

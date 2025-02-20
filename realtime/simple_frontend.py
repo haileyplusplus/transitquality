@@ -37,7 +37,10 @@ def estimates():
     estimate_params: list[dict] = []
     index = {}
     for item in results:
-        dist_mi = item['bus_distance'] / 5280.0
+        if item['pattern'] >= 308500000:
+            dist_mi = item['bus_distance'] / 1609.34
+        else:
+            dist_mi = item['bus_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
         routing_json = {"locations": [
             {"lat": lat,

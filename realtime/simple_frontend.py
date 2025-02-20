@@ -13,9 +13,39 @@ app = Flask(__name__)
 """
 http://localhost:7001/api/v1/plan?directModes=WALK&fromPlace=41.903914,-87.632892,0&toPlace=chicago_2034
 """
+
+
 @app.route('/')
 def main():
     return render_template('main.html')
+
+
+def route_coalesce(v):
+    routes = {}
+    for item in v:
+        route = item['route']
+        routes.setdefault(route, []).append(item)
+    results = []
+    for k, v in sorted(routes.items()):
+        routev = []
+        for d in v:
+            print(f'coalesce')
+            print(d)
+            if 'el' not in d:
+                if d['mi_numeric'] <= 1:
+                    routev.append(d)
+                continue
+            if d['walk_time'] > 0 and -1 < d['eh'] <= d['walk_time']:
+                continue
+            age_minutes = round(d['age'] / 60)
+            d['age'] = round(d['age'])
+            el = d['el'] + age_minutes
+            eh = d['eh'] + age_minutes
+            d['estimate'] = f'{el}-{eh} min'
+            routev.append(d)
+        routev.sort(key=lambda x: x['el'])
+        results += routev[:2]
+    return results
 
 
 @app.route('/estimates')
@@ -42,6 +72,7 @@ def estimates():
         else:
             dist_mi = item['bus_distance'] / 5280.0
         item['mi'] = f'{dist_mi:0.2f}mi'
+        item['mi_numeric'] = dist_mi
         routing_json = {"locations": [
             {"lat": lat,
              "lon": lon,
@@ -93,6 +124,8 @@ def estimates():
                 el = e['low']
                 eststr = f'{el}-{eh} min'
                 index[pattern][vehicle_dist]['estimate'] = eststr
+                index[pattern][vehicle_dist]['el'] = el
+                index[pattern][vehicle_dist]['eh'] = eh
         else:
             summary = jd['trip']['summary']
             #print(jd)
@@ -104,10 +137,13 @@ def estimates():
                 vd['walk_dist'] = f'{miles:0.2f}'
     for item in results:
         directions.setdefault(item['direction'], []).append(item)
-    for v in directions.values():
-        v.sort(key=lambda x: x['route'])
-    raw = json.dumps(d, indent=4)
-    return render_template('bus_status.html', results=directions, raw=raw, lat=lat, lon=lon)
+    directions2 = {}
+    for k, v in directions.items():
+        #directions.setdefault(item['direction'], []).append(item)
+        directions2[k] = route_coalesce(v)
+        #v.sort(key=lambda x: x['route'])
+    raw = json.dumps(directions2, indent=4)
+    return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)
 
 
 @app.route('/detail')

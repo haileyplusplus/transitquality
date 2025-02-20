@@ -190,6 +190,9 @@ class TrainPosition(Base):
     geom = mapped_column(Geometry(geometry_type='POINT', srid=4326))
     heading: Mapped[int]
     completed: Mapped[bool]
+    pattern: Mapped[int] = mapped_column(nullable=True)
+    synthetic_trip_id: Mapped[int] = mapped_column(nullable=True)
+    pattern_distance: Mapped[int] = mapped_column(nullable=True)
 
     route: Mapped[Route] = relationship(back_populates="train_positions")
 
@@ -236,6 +239,7 @@ class CurrentTrainState(Base):
     # For simplicity and nullability there is no foreign key
     current_pattern: Mapped[int] = mapped_column(nullable=True)
     synthetic_trip_id: Mapped[int] = mapped_column(nullable=True)
+    pattern_distance: Mapped[int] = mapped_column(nullable=True)
 
     route: Mapped[Route] = relationship(back_populates="current_trains")
 

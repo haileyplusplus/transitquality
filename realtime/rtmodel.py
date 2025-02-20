@@ -240,6 +240,7 @@ class CurrentTrainState(Base):
     current_pattern: Mapped[int] = mapped_column(nullable=True)
     synthetic_trip_id: Mapped[int] = mapped_column(nullable=True)
     pattern_distance: Mapped[int] = mapped_column(nullable=True)
+    update_count: Mapped[int] = mapped_column(nullable=True)
 
     route: Mapped[Route] = relationship(back_populates="current_trains")
 

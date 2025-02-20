@@ -19,6 +19,8 @@ ENV PYTHONUNBUFFERED=1
 # Look at ways of getting rid of this
 ENV TRACKERWRITE=s3
 
+RUN apt-get update && apt-get install -y curl
+
 WORKDIR /app
 
 # Create a non-privileged user that the app will run under.

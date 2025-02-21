@@ -40,6 +40,11 @@ class ShapeManager:
         if row.first_stop_name == row.last_stop_name:
             self.calc_midpoint()
 
+    @staticmethod
+    def transform(point: shapely.Point):
+        coord_point = shapely.Point(ShapeManager.XFM.transform(point.y, point.x))
+        return coord_point
+
     def calc_midpoint(self):
         shape = self.shape
         loop_midpoint = shapely.Point(self.XFM.transform(*self.LOOP_MIDPOINT))
@@ -336,4 +341,4 @@ class ScheduleAnalyzer:
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
     sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=False))
-    sa.update_db()
+    #sa.update_db()

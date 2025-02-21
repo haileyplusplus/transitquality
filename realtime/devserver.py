@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-engine = db_init(echo=True)
+engine = db_init(echo=True, dev=True)
 qm = QueryManager(engine)
 # fix for prod
 #schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()

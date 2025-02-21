@@ -38,19 +38,36 @@ TRAIN_ROUTES = [
 
 class S3Getter:
     def __init__(self):
+        self.cachedir = Path('/tmp/s3cache')
+        self.cachedir.mkdir(exist_ok=True)
         self.client = boto3.client(
             's3', region_name='us-east-2',
             config=Config(signature_version=UNSIGNED)
         )
         self.bucket = 'transitquality2024'
+        self.fetched = 0
+        self.cached = 0
+
+    def stats(self):
+        print(f'In this session, retrieved {self.fetched} directly and {self.cached} from cache.')
 
     def list_with_prefix(self, prefix):
         return self.client.list_objects(Bucket=self.bucket, Prefix=prefix)
 
     def get_json_contents(self, key):
+        cache_key = key.replace('/', '_')
+        cached_path = self.cachedir / cache_key
+        if cached_path.exists():
+            with cached_path.open() as fh:
+                self.cached += 1
+                return json.load(fh)
         obj = self.client.get_object(Bucket=self.bucket, Key=key)
         data = obj['Body'].read()
-        return json.loads(data.decode('utf-8'))
+        raw_str = data.decode('utf-8')
+        with cached_path.open('w') as wfh:
+            wfh.write(raw_str)
+        self.fetched += 1
+        return json.loads(raw_str)
 
 
 def load_routes():

@@ -14,7 +14,9 @@ from realtime.rtmodel import *
 
 class ShapeManager:
     # Clark / Lake
-    LOOP_MIDPOINT = (41.885737, -87.630886)
+    #LOOP_MIDPOINT = (41.885737, -87.630886)
+    # Washington / Wabash
+    LOOP_MIDPOINT = (41.88322, -87.626189)
     # geometry lengths are in meters
     CHICAGO = 'EPSG:26916'
     FEET_TO_METERS = 0.3048
@@ -128,6 +130,7 @@ class ShapeManager:
         distance = self.back.line_locate_point(coord_point)
         distance += self.front.length
         return distance
+
 
 class ScheduleAnalyzer:
     def __init__(self, schedule_location: Path, engine=None):

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 import redis
 import redis.asyncio as redis_async
 
+from backend.util import Util
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
 
@@ -62,6 +63,32 @@ class TrainUpdater(DatabaseUpdater):
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
         self.schedule_analyzer = kwargs['schedule_analyzer']
+        self.refresh(hours=8)
+
+    def refresh(self, hours=5):
+        now = Util.utcnow()
+        getter = S3Getter()
+        for x in reversed(range(hours)):
+            dt = now - datetime.timedelta(hours=x)
+            daystr = dt.strftime("%Y%m%d")
+            self.s3_refresh(getter, daystr, dt.hour)
+        getter.stats()
+
+    def s3_refresh(self, getter, daystr, hour):
+        cmd = 'ttpositions.aspx'
+        prefix = f'bustracker/raw/{cmd}/{daystr}/t{hour:02d}'
+        print(f'Getting prefix {prefix}')
+        keys = getter.list_with_prefix(prefix)
+        refreshed = 0
+        for k in keys['Contents']:
+            #print(f'Refreshing {k["Key"]}')
+            jd = getter.get_json_contents(k['Key'])
+            datalist = jd['requests']
+            refreshed += 1
+            for item in datalist:
+                response = item['response']
+                self.subscriber_callback(response['ctatt'])
+        return {'refreshed': refreshed}
 
     def subscriber_callback(self, data):
         with Session(self.subscriber.engine) as session:
@@ -165,6 +192,11 @@ class TrainUpdater(DatabaseUpdater):
                             start_of_trip = True
                         elif current.pattern_distance < 500 and current.update_count > 4:
                             start_of_trip = True
+
+                        if not start_of_trip:
+                            pattern_distance_delta = train_distance - current.pattern_distance
+                            if pattern_distance_delta < -2000:
+                                start_of_trip = True
 
                         current.pattern_distance = int(train_distance)
                         upd.pattern_distance = int(train_distance)

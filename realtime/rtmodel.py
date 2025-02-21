@@ -270,6 +270,24 @@ class TrainPrediction(Base):
     predicted_time: Mapped[datetime.datetime]
 
 
+class TrainPatternDetail(Base):
+    __tablename__ = "train_pattern_detail"
+
+    pattern_id: Mapped[int] = mapped_column(primary_key=True)
+    route_id: Mapped[str]
+    pattern_length_meters: Mapped[int]
+    service_id: Mapped[int]
+    direction_id: Mapped[int]
+    direction: Mapped[str]
+    schedule_instance_count: Mapped[int]
+    stop_count: Mapped[int]
+    first_stop_name: Mapped[str]
+    last_stop_name: Mapped[str]
+    first_stop_id: Mapped[int]
+    last_stop_id: Mapped[int]
+    geom = mapped_column(Geometry(geometry_type='LINESTRING', srid=26916))
+
+
 def db_init(echo=False, dev=False, local=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development

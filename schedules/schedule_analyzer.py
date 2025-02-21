@@ -193,6 +193,24 @@ class ScheduleAnalyzer:
             for _, row in shape_df.iterrows():
                 route_id = row.route_id.lower()
                 shape_id = int(row.shape_id)
+                pattern_detail = session.get(TrainPatternDetail, shape_id)
+                if not pattern_detail:
+                    detail = TrainPatternDetail(
+                        pattern_id=shape_id,
+                        route_id=route_id,
+                        pattern_length_meters=row.geometry.length,
+                        service_id=int(row.service_id),
+                        direction_id=int(row.direction_id),
+                        direction=row.direction,
+                        schedule_instance_count=row['count'],
+                        stop_count=row.stop_count,
+                        first_stop_name=row.first_stop_name,
+                        last_stop_name=row.last_stop_name,
+                        first_stop_id=row.first_stop_id,
+                        last_stop_id=row.last_stop_id,
+                        geom=row.geometry.wkt
+                    )
+                    session.add(detail)
                 pattern = session.get(Pattern, shape_id)
                 if pattern:
                     continue
@@ -318,4 +336,4 @@ class ScheduleAnalyzer:
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
     sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=False))
-    #sa.update_db()
+    sa.update_db()

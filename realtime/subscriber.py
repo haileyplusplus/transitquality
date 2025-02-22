@@ -136,11 +136,17 @@ class TrainUpdater(DatabaseUpdater):
                     session.add(upd)
                     current = session.get(CurrentTrainState, run)
                     if not current:
+                        q = select(func.max(TrainPosition.synthetic_trip_id)).where(TrainPosition.run == run)
+                        result = session.scalars(q).first()
+                        if not result:
+                            synthetic_trip_id = 0
+                        else:
+                            synthetic_trip_id = result
                         current = CurrentTrainState(
                             id=run,
                             last_update=timestamp,
                             update_count=0,
-                            synthetic_trip_id=0,
+                            synthetic_trip_id=synthetic_trip_id,
                         )
                         session.add(current)
                     elif timestamp <= current.last_update:

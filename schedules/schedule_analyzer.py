@@ -45,6 +45,12 @@ class ShapeManager:
         coord_point = shapely.Point(ShapeManager.XFM.transform(point.y, point.x))
         return coord_point
 
+    def length(self):
+        return self.shape.length
+
+    def needs_loop_detection(self):
+        return self.front is not None
+
     def calc_midpoint(self):
         shape = self.shape
         loop_midpoint = shapely.Point(self.XFM.transform(*self.LOOP_MIDPOINT))
@@ -64,10 +70,12 @@ class ShapeManager:
         segments = split(splitsnap, splitpoint)
         self.front, self.back = segments.geoms
 
-    def get_distance_along_shape(self, previous_distance, stop_point):
+    def get_distance_along_shape(self, previous_distance, stop_point, debug=False):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
         midpoint = self.shape.length / 2
         x = self.shape.line_locate_point(coord_point)
+        if not self.needs_loop_detection():
+            return x
         complement = self.shape.length - x
         midpoint_distance = abs(midpoint - x)
         if midpoint_distance < 500:
@@ -79,7 +87,8 @@ class ShapeManager:
             rv = max(x, complement)
         if rv < previous_distance:
             rv = max(x, complement)
-        print(f'Point prev {int(previous_distance):5} midpoint {int(midpoint):5}  {int(x):5}  {int(complement):5}   mpd {int(midpoint_distance):5}   rv {int(rv):5}')
+        if debug:
+            print(f'Point prev {int(previous_distance):5} midpoint {int(midpoint):5}  {int(x):5}  {int(complement):5}   mpd {int(midpoint_distance):5}   rv {int(rv):5}')
         return rv
 
     def get_distance_along_shape_dc(self, direction_change, stop_point):
@@ -106,6 +115,12 @@ class ShapeManager:
         distance = self.back.line_locate_point(coord_point)
         distance += self.front.length
         return distance
+
+    def initialize_previous(self, direction):
+        use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.row.shape_id))
+        if use_front:
+            return 0
+        return (self.shape.length / 2) + 1
 
     def get_distance_along_shape_direction(self, direction, train_point, debug=False):
         coord_point = shapely.Point(self.XFM.transform(train_point.y, train_point.x))

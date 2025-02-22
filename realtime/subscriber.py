@@ -145,6 +145,7 @@ class TrainUpdater(DatabaseUpdater):
                         session.add(current)
                     elif timestamp <= current.last_update:
                         continue
+                    prev_dest_name = current.dest_station_name
                     current.last_update = timestamp
                     current.dest_station = int(v['destSt'])
                     current.dest_station_name = v['destNm']
@@ -179,15 +180,27 @@ class TrainUpdater(DatabaseUpdater):
                         dest_station = 30069
                     current.current_pattern = self.schedule_analyzer.get_pattern(
                         rt, dest_station, train_point)
+                    if current.current_pattern is None:
+                        continue
                     upd.pattern = current.current_pattern
+                    previous_distance = current.pattern_distance
                     try:
                         debug = run == 423
                         if current.current_pattern is None:
                             print(f'Error finding pattern for run {run}')
                             continue
-                        shape_manager = self.schedule_analyzer.managed_shapes[int(current.current_pattern)]
-                        train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
-                                                                                          train_point, debug=debug)
+                        pattern_id = int(current.current_pattern)
+                        shape_manager = self.schedule_analyzer.managed_shapes[pattern_id]
+                        if previous_distance is None:
+                            previous_distance = shape_manager.initialize_previous(current.direction)
+                        pct_prev = previous_distance / shape_manager.length()
+                        if pct_prev > 0.9 and prev_dest_name is not None and current.dest_station_name != prev_dest_name:
+                            start_of_trip = True
+                            previous_distance = 0
+                        train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point)
+
+                        # train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
+                        #                                                                   train_point, debug=debug)
                         if current.pattern_distance is None:
                             start_of_trip = True
                         elif current.pattern_distance < 500 and current.update_count > 4:

@@ -66,24 +66,21 @@ class ShapeManager:
 
     def get_distance_along_shape(self, previous_distance, stop_point):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
-        if self.front is None:
-            distance = self.shape.line_locate_point(coord_point)
-            return distance
-        if previous_distance >= self.split_length:
-            # look in the second part
-            distance = self.back.line_locate_point(coord_point)
-            distance += self.front.length
-            return distance
-        if previous_distance <= 0.9 * self.split_length:
-            # only in first
-            distance = self.front.line_locate_point(coord_point)
-            return distance
-        # otherwise try both
-        front_distance = self.front.line_locate_point(coord_point)
-        back_distance = self.back.line_locate_point(coord_point) + self.front.length
-        if front_distance <= previous_distance:
-            return back_distance
-        return front_distance
+        midpoint = self.shape.length / 2
+        x = self.shape.line_locate_point(coord_point)
+        complement = self.shape.length - x
+        midpoint_distance = abs(midpoint - x)
+        if midpoint_distance < 500:
+            # don't correct
+            rv = x
+        elif previous_distance < midpoint:
+            rv = min(x, complement)
+        else:
+            rv = max(x, complement)
+        if rv < previous_distance:
+            rv = max(x, complement)
+        print(f'Point prev {int(previous_distance):5} midpoint {int(midpoint):5}  {int(x):5}  {int(complement):5}   mpd {int(midpoint_distance):5}   rv {int(rv):5}')
+        return rv
 
     def get_distance_along_shape_dc(self, direction_change, stop_point):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
@@ -340,5 +337,5 @@ class ScheduleAnalyzer:
 
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
-    sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=False))
-    #sa.update_db()
+    sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=True))
+    sa.update_db()

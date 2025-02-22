@@ -80,7 +80,7 @@ class TrainUpdater(DatabaseUpdater):
         print(f'Getting prefix {prefix}')
         keys = getter.list_with_prefix(prefix)
         refreshed = 0
-        for k in keys['Contents']:
+        for k in keys.get('Contents', []):
             #print(f'Refreshing {k["Key"]}')
             jd = getter.get_json_contents(k['Key'])
             datalist = jd['requests']

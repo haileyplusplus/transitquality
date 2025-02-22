@@ -39,8 +39,8 @@ def route_coalesce(v):
                 continue
             age_minutes = round(d['age'] / 60)
             d['age'] = round(d['age'])
-            el = d['el'] + age_minutes
-            eh = d['eh'] + age_minutes
+            el = d['el'] - age_minutes
+            eh = d['eh'] - age_minutes
             d['estimate'] = f'{el}-{eh} min'
             routev.append(d)
         routev.sort(key=lambda x: x['el'])

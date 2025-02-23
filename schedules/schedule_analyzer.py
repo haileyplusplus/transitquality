@@ -173,6 +173,7 @@ class ScheduleAnalyzer:
         """
         j = self.shape_trips_joined()
         candidates = j[(j.last_stop_id == str(last_station)) & (j.route_id.str.lower() == rt)]
+        candidates = candidates[~candidates.shape_id.isin({'308500036', '308500102'})]
         if len(candidates) == 1:
             return candidates.iloc[0].shape_id
         if candidates.empty:
@@ -353,4 +354,4 @@ class ScheduleAnalyzer:
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
     sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=True))
-    sa.update_db()
+    #sa.update_db()

@@ -307,6 +307,9 @@ def db_init(echo=False, dev=False, local=False):
 Figure out how to handle views:
 
 create view last_stop as select distinct on (pattern_id) pattern_id, sequence, distance, stop_id from pattern_stop order by pattern_id, sequence desc;
+create view train_position_summary as select run, timestamp, rt, dest_name, direction, stop.stop_name as next_station_name, arrival, pattern, 
+synthetic_trip_id, pattern_distance from train_position inner join stop on train_position.next_stop = stop.id
+order by run, timestamp;
 """
 
 if __name__ == "__main__":

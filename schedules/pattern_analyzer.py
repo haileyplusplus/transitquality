@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+from types import SimpleNamespace
 
 import gtfs_kit
 import pyproj
@@ -13,6 +14,7 @@ from geoalchemy2.shape import to_shape, from_shape
 from realtime.rtmodel import *
 
 from schedules.schedule_analyzer import ShapeManager
+
 
 class PatternAnalyzer:
     def __init__(self, dev=True):
@@ -107,12 +109,85 @@ class PatternAnalyzer:
                 print(f'{pos.dest_name} {pos.pattern_distance} {raw_point} {int(corrected):5}: MD {int(midpoint_distance):5}')
 
 
+class RunAnalyzer:
+    def __init__(self, engine, run):
+        self.engine = engine
+        self.run = run
+        self.null_count = 0
+        self.trips = []
+        self.trip_count = 0
+        self.full = 0
+
+    def flush(self):
+        if not self.trips:
+            return
+        prev = None
+        resets = 0
+        for t in self.trips:
+            if prev:
+                diff = t.pct - prev.pct
+                if diff < -10:
+                    resets += 1
+            prev = t
+        if self.trips[0].pct <= 5 and self.trips[-1].pct >= 95 and resets == 0:
+            self.full += 1
+        print(f'   T {self.trip_count:3}  R {resets:3}  {self.trips[0].pct:3} - {self.trips[-1].pct:3}%')
+        self.trip_count += 1
+        self.trips = []
+
+    def stats(self):
+        print(f'{self.run:03}: T{self.trip_count:3} F{self.full:3}  N{self.null_count:3}')
+
+    def load_data(self):
+        with Session(self.engine) as session:
+            stmt = select(TrainPosition).where(TrainPosition.run == self.run).order_by(TrainPosition.timestamp)
+            run_points = session.scalars(stmt)
+            detail = None
+            length = None
+            for v in run_points:
+                if detail is None:
+                    detail = session.get(TrainPatternDetail, v.pattern)
+                    if detail is None:
+                        continue
+                    length = detail.pattern_length_meters
+                    if length is None:
+                        continue
+                if v.synthetic_trip_id is None or v.pattern_distance is None:
+                    self.null_count += 1
+                    continue
+                pct = round(v.pattern_distance * 100 / length)
+                if self.trips and self.trips[-1].trip_id != v.synthetic_trip_id:
+                    self.flush()
+                self.trips.append(SimpleNamespace(
+                    trip_id=v.synthetic_trip_id,
+                    pattern_distance=v.pattern_distance,
+                    pct=pct,
+                ))
+            self.flush()
+
+
+class FullAnalyzer:
+    def __init__(self, dev=True):
+        self.engine = db_init(dev=dev)
+
+    def analyze(self):
+        with Session(self.engine) as session:
+            stmt = select(TrainPosition.run).distinct().order_by(TrainPosition.run)
+            for run in session.scalars(stmt):
+                ra = RunAnalyzer(self.engine, run)
+                ra.load_data()
+                ra.stats()
+
+
 if __name__ == "__main__":
-    pa = PatternAnalyzer()
+    #pa = PatternAnalyzer()
     # print('brown')
     # print(pa.pattern_stats(308500017))
     # print('purple')
     # print(pa.pattern_stats(308500102))
     # print('green')
     # print(pa.pattern_stats(308500012))
-    pa.pattern_stats2()
+    #pa.pattern_stats2()
+    fa = FullAnalyzer()
+    fa.analyze()
+

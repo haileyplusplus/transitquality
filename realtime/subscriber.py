@@ -509,6 +509,7 @@ class Subscriber:
     def __init__(self, host, schedule_analyzer):
         self.host = host
         self.engine = db_init(local=True)
+        schedule_analyzer.engine = self.engine
         self.train_updater = TrainUpdater(self, schedule_analyzer=schedule_analyzer)
         self.bus_updater = BusUpdater(self)
         self.redis_client = redis_async.Redis(host=self.host)

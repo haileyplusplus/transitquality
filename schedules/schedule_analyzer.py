@@ -6,6 +6,7 @@ import pyproj
 import shapely
 
 from shapely.ops import split
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 
@@ -152,15 +153,21 @@ class ShapeManager:
 class ScheduleAnalyzer:
     def __init__(self, schedule_location: Path, engine=None):
         self.schedule_location = schedule_location
-        self.feed = gtfs_kit.read_feed(self.schedule_location,
-                                       dist_units='ft')
         schedule_datestr = schedule_location.name.replace('cta_gtfs_', '').replace('.zip', '')
         self.schedule_date = datetime.datetime.strptime(schedule_datestr, '%Y%m%d').date()
-        print(f'Schedule: {self.schedule_date}')
         self.engine = engine
         self.joined_shapes = None
-        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(ShapeManager.CHICAGO).set_index('shape_id')
+        self.feed = None
+        self.geo_shapes = None
         self.managed_shapes = {}
+
+    def load_feed(self):
+        if self.feed is not None:
+            return
+        self.feed = gtfs_kit.read_feed(self.schedule_location,
+                                       dist_units='ft')
+        print(f'Schedule: {self.schedule_date}')
+        self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(ShapeManager.CHICAGO).set_index('shape_id')
         self.setup_shapes()
 
     def get_pattern(self, rt: str, last_station: int, train_point: shapely.Point):
@@ -171,31 +178,50 @@ class ScheduleAnalyzer:
         :param train_point:
         :return:
         """
-        j = self.shape_trips_joined()
-        candidates = j[(j.last_stop_id == str(last_station)) & (j.route_id.str.lower() == rt)]
-        candidates = candidates[~candidates.shape_id.isin({'308500036', '308500102'})]
-        if len(candidates) == 1:
-            return candidates.iloc[0].shape_id
-        if candidates.empty:
+        if train_point.x == 0 or train_point.y == 0:
+            # need more input geometry sanitization
+            print(f'Invalid train point {train_point}')
             return None
-        rdist = None
-        transformed = ShapeManager.XFM.transform(train_point.y, train_point.x)
-        train_point_chicago = shapely.Point(*transformed)
-        for _, c in candidates.iterrows():
-            dist = c.geometry.distance(train_point_chicago)
-            key = (dist, c.shape_id)
+        with Session(self.engine) as session:
+            #print(f'rt {rt}  last station {last_station}  train point {train_point}')
+            #j = self.shape_trips_joined()
+            stmt = (select(TrainPatternDetail)
+                    .join(Stop, TrainPatternDetail.first_stop_id == Stop.id)
+                    .where(TrainPatternDetail.route_id == rt)
+                    .where(TrainPatternDetail.last_stop_id == last_station)
+                    .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
+                    .where(func.ST_Distance(
+                            Stop.geom.ST_Transform(26916), func.ST_Transform(from_shape(train_point, srid=4326), 26916)
+                        ) < 2500
+                        )
+                    )
+            s = session.scalars(stmt)
+            candidates = s.all()
+            #candidates = j[(j.last_stop_id == str(last_station)) & (j.route_id.str.lower() == rt)]
+            #candidates = candidates[~candidates.shape_id.isin({'308500036', '308500102'})]
+            if len(candidates) == 1:
+                return candidates[0].pattern_id
+            if not candidates:
+                return None
+            rdist = None
+            transformed = ShapeManager.XFM.transform(train_point.y, train_point.x)
+            train_point_chicago = shapely.Point(*transformed)
+            for c in candidates:
+                shape_geom = c.geom
+                dist = shape_geom.distance(train_point_chicago)
+                key = (dist, c.pattern_id)
+                if rdist is None:
+                    rdist = key
+                elif key < rdist:
+                    rdist = key
             if rdist is None:
-                rdist = key
-            elif key < rdist:
-                rdist = key
-        if rdist is None:
-            return None
-        if rdist[0] > 200:
-            return None
-        return rdist[1]
+                return None
+            if rdist[0] > 200:
+                return None
+            return rdist[1]
 
-    def schedule_start(self):
-        return self.feed.get_dates()[0]
+    # def schedule_start(self):
+    #     return self.feed.get_dates()[0]
 
     def setup_shapes(self):
         shape_df = self.shape_trips_joined()
@@ -204,6 +230,7 @@ class ScheduleAnalyzer:
             self.managed_shapes[shape_id] = ShapeManager(row)
 
     def update_db(self):
+        self.load_feed()
         feed = self.feed
         shape_df = self.shape_trips_joined()
         schedule_dt = datetime.datetime.combine(self.schedule_date, datetime.time())
@@ -283,25 +310,28 @@ class ScheduleAnalyzer:
             session.commit()
         print(f'Database updated')
 
-    def train_shapes(self):
-        feed = self.feed
-        return feed.shapes[feed.shapes.shape_id.str.startswith('3')].shape_id.unique()
+    # def train_shapes(self):
+    #     feed = self.feed
+    #     return feed.shapes[feed.shapes.shape_id.str.startswith('3')].shape_id.unique()
 
     def train_trips(self):
+        self.load_feed()
         feed = self.feed
         return feed.trips[feed.trips.shape_id.str.startswith('3')]
 
     def shape_trips(self):
+        self.load_feed()
         train_trips = self.train_trips()
         return train_trips.groupby(['route_id', 'shape_id']).first()
 
-    def shape_services(self):
-        return sa.train_trips()[['shape_id', 'service_id']].drop_duplicates().join(
-            self.feed.calendar.set_index('service_id'), on='service_id')
+    # def shape_services(self):
+    #     return sa.train_trips()[['shape_id', 'service_id']].drop_duplicates().join(
+    #         self.feed.calendar.set_index('service_id'), on='service_id')
 
     def shape_trips_joined(self):
         if self.joined_shapes is not None:
             return self.joined_shapes
+        self.load_feed()
         counts_df = self.train_trips().groupby(['route_id', 'shape_id']).count()[['service_id']].rename(
             columns={'service_id': 'count'})
         shape_with_counts = self.shape_trips().join(counts_df)
@@ -317,17 +347,20 @@ class ScheduleAnalyzer:
         return self.joined_shapes
 
     def stop_sequence(self, trip_id: str):
+        self.load_feed()
         feed = self.feed
         result = (feed.stop_times[feed.stop_times.trip_id == trip_id].
                   join(feed.stops.set_index('stop_id')[['stop_name']], on='stop_id'))
         return result
 
     def get_stop_list(self, trip_id):
+        self.load_feed()
         feed = self.feed
         return feed.stop_times[feed.stop_times.trip_id == trip_id].join(
             feed.stops.set_index('stop_id')[['stop_name']], on='stop_id')
 
     def shape_list(self):
+        self.load_feed()
         train_summary = self.shape_trips()
         feed = self.feed
         train_summary['stop_list'] = train_summary.apply(

@@ -13,6 +13,8 @@ from pathlib import Path
 
 import requests
 import shapely
+import sqlalchemy
+from geoalchemy2.shape import from_shape, to_shape
 from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 import redis
@@ -63,6 +65,8 @@ class TrainUpdater(DatabaseUpdater):
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
         self.schedule_analyzer = kwargs['schedule_analyzer']
+        self.schedule_analyzer.engine = self.subscriber.engine
+        self.schedule_analyzer.setup_shapes()
         self.refresh(hours=8)
 
     def refresh(self, hours=5):
@@ -90,7 +94,197 @@ class TrainUpdater(DatabaseUpdater):
                 self.subscriber_callback(response['ctatt'])
         return {'refreshed': refreshed}
 
+    """
+    On each train update
+     - record the train position
+     - update the current position
+     - detect end of trip and, if so, perform end of trip logic
+     
+    End of trip signals
+     - within $thresh of end (crow distance) AND
+       - $thresh time elapsed
+       - or there is a new update with a different destination / direction
+         - Loop headsign -> something else is not end of trip. any other mismatch 
+           is a new trip. But the end of route threshold search should mostly make this moot.
+       
+    On completed trip
+     - check for completeness
+     - detect pattern
+     - assign new pattern id
+    """
+    def find_finalized_trips(self):
+        finish_thresh = datetime.timedelta(minutes=5)
+        with Session(self.subscriber.engine) as session:
+            completed = session.query(TrainPosition.completed).where(TrainPosition.completed.is_(True)).count()
+            all = session.query(TrainPosition.completed).count()
+            #print(f'  Finalized trips: {completed} completed of {all}')
+            local_now = Util.ctanow()
+            # only consider one run at a time
+            runs = {}
+            stmt = (select(TrainPosition)
+                    .join(Stop, TrainPosition.dest_station == Stop.id)
+                    .where(TrainPosition.completed.is_(False))
+                    .where(func.ST_Distance(
+                            Stop.geom.ST_Transform(26916), TrainPosition.geom.ST_Transform(26916)
+                        ) < 1000
+                        )
+                    .order_by(TrainPosition.run, TrainPosition.timestamp)
+                    )
+            try:
+                for pos in session.scalars(stmt):
+                    key = (pos.run, pos.dest_name, pos.direction)
+                    previous = runs.get(key)
+                    if not previous or pos.timestamp > previous.timestamp:
+                        runs[key] = pos
+            except sqlalchemy.exc.InternalError as e:
+                print(f'')
+            count = 0
+            succeeded = 0
+            for k, v in runs.items():
+                count += 1
+                #print(f'Found {v.run} ts {v.timestamp.isoformat()}')
+                ts = v.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
+                update_age = local_now - ts
+                if update_age < finish_thresh:
+                    print(f'Skipping fresh update for {k}')
+                    continue
+                success = self.finalize_trip(session, v)
+                if success:
+                    succeeded += 1
+            session.commit()
+            #if count > 0:
+            #    print(f'Finished finalization with {succeeded} of {count} succeeding')
+
+            # stmt = (select(TrainPatternDetail)
+            #         .join(Stop, TrainPatternDetail.first_stop_id == Stop.id)
+            #         .where(TrainPatternDetail.last_stop_id == last_station)
+            #         .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
+            #         .where(func.ST_Distance(
+            #                 Stop.geom.ST_Transform(26916), func.ST_Transform(from_shape(train_point, srid=4326), 26916)
+            #             ) < 1000
+            #             )
+            #         )
+            # s = session.scalars(stmt)
+            #
+            #
+            # q = select(func.max(TrainPosition.synthetic_trip_id)).where(TrainPosition.run == run)
+            # result = session.scalars(q).first()
+            # if not result:
+            #     synthetic_trip_id = 0
+            # else:
+            #     synthetic_trip_id = result
+            # pass
+
+    def finalize_trip(self, session, end_position):
+        run = end_position.run
+        stmt = (select(TrainPosition)
+                .where(TrainPosition.run == run)
+                .where(TrainPosition.completed.is_(False))
+                .where(TrainPosition.timestamp <= end_position.timestamp)
+                .order_by(TrainPosition.timestamp))
+        points = session.scalars(stmt).all()
+        if not points:
+            return None
+        prev_dest_name = points[-1].dest_name
+        start_position = None
+        i = len(points) - 1
+        for p in reversed(points):
+            if p.dest_name != prev_dest_name and p.dest_name != 'Loop':
+                start_position = p
+                break
+            prev_dest_name = p.dest_name
+            i -= 1
+        if start_position is None:
+            i = 0
+            start_position = points[0]
+        if end_position.route.id in {'y', 'p'}:
+            min_points = 4
+        else:
+            min_points = 7
+        if len(points[i:]) <= min_points:
+            #print(f'Not enough points for trip {run} ts {end_position.timestamp.isoformat()}')
+            return None
+        stop_name = session.get(Stop, points[i].next_stop).stop_name
+        end_stop_name = session.get(Stop, points[-1].next_stop).stop_name
+        #print(f'Looking for pattern (run {run}) from stop {stop_name} to {end_stop_name} with {len(points)} points index {i}')
+
+        stmt = (session.query(TrainPatternDetail, Stop, func.ST_Distance(
+                    Stop.geom.ST_Transform(26916), func.ST_Transform(start_position.geom, 26916)
+                    ).label('stop_dist'))
+                .join(Stop, TrainPatternDetail.first_stop_id == Stop.id)
+                .where(TrainPatternDetail.route_id == end_position.rt)
+                .where(TrainPatternDetail.last_stop_id == end_position.dest_station)
+                .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
+                #.where(text('stop_dist < 1000')
+                    #)
+                )
+        pattern_result = stmt.all()
+        pattern_id = None
+        duplicate = False
+        dists = [999999999999]
+        first_stop = None
+        last_stop = None
+        for pr, stop, d in pattern_result:
+            #print(f' Pattern result: {pr.pattern_id} stop {stop.stop_name} dist {d}')
+            #print(f'  md: {type(pr)} {dir(pr)}')
+            dists.append(d)
+            first_stop = pr.first_stop_name
+            last_stop = pr.last_stop_name
+            if d < 4000:
+                if pattern_id is not None:
+                    duplicate = True
+                pattern_id = pr.pattern_id
+
+        next_trip_id = session.query(func.max(TrainPosition.synthetic_trip_id)).scalar()
+        if next_trip_id is None:
+            next_trip_id = 0
+        else:
+            next_trip_id += 1
+
+        if duplicate or pattern_id is None:
+            print(f'No p match run {end_position.run} rt {end_position.route.id} starting at {start_position.timestamp.isoformat()}: '
+                  f'patterns {len(pattern_result)} points {len(points[i:])} duplicate {duplicate} min dist {min(dists)} '
+                  f'pat {first_stop}-{last_stop} pt {stop_name}-{end_stop_name}')
+            for point in points[i:]:
+                point.synthetic_trip_id = next_trip_id
+                point.completed = True
+            session.commit()
+            return False
+        try:
+            #debug = run == 423
+            # if current.current_pattern is None:
+            #     print(f'Error finding pattern for run {run}')
+            #     continue
+            #pattern_id = pattern_result[0].pattern_id
+            shape_manager = self.schedule_analyzer.managed_shapes[pattern_id]
+            previous_distance = 0
+            for point in points[i:]:
+                train_point = to_shape(point.geom)
+                train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point)
+                previous_distance = train_distance
+                point.pattern = pattern_id
+                point.synthetic_trip_id = next_trip_id
+                point.pattern_distance = train_distance
+                point.completed = True
+
+                #redis_key = f'trainposition:{pattern_id}:{run}-{next_trip_id}'
+                #if not self.r.exists(redis_key):
+                #    self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
+                #self.r.ts().add(redis_key, int(point.timestamp.timestamp()), train_distance)
+            #print(
+            #    f'Matched pattern for run {end_position.run} rt {end_position.route} starting at {start_position.timestamp.isoformat()}: {len(pattern_result)}')
+            return True
+        except redis.exceptions.ResponseError as e:
+            print(f'Redis summarizer error: {e}')
+        except KeyError as e:
+            print(f'Bad pattern: {e}')
+        except shapely.errors.GEOSException as e:
+            print(f'GEOS error: {e}')
+        return False
+
     def subscriber_callback(self, data):
+        #print(f'Finding finalized trips data len {len(str(data))}')
+        self.find_finalized_trips()
         with Session(self.subscriber.engine) as session:
             routes = data['route']
             for route in routes:
@@ -113,10 +307,14 @@ class TrainUpdater(DatabaseUpdater):
                         continue
                     lat = v['lat']
                     lon = v['lon']
+                    if abs(float(lat)) < 1 or abs(float(lon)) < 1:
+                        #print(f'Invalid point {lat} {lon} in run {run}')
+                        continue
                     geom = f'POINT({lon} {lat})'
                     key = (run, timestamp)
                     if session.get(TrainPosition, key):
                         continue
+                    #latest_update = session.query(TrainPosition).order_by(TrainPosition.timestamp.desc()).one_or_none()
                     upd = TrainPosition(
                         run=run,
                         timestamp=timestamp,
@@ -136,24 +334,17 @@ class TrainUpdater(DatabaseUpdater):
                     session.add(upd)
                     current = session.get(CurrentTrainState, run)
                     if not current:
-                        q = select(func.max(TrainPosition.synthetic_trip_id)).where(TrainPosition.run == run)
-                        result = session.scalars(q).first()
-                        if not result:
-                            synthetic_trip_id = 0
-                        else:
-                            synthetic_trip_id = result
                         current = CurrentTrainState(
                             id=run,
                             last_update=timestamp,
-                            update_count=0,
-                            synthetic_trip_id=synthetic_trip_id,
+                            update_count=0
                         )
                         session.add(current)
                     elif timestamp <= current.last_update:
                         continue
-                    prev_dest_name = current.dest_station_name
+                    #prev_dest_name = current.dest_station_name
                     current.last_update = timestamp
-                    current.dest_station = int(v['destSt'])
+                    dest_station = int(v['destSt'])
                     current.dest_station_name = v['destNm']
                     current.direction = int(v['trDr'])
                     current.next_station = int(v['nextStaId'])
@@ -164,10 +355,14 @@ class TrainUpdater(DatabaseUpdater):
                     current.geom = geom
                     current.heading = int(v['heading'])
                     current.route = route_db
-                    train_point = shapely.Point(lon, lat)
-                    start_of_trip = None
+                    #train_point = shapely.Point(lon, lat)
+                    # start_of_trip = None
                     if current.update_count is None:
                         current.update_count = 0
+                    if dest_station == 0 and current.dest_station_name == 'UIC-Halsted':
+                        dest_station = 30069
+                    current.dest_station = dest_station
+                    upd.dest_station = dest_station
                     # if current.dest_station == current.next_stop:
                     #     upd.current_pattern = current.current_pattern
                     #     current.current_pattern = None
@@ -179,65 +374,22 @@ class TrainUpdater(DatabaseUpdater):
                         #         current.synthetic_trip_id = 0
                         #     else:
                         #         current.synthetic_trip_id += 1
-                    if current.current_pattern is None:
-                        start_of_trip = True
-                    dest_station = current.dest_station
-                    if dest_station == 0 and current.dest_station_name == 'UIC-Halsted':
-                        dest_station = 30069
-                    current.current_pattern = self.schedule_analyzer.get_pattern(
-                        rt, dest_station, train_point)
-                    if current.current_pattern is None:
-                        continue
-                    upd.pattern = current.current_pattern
-                    previous_distance = current.pattern_distance
-                    try:
-                        debug = run == 423
-                        if current.current_pattern is None:
-                            print(f'Error finding pattern for run {run}')
-                            continue
-                        pattern_id = int(current.current_pattern)
-                        shape_manager = self.schedule_analyzer.managed_shapes[pattern_id]
-                        if previous_distance is None:
-                            previous_distance = shape_manager.initialize_previous(current.direction)
-                        pct_prev = previous_distance / shape_manager.length()
-                        if pct_prev > 0.9 and prev_dest_name is not None and current.dest_station_name != prev_dest_name:
-                            start_of_trip = True
-                            previous_distance = 0
-                        train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point)
-
-                        # train_distance = shape_manager.get_distance_along_shape_direction(current.direction,
-                        #                                                                   train_point, debug=debug)
-                        if current.pattern_distance is None:
-                            start_of_trip = True
-                        elif current.pattern_distance < 500 and current.update_count > 4:
-                            start_of_trip = True
-
-                        if not start_of_trip:
-                            pattern_distance_delta = train_distance - current.pattern_distance
-                            if pattern_distance_delta < -2000:
-                                start_of_trip = True
-
-                        current.pattern_distance = int(train_distance)
-                        upd.pattern_distance = int(train_distance)
-
-                        if start_of_trip:
-                            current.update_count = 0
-                            current.synthetic_trip_id += 1
-                        current.update_count += 1
-
-                        upd.synthetic_trip_id = current.synthetic_trip_id
-                        upd.current_pattern = current.current_pattern
-
-                        redis_key = f'trainposition:{current.current_pattern}:{run}-{current.synthetic_trip_id}'
-                        if not self.r.exists(redis_key):
-                            self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                        self.r.ts().add(redis_key, int(timestamp.timestamp()), train_distance)
-                    except redis.exceptions.ResponseError as e:
-                        print(f'Redis summarizer error: {e}')
-                    except KeyError as e:
-                        print(f'Bad pattern: {e}')
-                    except shapely.errors.GEOSException as e:
-                        print(f'GEOS error: {e}')
+                    # if latest_update is None:
+                    #     start_of_trip = True
+                    #     current_pattern = self.schedule_analyzer.get_pattern(
+                    #         rt, dest_station, train_point)
+                    # else:
+                    #     current_pattern = latest_update.pattern
+                    # dest_station = current.dest_station
+                    # if current.current_pattern is None:
+                    #     start_of_trip = True
+                    #     current.
+                    #if current.current_pattern is None:
+                    # if current_pattern is None:
+                    #     continue
+                    # current.current_pattern = current_pattern
+                    # upd.pattern = current.current_pattern
+                    # previous_distance = current.pattern_distance
             session.commit()
 
     def prediction_callback(self, data):

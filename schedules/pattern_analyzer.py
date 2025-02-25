@@ -140,7 +140,7 @@ class RunAnalyzer:
 
     def load_data(self):
         with Session(self.engine) as session:
-            stmt = select(TrainPosition).where(TrainPosition.run == self.run).order_by(TrainPosition.timestamp)
+            stmt = select(TrainPosition).where(TrainPosition.run == self.run).where(TrainPosition.completed.is_(True)).order_by(TrainPosition.timestamp)
             run_points = session.scalars(stmt)
             detail = None
             length = None

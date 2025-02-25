@@ -32,13 +32,13 @@ class ShapeManager:
         308500033: 1,  # Yellow Howard - Howard
     }
 
-    def __init__(self, row):
-        self.row = row
-        self.shape = row.geometry
+    def __init__(self, pattern):
+        self.pattern = pattern
+        self.shape = to_shape(pattern.geom)
         self.front = None
         self.back = None
         self.split_length = None
-        if row.first_stop_name == row.last_stop_name:
+        if pattern.first_stop_name == pattern.last_stop_name:
             self.calc_midpoint()
 
     @staticmethod
@@ -63,7 +63,7 @@ class ShapeManager:
                 return
         splitlen = shape.line_locate_point(loop_midpoint)
         self.split_length = splitlen
-        print(f'Splitting shape {self.row.shape_id} at len {splitlen}')
+        print(f'Splitting shape {self.pattern.pattern_id} at len {splitlen}')
         #shape.line_locate_point(shapely.Point(xfm.transform(*LOOP_MIDPOINT)))
         splitpoint = shape.interpolate(splitlen)
         print(f'Calculating midpoint: distance from line is {distance}')
@@ -118,7 +118,7 @@ class ShapeManager:
         return distance
 
     def initialize_previous(self, direction):
-        use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.row.shape_id))
+        use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.pattern.pattern_id))
         if use_front:
             return 0
         return (self.shape.length / 2) + 1
@@ -138,7 +138,7 @@ class ShapeManager:
         if dist_from_back > 50:
             use_front = True
         if use_front is None:
-            use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.row.shape_id))
+            use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.pattern.pattern_id))
         if debug:
             print(f'  Use front: {use_front} dist from front {dist_from_front} back {dist_from_back}')
         if use_front:
@@ -160,6 +160,7 @@ class ScheduleAnalyzer:
         self.feed = None
         self.geo_shapes = None
         self.managed_shapes = {}
+        #self.setup_shapes()
 
     def load_feed(self):
         if self.feed is not None:
@@ -168,7 +169,6 @@ class ScheduleAnalyzer:
                                        dist_units='ft')
         print(f'Schedule: {self.schedule_date}')
         self.geo_shapes = self.feed.get_shapes(as_gdf=True).to_crs(ShapeManager.CHICAGO).set_index('shape_id')
-        self.setup_shapes()
 
     def get_pattern(self, rt: str, last_station: int, train_point: shapely.Point):
         """
@@ -184,7 +184,6 @@ class ScheduleAnalyzer:
             return None
         with Session(self.engine) as session:
             #print(f'rt {rt}  last station {last_station}  train point {train_point}')
-            #j = self.shape_trips_joined()
             stmt = (select(TrainPatternDetail)
                     .join(Stop, TrainPatternDetail.first_stop_id == Stop.id)
                     .where(TrainPatternDetail.route_id == rt)
@@ -192,7 +191,7 @@ class ScheduleAnalyzer:
                     .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
                     .where(func.ST_Distance(
                             Stop.geom.ST_Transform(26916), func.ST_Transform(from_shape(train_point, srid=4326), 26916)
-                        ) < 2500
+                        ) < 1000
                         )
                     )
             s = session.scalars(stmt)
@@ -224,10 +223,21 @@ class ScheduleAnalyzer:
     #     return self.feed.get_dates()[0]
 
     def setup_shapes(self):
-        shape_df = self.shape_trips_joined()
-        for _, row in shape_df.iterrows():
-            shape_id = int(row.shape_id)
-            self.managed_shapes[shape_id] = ShapeManager(row)
+        # shape_df = self.shape_trips_joined()
+        # for _, row in shape_df.iterrows():
+        #     shape_id = int(row.shape_id)
+        #     self.managed_shapes[shape_id] = ShapeManager(row)
+        with Session(self.engine) as session:
+            #print(f'rt {rt}  last station {last_station}  train point {train_point}')
+            #j = self.shape_trips_joined()
+            stmt = (select(TrainPatternDetail)
+                    .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
+                    )
+            rows = session.scalars(stmt)
+            for pattern in rows:
+                pattern_id = pattern.pattern_id
+                self.managed_shapes[pattern_id] = ShapeManager(pattern)
+
 
     def update_db(self):
         self.load_feed()

@@ -271,10 +271,10 @@ class TrainUpdater(DatabaseUpdater):
                 point.pattern_distance = train_distance
                 point.completed = True
 
-                #redis_key = f'trainposition:{pattern_id}:{run}-{next_trip_id}'
-                #if not self.r.exists(redis_key):
-                #    self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                #self.r.ts().add(redis_key, int(point.timestamp.timestamp()), train_distance)
+                redis_key = f'trainposition:{pattern_id}:{run}-{next_trip_id}'
+                if not self.r.exists(redis_key):
+                    self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
+                self.r.ts().add(redis_key, int(point.timestamp.timestamp()), train_distance)
             #print(
             #    f'Matched pattern for run {end_position.run} rt {end_position.route} starting at {start_position.timestamp.isoformat()}: {len(pattern_result)}')
             return True

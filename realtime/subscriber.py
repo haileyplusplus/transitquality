@@ -258,6 +258,7 @@ class TrainUpdater(DatabaseUpdater):
             #pattern_id = pattern_result[0].pattern_id
             shape_manager = self.schedule_analyzer.managed_shapes[pattern_id]
             previous_distance = 0
+            # clean up and discard outliers
             for point in points[i:]:
                 train_point = to_shape(point.geom)
                 train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point)

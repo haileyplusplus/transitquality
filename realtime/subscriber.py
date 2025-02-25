@@ -188,12 +188,15 @@ class TrainUpdater(DatabaseUpdater):
         prev_dest_name = points[-1].dest_name
         start_position = None
         i = len(points) - 1
+        prev_point = None
         for p in reversed(points):
             if p.dest_name != prev_dest_name and p.dest_name != 'Loop':
-                start_position = p
+                start_position = prev_point
+                i += 1
                 break
             prev_dest_name = p.dest_name
             i -= 1
+            prev_point = p
         if start_position is None:
             i = 0
             start_position = points[0]

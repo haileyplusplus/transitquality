@@ -71,6 +71,8 @@ class ShapeManager:
         segments = split(splitsnap, splitpoint)
         self.front, self.back = segments.geoms
 
+    # we need more sophisticated statistical tooling to predict which of the two points is a better fit for our desired
+    # monotonically increasing sequence
     def get_distance_along_shape(self, previous_distance, stop_point, debug=False):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
         midpoint = self.shape.length / 2
@@ -78,16 +80,37 @@ class ShapeManager:
         if not self.needs_loop_detection():
             return x
         complement = self.shape.length - x
-        midpoint_distance = abs(midpoint - x)
-        if midpoint_distance < 500:
-            # don't correct
-            rv = x
-        elif previous_distance < midpoint:
-            rv = min(x, complement)
+        dx = abs(x - previous_distance)
+        dcomplement = abs(complement - previous_distance)
+        # if dx < dcomplement:
+        #     rv = x
+        # else:
+        #     rv = complement
+        # if rv < previous_distance:
+        #     rv = previous_distance
+        if x < previous_distance and complement < previous_distance:
+            rv = previous_distance
         else:
-            rv = max(x, complement)
-        if rv < previous_distance:
-            rv = max(x, complement)
+            rv = min([y for y in {x, complement} if y >= previous_distance])
+        delta = abs(rv - previous_distance)
+        if delta > 4000:
+            if dx < dcomplement:
+                rv = x
+            else:
+                rv = complement
+
+        # return the smallest that is >= previous
+        midpoint_distance = abs(midpoint - x)
+        #rv = x
+        # if midpoint_distance < 500:
+        #     # don't correct
+        #     rv = x
+        # elif previous_distance < midpoint:
+        #     rv = min(x, complement)
+        # else:
+        #     rv = max(x, complement)
+        # if rv < previous_distance:
+        #     rv = max(x, complement)
         if debug:
             print(f'Point prev {int(previous_distance):5} midpoint {int(midpoint):5}  {int(x):5}  {int(complement):5}   mpd {int(midpoint_distance):5}   rv {int(rv):5}')
         return rv

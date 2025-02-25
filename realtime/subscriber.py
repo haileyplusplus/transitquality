@@ -254,7 +254,7 @@ class TrainUpdater(DatabaseUpdater):
             session.commit()
             return False
         try:
-            #debug = run == 423
+            debug = run == 409
             # if current.current_pattern is None:
             #     print(f'Error finding pattern for run {run}')
             #     continue
@@ -264,7 +264,7 @@ class TrainUpdater(DatabaseUpdater):
             # clean up and discard outliers
             for point in points[i:]:
                 train_point = to_shape(point.geom)
-                train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point)
+                train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point, debug=debug)
                 previous_distance = train_distance
                 point.pattern = pattern_id
                 point.synthetic_trip_id = next_trip_id

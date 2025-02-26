@@ -185,6 +185,37 @@ class TrainUpdater(DatabaseUpdater):
         points = session.scalars(stmt).all()
         if not points:
             return None
+        # process outliers
+        run_length = 0
+        prev_key = None
+        elide = []
+        first_run = True
+        for i, p in enumerate(points):
+            key = (p.rt, p.dest_station, p.dest_name, p.direction)
+            if prev_key and prev_key != key:
+                if run_length == 1 and not first_run:
+                    elide.append(i - 1)
+                run_length = 0
+                first_run = False
+            run_length += 1
+            prev_key = key
+        p = points[0]
+        #if len(elide) > 1:
+        #    print(f'Too many outliers in {p.rt} {p.run} {p.timestamp.isoformat()} with {len(points)} points: {elide}')
+        #    return None
+        removed = 0
+        for e in elide:
+            remove_index = e - removed
+            removed += 1
+            points[remove_index].completed = True
+            points.pop(remove_index)
+        if removed > 0:
+            session.commit()
+        # if len(elide) == 1:
+        #     i, run_length = elide[0]
+        #     start = i - run_length
+        #     for x in range(run_length):
+        #         points.pop(start)
         prev_dest_name = points[-1].dest_name
         start_position = None
         i = len(points) - 1

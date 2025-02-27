@@ -1,9 +1,11 @@
 import datetime
 import cProfile
 import heapq
+import statistics
 from typing import Iterable
 
 import geoalchemy2
+import sqlalchemy.exc
 from sqlalchemy import text, select, func
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape
@@ -18,7 +20,7 @@ from pydantic import BaseModel
 
 
 
-from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition
+from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 
@@ -337,10 +339,16 @@ class QueryManager:
             if result:
                 estimates.append(result)
 
-        if not estimates:
+        if not estimates or len(estimates) < 2:
             return -1, -1, info
+
         # consider more sophisticated percentile stuff
-        return int(min(estimates) / 60), int(max(estimates) / 60), info
+        stdev = statistics.stdev(estimates)
+        mean = statistics.mean(estimates)
+        considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
+        info['stdev'] = stdev
+        info['considered'] = considered
+        return min(considered), max(considered), info
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:
@@ -483,11 +491,22 @@ class TrainQuery:
                 stop_id = row.stop_id
                 rt = row.xrt
                 for train in pattern_trains:
+                    stmt = (select(PatternStop).where(PatternStop.pattern_id == int(row.pid)).
+                            where(PatternStop.stop_id == int(train.next_stop)))
+                    try:
+                        pattern_stop = session.scalar(stmt)
+                    except sqlalchemy.exc.NoResultFound as e:
+                        pattern_stop = None
+                    if pattern_stop is None:
+                        print(f'Could not find pattern stop {row.pid} {rt} {train.id}')
+                        continue
+                    next_train_pattern_distance = pattern_stop.distance
                     #print(train.geom, type(train.geom))
                     # The ORM would do this for us automatically, but we have a manual query here
                     train_wkb = geoalchemy2.elements.WKBElement(train.geom)
                     train_point = to_shape(train_wkb)
-                    train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
+                    #train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
+                    train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point)
                     if train_dist > row.stop_pattern_distance:
                         continue
                     dist_from_train = row.stop_pattern_distance - train_dist
@@ -512,6 +531,8 @@ class TrainQuery:
                         "vehicle_distance": int(train_dist),
                         "last_stop_id": train.dest_station,
                         "last_stop_name": train.dest_station_name,
+                        "next_train_pattern_distance": next_train_pattern_distance,
+                        "next_stop_id": train.next_stop,
                         "estimate": "?",
                         "mi": "2.01mi",
                         "walk_time": -1,

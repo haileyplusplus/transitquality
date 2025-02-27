@@ -37,10 +37,11 @@ def route_coalesce(v):
                 continue
             if d['walk_time'] > 0 and -1 < d['eh'] <= d['walk_time']:
                 continue
-            age_minutes = round(d['age'] / 60)
+            age = d['age']
+            # age_minutes = round(d['age'] / 60)
             d['age'] = round(d['age'])
-            el = d['el'] - age_minutes
-            eh = d['eh'] - age_minutes
+            el = round((d['el'] - age) / 60)
+            eh = round((d['eh'] - age) / 60)
             d['estimate'] = f'{el}-{eh} min'
             routev.append(d)
         routev.sort(key=lambda x: x['el'])

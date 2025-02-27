@@ -115,6 +115,21 @@ class ShapeManager:
             print(f'Point prev {int(previous_distance):5} midpoint {int(midpoint):5}  {int(x):5}  {int(complement):5}   mpd {int(midpoint_distance):5}   rv {int(rv):5}')
         return rv
 
+    # get distance using a close known distance as anchor
+    def get_distance_along_shape_anchor(self, anchor, stop_point, debug=False):
+        coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
+        x = self.shape.line_locate_point(coord_point)
+        if not self.needs_loop_detection():
+            return x
+        complement = self.shape.length - x
+        dx = abs(x - anchor)
+        dcomplement = abs(complement - anchor)
+        if dx < dcomplement:
+            rv = x
+        else:
+            rv = complement
+        return rv
+
     def get_distance_along_shape_dc(self, direction_change, stop_point):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
         if self.front is None:

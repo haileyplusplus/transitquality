@@ -17,7 +17,7 @@ if __name__ == "__main__":
     deleted = 0
     #for key in r.scan_iter('trainposition:*'):
     del_keys = r.keys('trainposition:*')
-    print(f'Found {del_keys} redis keys to delete')
+    print(f'Found {len(del_keys)} redis keys to delete')
     pipe = r.pipeline()
     for key in del_keys:
         deleted += 1

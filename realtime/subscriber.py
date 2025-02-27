@@ -190,6 +190,7 @@ class TrainUpdater(DatabaseUpdater):
         prev_key = None
         elide = []
         first_run = True
+        # also detect big time gaps here
         for i, p in enumerate(points):
             key = (p.rt, p.dest_station, p.dest_name, p.direction)
             if prev_key and prev_key != key:
@@ -222,6 +223,11 @@ class TrainUpdater(DatabaseUpdater):
         prev_point = None
         for p in reversed(points):
             if p.dest_name != prev_dest_name and p.dest_name != 'Loop':
+                start_position = prev_point
+                i += 1
+                break
+            if prev_point and abs(p.timestamp - prev_point.timestamp) > datetime.timedelta(minutes=10):
+                start_position = prev_point
                 start_position = prev_point
                 i += 1
                 break
@@ -258,6 +264,7 @@ class TrainUpdater(DatabaseUpdater):
         dists = [999999999999]
         first_stop = None
         last_stop = None
+        match = None
         for pr, stop, d in pattern_result:
             #print(f' Pattern result: {pr.pattern_id} stop {stop.stop_name} dist {d}')
             #print(f'  md: {type(pr)} {dir(pr)}')
@@ -265,19 +272,23 @@ class TrainUpdater(DatabaseUpdater):
             first_stop = pr.first_stop_name
             last_stop = pr.last_stop_name
             if d < 4000:
-                if pattern_id is not None:
-                    duplicate = True
-                pattern_id = pr.pattern_id
-
+                if match is not None:
+                    if d >= match[2]:
+                        continue
+                match = (pr, stop, d)
+        if match:
+            pattern_id = match[0].pattern_id
+        else:
+            pattern_id = None
         next_trip_id = session.query(func.max(TrainPosition.synthetic_trip_id)).scalar()
         if next_trip_id is None:
             next_trip_id = 0
         else:
             next_trip_id += 1
 
-        if duplicate or pattern_id is None:
+        if pattern_id is None:
             print(f'No p match run {end_position.run} rt {end_position.route.id} starting at {start_position.timestamp.isoformat()}: '
-                  f'patterns {len(pattern_result)} points {len(points[i:])} duplicate {duplicate} min dist {min(dists)} '
+                  f'patterns {len(pattern_result)} points {len(points[i:])} min dist {min(dists)} '
                   f'pat {first_stop}-{last_stop} pt {stop_name}-{end_stop_name}')
             for point in points[i:]:
                 point.synthetic_trip_id = next_trip_id

@@ -19,7 +19,7 @@ services:
 #    develop:
 #      watch:
 #        - action: rebuild
-#          path: ../realtime
+#          path: ../realtime/simple_frontend.py
   rtbackend:
     build:
       context: ..

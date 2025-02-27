@@ -34,14 +34,16 @@ def route_coalesce(v):
             if 'el' not in d:
                 if d['mi_numeric'] <= 1:
                     routev.append(d)
-                continue
-            if d['walk_time'] > 0 and -1 < d['eh'] <= d['walk_time']:
+                d['el'] = -1
+                d['eh'] = -1
                 continue
             age = d['age']
-            # age_minutes = round(d['age'] / 60)
-            d['age'] = round(d['age'])
             el = round((d['el'] - age) / 60)
             eh = round((d['eh'] - age) / 60)
+            if d['walk_time'] > 0 and -1 < eh <= d['walk_time']:
+                continue
+            # age_minutes = round(d['age'] / 60)
+            d['age'] = round(d['age'])
             d['estimate'] = f'{el}-{eh} min'
             routev.append(d)
         routev.sort(key=lambda x: x['el'])
@@ -143,7 +145,6 @@ def estimates():
     for k, v in directions.items():
         #directions.setdefault(item['direction'], []).append(item)
         directions2[k] = route_coalesce(v)
-        #v.sort(key=lambda x: x['route'])
     raw = json.dumps(directions2, indent=4)
     return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)
 

@@ -126,6 +126,7 @@ def estimates():
                 index[pattern][vehicle_dist]['estimate'] = eststr
                 index[pattern][vehicle_dist]['el'] = el
                 index[pattern][vehicle_dist]['eh'] = eh
+                index[pattern][vehicle_dist]['raw_estimate'] = e
         else:
             summary = jd['trip']['summary']
             #print(jd)

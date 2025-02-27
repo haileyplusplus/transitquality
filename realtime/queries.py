@@ -71,21 +71,22 @@ class QueryManager:
 
     def get_single_estimate(self, row: StopEstimate):
         #print('row is', row, type(row))
-        el, eh = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        el, eh, info = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
         #return f'{el}-{eh} min'
-        return el, eh
+        return el, eh, info
 
     def get_estimates(self, rows: Iterable[StopEstimate]):
         rv = []
         #print(rows)
         for row in rows:
-            el, eh = self.get_single_estimate(row)
+            el, eh, info = self.get_single_estimate(row)
             rv.append({
                 'pattern': row.pattern_id,
                 'bus_location': row.bus_location,
                 'low': el,
                 'high': eh,
+                'info': info
             })
         return rv
 
@@ -271,7 +272,7 @@ class QueryManager:
                 return left[0]
             return right[0]
 
-        return 2, callback
+        return redis_key, callback
 
     @staticmethod
     def printable_ts(ts: int):
@@ -279,8 +280,9 @@ class QueryManager:
 
     def estimate_redis(self, pid, bus_dist, stop_dist):
         trips = self.get_latest_redis(pid)
+        info = {}
         if bus_dist >= stop_dist:
-            return -1, -1
+            return -1, -1, info
         pipeline = self.redis.pipeline()
         estimates = []
         pipeline_stack = []
@@ -292,7 +294,7 @@ class QueryManager:
 
         results = pipeline.execute()
 
-        def process(closest_bus, closest_stop):
+        def process(closest_bus, closest_stop, rk1, rk2):
             if not closest_bus or not closest_stop:
                 return None
             bus_time_samp, bus_dist_samp = closest_bus
@@ -303,30 +305,42 @@ class QueryManager:
                 return None
             travel_rate = travel_dist / travel_time
             actual_dist = stop_dist - bus_dist
-            # estimates.append(actual_dist / travel_rate)
+            key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
+            info[key] = {}
+            d = info[key]
+            d['redis_key'] = rk1
+            if rk1 != rk2:
+                d['error'] = f'Redis key mismatch: {rk1} / {rk2}'
+            d['from'] = bus_dist_samp
+            d['to'] = stop_dist_samp
+            d['travel_time'] = round(travel_time / 60, 1)
+            d['travel_dist'] = travel_dist
+            d['travel_rate'] = travel_rate
             # print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
             #       f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
             #       f'travel time {travel_time} travel dist {travel_dist} '
             #       f'travel rate {travel_rate} actual dist {actual_dist} '
             #       f'estimate {actual_dist / travel_rate}')
-            return actual_dist / travel_rate
+            computed = actual_dist / travel_rate
+            d['raw_estimate'] = round(computed / 60, 1)
+            return computed
 
         while pipeline_stack:
-            count, cb1 = pipeline_stack.pop(0)
+            rk1, cb1 = pipeline_stack.pop(0)
             result1 = cb1(results.pop(0), results.pop(0))
 
-            count, cb2 = pipeline_stack.pop(0)
+            rk2, cb2 = pipeline_stack.pop(0)
             result2 = cb2(results.pop(0), results.pop(0))
 
-            result = process(result1, result2)
+            result = process(result1, result2, rk1, rk2)
 
             if result:
                 estimates.append(result)
 
         if not estimates:
-            return -1, -1
+            return -1, -1, info
         # consider more sophisticated percentile stuff
-        return int(min(estimates) / 60), int(max(estimates) / 60)
+        return int(min(estimates) / 60), int(max(estimates) / 60), info
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:
@@ -483,6 +497,8 @@ class TrainQuery:
                         "startquery": startquery.isoformat(),
                         "route": rt,
                         "direction": dirname,
+                        "destination": train.dest_station_name,
+                        "run": train.id,
                         "stop_id": stop_id,
                         "stop_name": row.stop_name,
                         "stop_lat": row.stop_lat,

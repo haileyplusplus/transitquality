@@ -27,15 +27,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-engine = db_init(echo=True, dev=True)
+engine = db_init(echo=True, dev=False)
 qm = QueryManager(engine)
 # fix for prod
 #schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
 schedule_file = Path('/app/cta_gtfs_20250206.zip')
-if schedule_file.exists():
-    sa = ScheduleAnalyzer(schedule_file, engine=engine)
-else:
-    sa = None
+# if schedule_file.exists():
+#     sa = ScheduleAnalyzer(schedule_file, engine=engine)
+# else:
+sa = ScheduleAnalyzer(schedule_file, engine=engine)
+sa.setup_shapes()
 
 #def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer, lat, lon):
 

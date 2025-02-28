@@ -255,6 +255,12 @@ class BusPrediction(Base):
     timestamp: Mapped[datetime.datetime]
     origtatripno: Mapped[str]
     prediction: Mapped[int]
+    prediction_type: Mapped[str] = mapped_column(nullable=True)
+    origin: Mapped[str] = mapped_column(nullable=True)
+    vehicle_id: Mapped[int] = mapped_column(nullable=True)
+    direction: Mapped[str] = mapped_column(nullable=True)
+    block_id: Mapped[str] = mapped_column(nullable=True)
+    delay: Mapped[bool] = mapped_column(nullable=True)
 
 
 class TrainPrediction(Base):
@@ -307,10 +313,24 @@ def db_init(echo=False, dev=False, local=False):
 """
 Figure out how to handle views:
 
-create view last_stop as select distinct on (pattern_id) pattern_id, sequence, distance, stop_id from pattern_stop order by pattern_id, sequence desc;
+- not used in queries
+
 create view train_position_summary as select run, timestamp, rt, dest_name, direction, next_stop, stop.stop_name as next_station_name, arrival, pattern, 
 synthetic_trip_id, pattern_distance from train_position inner join stop on train_position.next_stop = stop.id
 order by run, timestamp;
+
+- used in queries
+
+create view last_stop as select distinct on (pattern_id) pattern_id, sequence, distance, stop_id from pattern_stop order by pattern_id, sequence desc;
+
+
+create view pattern_destinations as select pattern_stop.pattern_id, pattern_stop.stop_id as origin_stop, length, rt, last_stop, stop_name as last_stop_name from pattern_stop 
+inner join pattern on pattern.id = pattern_stop.pattern_id
+inner join (select distinct on (pattern_id) pattern_id, sequence, stop_id as last_stop from pattern_stop order by pattern_id, sequence desc)
+as last_stop_table on last_stop_table.pattern_id = pattern.id
+inner join stop on last_stop_table.last_stop = stop.id
+where pattern_stop.sequence = 1;
+
 """
 
 if __name__ == "__main__":

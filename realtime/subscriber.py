@@ -319,10 +319,16 @@ class TrainUpdater(DatabaseUpdater):
                 point.pattern = pattern_id
                 point.synthetic_trip_id = next_trip_id
                 point.completed = True
+
+                if point.next_stop_distance < 100 and not point.approaching:
+                    # insert into error table
+                    continue
+
                 stop_pattern_distance = stop_distances.get(point.next_stop)
                 if stop_pattern_distance is None:
                     print(f'Warning: couldn\'t find stop pattern distance for stop {point.next_stop} pattern {pattern_id} computing trip {next_trip_id} at {point.timestamp.isoformat()}. Using fallback (prev larger {previous_larger})')
                     #continue
+
 
                 previous_larger, train_distance = shape_manager.get_distance_along_shape_anchor(stop_pattern_distance, train_point, previous_larger)
                 point.pattern_distance = train_distance

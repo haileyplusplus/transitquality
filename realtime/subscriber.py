@@ -177,6 +177,7 @@ class TrainUpdater(DatabaseUpdater):
 
     def finalize_trip(self, session, end_position):
         run = end_position.run
+        # may want to use an ORM join but let's try this for now
         stmt = (select(TrainPosition)
                 .where(TrainPosition.run == run)
                 .where(TrainPosition.completed.is_(False))
@@ -296,6 +297,13 @@ class TrainUpdater(DatabaseUpdater):
             session.commit()
             return False
         try:
+            # get pattern stops
+            pattern_stmt = (select(PatternStop)
+                            .where(PatternStop.pattern_id == int(pattern_id)))
+            stop_distances = {}
+            for ps in session.scalars(pattern_stmt):
+                stop_distances[ps.stop_id] = ps.distance
+
             debug = run == 409
             # if current.current_pattern is None:
             #     print(f'Error finding pattern for run {run}')
@@ -306,12 +314,19 @@ class TrainUpdater(DatabaseUpdater):
             # clean up and discard outliers
             for point in points[i:]:
                 train_point = to_shape(point.geom)
-                train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point, debug=debug)
-                previous_distance = train_distance
+                #train_distance = shape_manager.get_distance_along_shape(previous_distance, train_point, debug=debug)
                 point.pattern = pattern_id
                 point.synthetic_trip_id = next_trip_id
-                point.pattern_distance = train_distance
                 point.completed = True
+                stop_pattern_distance = stop_distances.get(point.next_stop)
+                if stop_pattern_distance is None:
+                    print(f'Error: couldn\'t find stop pattern distance for stop {point.next_stop} pattern {pattern_id} computing trip {next_trip_id} at {point.timestamp.isoformat()}')
+                    continue
+
+                train_distance = shape_manager.get_distance_along_shape_anchor(stop_pattern_distance, train_point)
+                point.pattern_distance = train_distance
+
+                previous_distance = train_distance
 
                 redis_key = f'trainposition:{pattern_id}:{run}-{next_trip_id}'
                 if not self.r.exists(redis_key):

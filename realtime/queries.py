@@ -506,7 +506,7 @@ class TrainQuery:
                     train_wkb = geoalchemy2.elements.WKBElement(train.geom)
                     train_point = to_shape(train_wkb)
                     #train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
-                    train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point)
+                    _, train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point, False)
                     if train_dist > row.stop_pattern_distance:
                         continue
                     dist_from_train = row.stop_pattern_distance - train_dist

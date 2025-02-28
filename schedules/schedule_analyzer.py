@@ -116,18 +116,26 @@ class ShapeManager:
         return rv
 
     # get distance using a close known distance as anchor
-    def get_distance_along_shape_anchor(self, anchor, stop_point, debug=False):
+    def get_distance_along_shape_anchor(self, anchor, stop_point, prev_larger, debug=False):
         coord_point = shapely.Point(self.XFM.transform(stop_point.y, stop_point.x))
         x = self.shape.line_locate_point(coord_point)
         if not self.needs_loop_detection():
-            return x
+            return False, x
         complement = self.shape.length - x
+        if anchor is None:
+            # use whether previous was larger as fallback
+            if prev_larger:
+                print(f'  fallback: returning larger {x} {complement}: {max(x, complement)}')
+                return prev_larger, max(x, complement)
+            print(f'  fallback: returning smaller {x} {complement}: {min(x, complement)}')
+            return prev_larger, min(x, complement)
         dx = abs(x - anchor)
         dcomplement = abs(complement - anchor)
+        # Are we returning the larger of the two values?
         if dx < dcomplement:
-            rv = x
+            rv = (x > complement), x
         else:
-            rv = complement
+            rv = (complement > x), complement
         return rv
 
     def get_distance_along_shape_dc(self, direction_change, stop_point):

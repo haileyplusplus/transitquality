@@ -311,6 +311,7 @@ class TrainUpdater(DatabaseUpdater):
             #pattern_id = pattern_result[0].pattern_id
             shape_manager = self.schedule_analyzer.managed_shapes[pattern_id]
             previous_distance = 0
+            previous_larger = False
             # clean up and discard outliers
             for point in points[i:]:
                 train_point = to_shape(point.geom)
@@ -320,10 +321,10 @@ class TrainUpdater(DatabaseUpdater):
                 point.completed = True
                 stop_pattern_distance = stop_distances.get(point.next_stop)
                 if stop_pattern_distance is None:
-                    print(f'Error: couldn\'t find stop pattern distance for stop {point.next_stop} pattern {pattern_id} computing trip {next_trip_id} at {point.timestamp.isoformat()}')
-                    continue
+                    print(f'Warning: couldn\'t find stop pattern distance for stop {point.next_stop} pattern {pattern_id} computing trip {next_trip_id} at {point.timestamp.isoformat()}. Using fallback (prev larger {previous_larger})')
+                    #continue
 
-                train_distance = shape_manager.get_distance_along_shape_anchor(stop_pattern_distance, train_point)
+                previous_larger, train_distance = shape_manager.get_distance_along_shape_anchor(stop_pattern_distance, train_point, previous_larger)
                 point.pattern_distance = train_distance
 
                 previous_distance = train_distance

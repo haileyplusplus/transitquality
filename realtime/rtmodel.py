@@ -182,6 +182,7 @@ class TrainPosition(Base):
     direction: Mapped[int]
     next_station: Mapped[int]
     next_stop: Mapped[int]
+    next_stop_distance: Mapped[int] = mapped_column(nullable=True)
     arrival: Mapped[datetime.datetime]
     approaching: Mapped[bool]
     delayed: Mapped[bool]

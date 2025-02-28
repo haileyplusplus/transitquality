@@ -24,7 +24,7 @@ from backend.util import Util
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
 
-from schedules.schedule_analyzer import ScheduleAnalyzer
+from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 
 """
 Detecting a finished trip:
@@ -394,6 +394,10 @@ class TrainUpdater(DatabaseUpdater):
                         completed=False,
                     )
                     session.add(upd)
+                    next_stop = session.get(Stop, upd.next_stop)
+                    if next_stop:
+                        llpoint = shapely.Point(lon, lat)
+                        upd.next_stop_distance = ShapeManager.geom_distance(llpoint, to_shape(next_stop.geom))
                     current = session.get(CurrentTrainState, run)
                     if not current:
                         current = CurrentTrainState(

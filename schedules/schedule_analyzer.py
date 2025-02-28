@@ -46,6 +46,19 @@ class ShapeManager:
         coord_point = shapely.Point(ShapeManager.XFM.transform(point.y, point.x))
         return coord_point
 
+    @staticmethod
+    def geom_distance(p1: shapely.Point, p2: shapely.Point):
+        """
+        Return distance between two lat/lon geometries
+        :param self:
+        :param p1:
+        :param p2:
+        :return:
+        """
+        sg1 = ShapeManager.transform(p1)
+        sg2 = ShapeManager.transform(p2)
+        return sg1.distance(sg2)
+
     def length(self):
         return self.shape.length
 

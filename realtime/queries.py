@@ -93,36 +93,107 @@ class QueryManager:
         return rv
 
     def nearest_stop_vehicles(self, lat, lon, include_estimate=False, include_all_items=False):
-        query = ('select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, '
-                 'pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist from ('
-                 'select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance from '
-                 '(select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, pattern_stop.distance as stop_pattern_distance, '
-                 'pattern.rt, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist '
-                 'from stop inner join pattern_stop on stop.id = pattern_stop.stop_id inner join pattern on '
-                 'pattern_stop.pattern_id = pattern.id ORDER BY dist) WHERE dist < :thresh ORDER BY pattern_id, dist) as x inner join '
-                 'current_vehicle_state on current_vehicle_state.pid = pattern_id where '
-                 'distance < stop_pattern_distance order by dist, distance')
+        query = """
+        select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, 
+            pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist 
+            from (
+                 select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance 
+                 from (
+                     select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, 
+                     pattern_stop.distance as stop_pattern_distance, pattern.rt, 
+                     ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist 
+                     from stop 
+                        inner join pattern_stop on stop.id = pattern_stop.stop_id 
+                        inner join pattern on pattern_stop.pattern_id = pattern.id ORDER BY dist
+                 ) WHERE dist < :thresh ORDER BY pattern_id, dist
+            ) as x 
+              left join current_vehicle_state on current_vehicle_state.pid = pattern_id 
+               
+              order by dist, distance
+        """
+# where distance is null or distance < stop_pattern_distance
+
+        predictions = """
+            select pattern_id, stop_id, destination, route, timestamp, prediction from bus_prediction 
+            inner join schedule_destinations
+            on bus_prediction.stop_id = schedule_destinations.first_stop_id and bus_prediction.destination = schedule_destinations.destination_headsign
+            and bus_prediction.route = schedule_destinations.route_id
+            inner join pattern_destinations
+            on bus_prediction.stop_id = pattern_destinations.origin_stop
+            and bus_prediction.route = pattern_destinations.rt
+            and schedule_destinations.last_stop_id = pattern_destinations.last_stop
+            where timestamp + make_interval(mins => prediction) >= now() at time zone 'America/Chicago'
+            and pattern_id in (
+            
+            select pattern_id from (
+            select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance 
+                             from (
+                                 select stop.id, pattern_stop.pattern_id, stop_name, stop.geom as stop_geom, 
+                                 pattern_stop.distance as stop_pattern_distance, pattern.rt, 
+                                 ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist 
+                                 from stop 
+                                    inner join pattern_stop on stop.id = pattern_stop.stop_id 
+                                    inner join pattern on pattern_stop.pattern_id = pattern.id ORDER BY dist
+                             ) WHERE dist < :thresh ORDER BY pattern_id, dist
+            )                 
+            
+            )
+            order by pattern_id
+        """
         routes = {}
         all_items = []
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
+            prediction_result = session.execute(text(predictions),
+                                                {"lat": float(lat), "lon": float(lon), "thresh": 1000})
             startquery = Util.ctanow().replace(tzinfo=None)
+            predictions = {}
+            seen = set([])
+            for p in prediction_result:
+                key = p.pattern_id
+                predictions[key] = p
+            local_now = Util.ctanow()
             for row in result:
+                row_distance = row.distance
+                print(f'Looking for pattern {row.pattern_id}  distance {row_distance}')
                 last_stop_id, last_stop_name = self.last_stops.get(row.pattern_id, (None, None))
                 if last_stop_id is None:
+                    print(f'No last stop found for {row.pattern_id} - {row.stop_name} {row.rt}')
                     continue
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
-                bus_distance = row.stop_pattern_distance - row.distance
+                predicted_minutes = None
+                row_update = row.last_update
+                if row_distance is None or row_distance >= row.stop_pattern_distance:
+                    prediction = predictions.get(row.pattern_id)
+                    if prediction is None:
+                        print(f'No prediction found for {row.pattern_id} - {row.stop_name} {row.rt}')
+                        continue
+                    if row.pattern_id in seen:
+                        continue
+                    row_distance = 0
+                    seen.add(row.pattern_id)
+                    #prediction_first_stop = prediction.stop_id
+                    row_update = prediction.timestamp
+                    predicted_minutes = prediction.prediction
+
+                    print(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins {predicted_minutes}')
+                    pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
+                    age = (local_now - pts).total_seconds() / 60
+                    predicted_minutes = round(predicted_minutes - age)
+                if row_distance >= row.stop_pattern_distance:
+                    continue
+                bus_distance = row.stop_pattern_distance - row_distance
                 # split this out into its own thing
                 #point = to_shape(row.stop_geom)
                 #lat, lon = point.y, point.x
-                age = (startquery - row.last_update).total_seconds()
+
+                age = (startquery - row_update).total_seconds()
 
                 estimate = '?'
                 if include_estimate:
                     se = StopEstimate(pattern_id=row.pattern_id,
-                                      bus_location=row.distance,
+                                      bus_location=row_distance,
                                       stop_pattern_distance=row.stop_pattern_distance)
                     estimate = self.get_single_estimate(se)
 
@@ -134,16 +205,18 @@ class QueryManager:
                        'stop_name': row.stop_name,
                        'stop_lat': row.stop_lat,
                        'stop_lon': row.stop_lon,
+                       'predicted_minutes': predicted_minutes,
                        'stop_pattern_distance': row.stop_pattern_distance,
                        'bus_distance': bus_distance,
                        'dist': row.dist,
-                       'last_update': row.last_update.isoformat(),
+                       'last_update': row_update.isoformat(),
                        'age': age,
-                       'vehicle_distance': row.distance,
+                       'vehicle_distance': row_distance,
                        'last_stop_id': last_stop_id,
                        'last_stop_name': last_stop_name,
                        'estimate': estimate,
                        }
+                print(dxx)
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
                 all_items.append(dxx)
@@ -377,6 +450,22 @@ class QueryManager:
                 'stop_distance': stop_dist,
                 'updates': rv
             }
+
+    def get_predictions(self, patterns: list[int]):
+        query = """
+select *, timestamp + make_interval(mins => prediction) as departure from bus_prediction 
+inner join schedule_destinations
+on bus_prediction.stop_id = schedule_destinations.first_stop_id and bus_prediction.destination = schedule_destinations.destination_headsign
+and bus_prediction.route = schedule_destinations.route_id
+inner join pattern_destinations
+on bus_prediction.stop_id = pattern_destinations.origin_stop
+and bus_prediction.route = pattern_destinations.rt
+and schedule_destinations.last_stop_id = pattern_destinations.last_stop
+where timestamp + make_interval(mins => prediction) >= now() at time zone 'America/Chicago'
+and pattern_id in (:patterns)
+        """
+        with Session(self.engine) as session:
+            pass
 
 
 class TrainQuery:

@@ -308,6 +308,7 @@ class ScheduleDestinations(Base):
     shape_id: Mapped[int]
     direction: Mapped[str]
 
+
 def db_init(echo=False, dev=False, local=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development

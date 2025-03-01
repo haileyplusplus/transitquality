@@ -29,8 +29,8 @@ def route_coalesce(v):
     for k, v in sorted(routes.items()):
         routev = []
         for d in v:
-            print(f'coalesce')
-            print(d)
+            print(f'coalesce {k}')
+            print(json.dumps(d, indent=4))
             if 'el' not in d:
                 if d['mi_numeric'] <= 1:
                     routev.append(d)
@@ -44,6 +44,11 @@ def route_coalesce(v):
                 continue
             # age_minutes = round(d['age'] / 60)
             d['age'] = round(d['age'])
+            predicted = d.get('predicted_minutes')
+            d['old_estimate'] = f'{el}-{eh} min'
+            if predicted:
+                el += predicted
+                eh += predicted
             d['estimate'] = f'{el}-{eh} min'
             routev.append(d)
         routev.sort(key=lambda x: x['el'])

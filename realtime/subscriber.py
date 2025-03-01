@@ -639,7 +639,14 @@ class BusUpdater(DatabaseUpdater):
                         route=route
                     )
                     session.add(prediction)
+                # eventually check timestamps before overwrite
                 prediction.origtatripno = v['origtatripno']
+                prediction.prediction_type = v['typ']
+                prediction.origin = v['stpnm']
+                prediction.vehicle_id = v['vid']
+                prediction.direction = v['rtdir']
+                prediction.block_id = v['tablockid']
+                prediction.delay = v['dly']
                 if v['prdctdn'] == 'DUE':
                     prediction.prediction = 1
                 elif v['prdctdn'] == 'DLY':

@@ -295,6 +295,19 @@ class TrainPatternDetail(Base):
     geom = mapped_column(Geometry(geometry_type='LINESTRING', srid=26916))
 
 
+class ScheduleDestinations(Base):
+    __tablename__ = "schedule_destinations"
+
+    trip_id: Mapped[str] = mapped_column(primary_key=True)
+    first_stop_id: Mapped[int]
+    last_stop_id: Mapped[int]
+    destination_headsign: Mapped[str]
+    distance: Mapped[int]
+    route_id: Mapped[str]
+    service_id: Mapped[int]
+    shape_id: Mapped[int]
+    direction: Mapped[str]
+
 def db_init(echo=False, dev=False, local=False):
     #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
     # for local development

@@ -297,6 +297,34 @@ class ScheduleAnalyzer:
                 pattern_id = pattern.pattern_id
                 self.managed_shapes[pattern_id] = ShapeManager(pattern)
 
+    def add_destinations_to_db(self):
+        self.load_feed()
+        feed = self.feed
+        sh = feed.stop_times.sort_values(['trip_id', 'stop_sequence']).groupby('trip_id').last()
+        patterns = sh[['stop_id', 'stop_sequence', 'stop_headsign', 'shape_dist_traveled']].drop_duplicates().join(
+            feed.trips.set_index('trip_id'))
+        first_stops = feed.stop_times.sort_values(['trip_id', 'stop_sequence']).groupby('trip_id').first()
+        df = patterns.join(first_stops.rename(columns={'stop_id': 'first_stop_id'})[['first_stop_id']])
+        df = df.reset_index()
+        with Session(self.engine) as session:
+            for _, row in df.iterrows():
+                key = row.trip_id
+                item = session.get(ScheduleDestinations, key)
+                if item is not None:
+                    continue
+                item = ScheduleDestinations(
+                    trip_id=key,
+                    first_stop_id=int(row.first_stop_id),
+                    last_stop_id=int(row.stop_id),
+                    destination_headsign=row.stop_headsign,
+                    distance=row.shape_dist_traveled,
+                    route_id=row.route_id,
+                    service_id=int(row.service_id),
+                    shape_id=int(row.shape_id),
+                    direction=row.direction
+                )
+                session.add(item)
+            session.commit()
 
     def update_db(self):
         self.load_feed()
@@ -456,4 +484,5 @@ class ScheduleAnalyzer:
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
     sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=True))
+    sa.add_destinations_to_db()
     #sa.update_db()

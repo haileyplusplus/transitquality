@@ -51,4 +51,4 @@ COPY . .
 EXPOSE 8600
 
 # Run the application.
-CMD waitress-serve --listen 0.0.0.0:8600 realtime.simple_frontend:app
+CMD waitress-serve --listen 0.0.0.0:8600 realtimeinfo.simple_frontend:app

@@ -16,10 +16,10 @@ services:
     depends_on:
       transit-realtimeinfo-sidecar:
         condition: service_started
-#    develop:
-#      watch:
-#        - action: rebuild
-#          path: ../realtime/simple_frontend.py
+    develop:
+      watch:
+        - action: rebuild
+          path: .
   rtbackend:
     build:
       context: ..

@@ -5,8 +5,6 @@ from flask import Flask, render_template, request
 import grequests
 import requests
 
-from realtime.queries import StopEstimate
-
 app = Flask(__name__)
 
 

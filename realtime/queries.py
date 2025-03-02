@@ -173,6 +173,33 @@ class QueryManager:
                     pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
                     age = (local_now - pts).total_seconds() / 60
                     predicted_minutes = round(predicted_minutes - age)
+                    dxx = BusEstimate(
+                        query_start=startquery,
+                        pattern=row.pattern_id,
+                        route=row.rt,
+                        direction=direction,
+                        stop_id=row.stop_id,
+                        stop_name=row.stop_name,
+                        stop_lat=row.stop_lat,
+                        stop_lon=row.stop_lon,
+                        stop_position=Q_(row.stop_pattern_distance, 'ft'),
+                        vehicle_position=Q_(row_distance, 'ft'),
+                        distance_from_vehicle=Q_(bus_distance, 'ft'),
+                        last_update=row_update,
+                        distance_to_stop=Q_(row.dist, 'm'),
+                        age=datetime.timedelta(seconds=age),
+                        destination_stop_id=last_stop_id,
+                        destination_stop_name=last_stop_name,
+                        waiting_to_depart=True,
+                        predicted_minutes=datetime.timedelta(minutes=predicted_minutes),
+                        vehicle=row.vehicle_id,
+                    )
+                    # TODO: avoid copy
+                    print(dxx)
+                    key = (row.rt, last_stop_name)
+                    routes[key] = dxx
+                    all_items.append(dxx)
+                    continue
                 if row_distance >= row.stop_pattern_distance:
                     continue
                 bus_distance = row.stop_pattern_distance - row_distance
@@ -208,8 +235,8 @@ class QueryManager:
                     waiting_to_depart=False,
                     vehicle=row.vehicle_id,
                 )
-                if predicted_minutes:
-                    dxx.predicted_minutes = datetime.timedelta(minutes=predicted_minutes)
+                #if predicted_minutes:
+                #    dxx.predicted_minutes = datetime.timedelta(minutes=predicted_minutes)
 
                 # dxx = {'pattern': row.pattern_id,
                 #        'startquery': startquery.isoformat(),

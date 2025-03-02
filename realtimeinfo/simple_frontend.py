@@ -45,10 +45,13 @@ def route_coalesce(dirname, v):
             if d.low_estimate is None:
                 miles = d.distance_from_vehicle.to(ureg.miles)
                 if miles <= ureg.miles * 1:
-                    routev.append(d)
+                    d.display = True
+                else:
+                    d.display = False
                 # consider better values
                 d.low_estimate = datetime.timedelta(minutes=1)
                 d.high_estimate = datetime.timedelta(minutes=5)
+                routev.append(d)
                 continue
             #predicted = d.predicted_minutes
             # age = d.age
@@ -68,6 +71,7 @@ def route_coalesce(dirname, v):
             if d.walk_time > datetime.timedelta(0) and datetime.timedelta(0) <= d.high_estimate <= d.walk_time:
                 item = d
                 print(f'  filtering out item due to walk time: item {item.pattern} vid ? vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
+                d.display = False
                 continue
             # age_minutes = round(d['age'] / 60)
             # d['age'] = round(d['age'])

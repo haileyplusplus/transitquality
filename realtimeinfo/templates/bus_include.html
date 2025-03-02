@@ -1,4 +1,5 @@
-                <tr><td><b><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></b></td>
+{% if item.display %}
+<tr><td><b><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></b></td>
                     <td><b>{{ item.destination_stop_name }}</b></td>
                     <td>{{ item.distance_from_vehicle }}{% if item.waiting_to_depart %}*{% endif %}</td>
                     <td>{{ item.displayed_estimate }}</td>
@@ -9,3 +10,4 @@
                     <td>walk {{ item.walk_distance }}</td>
                     <td>walk {{ item.walk_time }} min</td>
                 </tr>
+{% endif %}

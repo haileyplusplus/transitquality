@@ -75,6 +75,7 @@ class TransitEstimate(BaseModel):
     high_estimate: Optional[datetime.timedelta] = None
     walk_time: Optional[datetime.timedelta] = None
     walk_distance: Optional[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]] = None
+    display: bool = True
     trace_info: Optional[dict] = None
 
 

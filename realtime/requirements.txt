@@ -11,3 +11,5 @@ pytz==2024.1
 redis==5.2.1
 requests~=2.32.3
 gtfs_kit==10.1.0
+pydantic-pint==0.1
+pint==0.24.4

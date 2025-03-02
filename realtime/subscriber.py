@@ -467,6 +467,9 @@ class TrainUpdater(DatabaseUpdater):
 
     def prediction_callback(self, data):
         with Session(self.subscriber.engine) as session:
+            if 'eta' not in data:
+                print(f'Error reading prediction from {data}')
+                return
             for estimate in data['eta']:
                 station_id = int(estimate['staId'])
                 destination = estimate['destNm']
@@ -698,7 +701,7 @@ class BusUpdater(DatabaseUpdater):
                 try:
                     if not self.r.exists(redis_key):
                         self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                    self.r.ts().add(redis_key, int(timestamp.timestamp()), bus_position.to(ureg.meters))
+                    self.r.ts().add(redis_key, int(timestamp.timestamp()), bus_position.to(ureg.meters).m)
                 except redis.exceptions.ResponseError as e:
                     print(f'Redis summarizer error: {e}')
                 session.add(upd)

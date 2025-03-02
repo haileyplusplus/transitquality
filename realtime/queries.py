@@ -184,7 +184,7 @@ class QueryManager:
                         stop_lon=row.stop_lon,
                         stop_position=Q_(row.stop_pattern_distance, 'ft'),
                         vehicle_position=Q_(row_distance, 'ft'),
-                        distance_from_vehicle=Q_(bus_distance, 'ft'),
+                        distance_from_vehicle=Q_(row.stop_pattern_distance, 'ft'),
                         last_update=row_update,
                         distance_to_stop=Q_(row.dist, 'm'),
                         age=datetime.timedelta(seconds=age),

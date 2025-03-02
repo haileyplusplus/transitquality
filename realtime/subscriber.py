@@ -23,6 +23,7 @@ import redis.asyncio as redis_async
 from backend.util import Util
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
+from interfaces import ureg, Q_
 
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 
@@ -692,11 +693,12 @@ class BusUpdater(DatabaseUpdater):
                     destination=v['des'],
                     completed=False
                 )
+                bus_position = Q_(int(v['pdist']), 'ft')
                 redis_key = f'busposition:{v["pid"]}:{v["origtatripno"]}'
                 try:
                     if not self.r.exists(redis_key):
                         self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
-                    self.r.ts().add(redis_key, int(timestamp.timestamp()), int(v['pdist']))
+                    self.r.ts().add(redis_key, int(timestamp.timestamp()), bus_position.to(ureg.meters))
                 except redis.exceptions.ResponseError as e:
                     print(f'Redis summarizer error: {e}')
                 session.add(upd)

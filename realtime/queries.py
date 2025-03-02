@@ -19,20 +19,11 @@ import shapely
 from pydantic import BaseModel
 
 
-
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
-
-
-class StopEstimate(BaseModel):
-    pattern_id: int
-    bus_location: int
-    stop_pattern_distance: int
-
-
-class StopEstimates(BaseModel):
-    estimates: list[StopEstimate]
+from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate
+from interfaces import ureg, Q_
 
 
 class QueryManager:
@@ -92,9 +83,10 @@ class QueryManager:
             })
         return rv
 
-    def nearest_stop_vehicles(self, lat, lon, include_estimate=False, include_all_items=False):
+    def nearest_stop_vehicles(self, lat, lon, include_estimate=False, include_all_items=False) -> list[BusEstimate]:
         query = """
-        select current_vehicle_state.last_update, current_vehicle_state.distance, stop_pattern_distance, 
+        select current_vehicle_state.last_update, current_vehicle_state.distance,
+            current_vehicle_state.id as vehicle_id, stop_pattern_distance, 
             pattern_id, x.rt, x.id as stop_id, stop_name, st_y(stop_geom) as stop_lat, st_x(stop_geom) as stop_lon, dist 
             from (
                  select DISTINCT ON (pattern_id) pattern_id, rt, id, stop_name, stop_geom, dist, stop_pattern_distance 
@@ -196,26 +188,48 @@ class QueryManager:
                                       bus_location=row_distance,
                                       stop_pattern_distance=row.stop_pattern_distance)
                     estimate = self.get_single_estimate(se)
+                dxx = BusEstimate(
+                    query_start=startquery,
+                    pattern=row.pattern_id,
+                    route=row.rt,
+                    direction=direction,
+                    stop_id=row.stop_id,
+                    stop_name=row.stop_name,
+                    stop_lat=row.stop_lat,
+                    stop_lon=row.stop_lon,
+                    stop_position=Q_(row.stop_pattern_distance, 'ft'),
+                    vehicle_position=Q_(row_distance, 'ft'),
+                    distance_from_vehicle=Q_(bus_distance, 'ft'),
+                    last_update=row_update,
+                    distance_to_stop=Q_(row.dist, 'm'),
+                    age=datetime.timedelta(seconds=age),
+                    destination_stop_id=last_stop_id,
+                    destination_stop_name=last_stop_name,
+                    waiting_to_depart=False,
+                    vehicle=row.vehicle_id,
+                )
+                if predicted_minutes:
+                    dxx.predicted_minutes = datetime.timedelta(minutes=predicted_minutes)
 
-                dxx = {'pattern': row.pattern_id,
-                       'startquery': startquery.isoformat(),
-                       'route': row.rt,
-                       'direction': direction,
-                       'stop_id': row.stop_id,
-                       'stop_name': row.stop_name,
-                       'stop_lat': row.stop_lat,
-                       'stop_lon': row.stop_lon,
-                       'predicted_minutes': predicted_minutes,
-                       'stop_pattern_distance': row.stop_pattern_distance,
-                       'bus_distance': bus_distance,
-                       'dist': row.dist,
-                       'last_update': row_update.isoformat(),
-                       'age': age,
-                       'vehicle_distance': row_distance,
-                       'last_stop_id': last_stop_id,
-                       'last_stop_name': last_stop_name,
-                       'estimate': estimate,
-                       }
+                # dxx = {'pattern': row.pattern_id,
+                #        'startquery': startquery.isoformat(),
+                #        'route': row.rt,
+                #        'direction': direction,
+                #        'stop_id': row.stop_id,
+                #        'stop_name': row.stop_name,
+                #        'stop_lat': row.stop_lat,
+                #        'stop_lon': row.stop_lon,
+                #        'predicted_minutes': predicted_minutes,
+                #        'stop_pattern_distance': row.stop_pattern_distance,
+                #        'bus_distance': bus_distance,
+                #        'dist': row.dist,
+                #        'last_update': row_update.isoformat(),
+                #        'age': age,
+                #        'vehicle_distance': row_distance,
+                #        'last_stop_id': last_stop_id,
+                #        'last_stop_name': last_stop_name,
+                #        'estimate': estimate,
+                #        }
                 print(dxx)
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
@@ -223,7 +237,6 @@ class QueryManager:
         if include_all_items:
             return all_items
         return list(routes.values())
-
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:
@@ -325,17 +338,18 @@ class QueryManager:
         #             heapq.heappop(heap)
         #     if cursor == 0:
         #         break
+
         heap.sort()
         return heap
 
     def get_closest(self, pipeline, redis_key, dist):
         ts = pipeline.ts()
-        thresh = 3000
+        thresh = ureg.feet * 3000
         # name msec seems inaccurate - do they mean seconds?
         ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
-                 filter_by_min_value=dist-thresh, filter_by_max_value=dist)
+                 filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
         ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
-                 filter_by_min_value=dist, filter_by_max_value=dist+thresh)
+                 filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
         #  print(f'closest to {dist} in {redis_key}: {left}, {right}')
 
         def callback(left, right):
@@ -343,7 +357,7 @@ class QueryManager:
                 return None
             left_ts, left_dist = left[0]
             right_ts, right_dist = right[0]
-            if abs(dist - left_dist) < abs(dist - right_dist):
+            if abs(dist.m - left_dist) < abs(dist.m - right_dist):
                 return left[0]
             return right[0]
 
@@ -362,16 +376,15 @@ class QueryManager:
         estimates = []
         pipeline_stack = []
         for ts, redis_key in trips:
-            #closest_bus = self.get_closest(pipeline, redis_key, bus_dist)
-            pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist))
-            #closest_stop = self.get_closest(pipeline, redis_key, stop_dist)
-            pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist))
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist.to(ureg.meters)))
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist.to(ureg.meters)))
 
         results = pipeline.execute()
 
         def process(closest_bus, closest_stop, rk1, rk2):
             if not closest_bus or not closest_stop:
                 return None
+            print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
             bus_time_samp, bus_dist_samp = closest_bus
             stop_time_samp, stop_dist_samp = closest_stop
             travel_time = stop_time_samp - bus_time_samp
@@ -379,7 +392,8 @@ class QueryManager:
             if travel_dist <= 0 or travel_time <= 0:
                 return None
             travel_rate = travel_dist / travel_time
-            actual_dist = stop_dist - bus_dist
+            # in meters
+            actual_dist = (stop_dist - bus_dist).m
             key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
             info[key] = {}
             d = info[key]
@@ -398,6 +412,7 @@ class QueryManager:
             #       f'estimate {actual_dist / travel_rate}')
             computed = actual_dist / travel_rate
             d['raw_estimate'] = round(computed / 60, 1)
+            print(f'computed: {computed}')
             return computed
 
         while pipeline_stack:
@@ -413,11 +428,12 @@ class QueryManager:
                 estimates.append(result)
 
         if not estimates or len(estimates) < 2:
-            return -1, -1, info
+            return None, None, info
 
         # consider more sophisticated percentile stuff
         stdev = statistics.stdev(estimates)
         mean = statistics.mean(estimates)
+        print(estimates)
         considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
         info['stdev'] = stdev
         info['considered'] = considered
@@ -509,7 +525,7 @@ class TrainQuery:
     #     dist_from_train = row.stop_pattern_distance - train_dist
     #     return dist_from_train
 
-    def get_relevant_stops(self, lat, lon):
+    def get_relevant_stops(self, lat, lon) -> list[TrainEstimate]:
         # TODO: handle rare trips better
         query = """
         select 
@@ -600,36 +616,60 @@ class TrainQuery:
                         continue
                     dist_from_train = row.stop_pattern_distance - train_dist
                     age = (startquery - train.last_update).total_seconds()
-                    result = {
-                        "pattern": row.pid,
-                        "startquery": startquery.isoformat(),
-                        "route": rt,
-                        "direction": dirname,
-                        "destination": train.dest_station_name,
-                        "run": train.id,
-                        "stop_id": stop_id,
-                        "stop_name": row.stop_name,
-                        "stop_lat": row.stop_lat,
-                        "stop_lon": row.stop_lon,
-                        "stop_pattern_distance": row.stop_pattern_distance,
-                        # needs to be renamed. this is the distance of the train from the station
-                        "bus_distance": int(dist_from_train),
-                        "dist": int(row.dist),
-                        "last_update": train.last_update.isoformat(),
-                        "age": int(age),
-                        "vehicle_distance": int(train_dist),
-                        "last_stop_id": train.dest_station,
-                        "last_stop_name": train.dest_station_name,
-                        "next_train_pattern_distance": next_train_pattern_distance,
-                        "next_stop_id": train.next_stop,
-                        "estimate": "?",
-                        "mi": "2.01mi",
-                        "walk_time": -1,
-                        "walk_dist": "?"
-                    }
+                    result = TrainEstimate(
+                        query_start=startquery,
+                        pattern=row.pid,
+                        route=rt,
+                        direction=dirname,
+                        destination=train.dest_station_name,
+                        run=train.id,
+                        stop_id=stop_id,
+                        stop_name=row.stop_name,
+                        stop_lat=row.stop_lat,
+                        stop_lon=row.stop_lon,
+                        stop_position=Q_(row.stop_pattern_distance, 'm'),
+                        vehicle_position=Q_(train_dist, 'm'),
+                        distance_from_vehicle=Q_(dist_from_train, 'm'),
+                        distance_to_stop=Q_(row.dist, 'm'),
+                        age=datetime.timedelta(seconds=age),
+                        destination_stop_id=train.dest_station,
+                        destination_stop_name=train.dest_station_name,
+                        next_stop_position=Q_(next_train_pattern_distance, 'm'),
+                        next_stop_id=train.next_stop,
+                        waiting_to_depart=False,
+                        last_update=train.last_update,
+                    )
+                    # result = {
+                    #     "pattern": row.pid,
+                    #     "startquery": startquery.isoformat(),
+                    #     "route": rt,
+                    #     "direction": dirname,
+                    #     "destination": train.dest_station_name,
+                    #     "run": train.id,
+                    #     "stop_id": stop_id,
+                    #     "stop_name": row.stop_name,
+                    #     "stop_lat": row.stop_lat,
+                    #     "stop_lon": row.stop_lon,
+                    #     "stop_pattern_distance": row.stop_pattern_distance,
+                    #     # needs to be renamed. this is the distance of the train from the station
+                    #     "bus_distance": int(dist_from_train),
+                    #     "dist": int(row.dist),
+                    #     "last_update": train.last_update.isoformat(),
+                    #     "age": int(age),
+                    #     "vehicle_distance": int(train_dist),
+                    #     "last_stop_id": train.dest_station,
+                    #     "last_stop_name": train.dest_station_name,
+                    #     "next_train_pattern_distance": next_train_pattern_distance,
+                    #     "next_stop_id": train.next_stop,
+                    #     "estimate": "?",
+                    #     "mi": "2.01mi",
+                    #     "walk_time": -1,
+                    #     "walk_dist": "?"
+                    # }
                     rv.append(result)
 
-            return {'results': rv}
+            #return {'results': rv}
+            return rv
 
 
 def main():

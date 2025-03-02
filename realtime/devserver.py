@@ -10,8 +10,9 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate
 from realtime.rtmodel import db_init
-from realtime.queries import QueryManager, StopEstimates, TrainQuery
+from realtime.queries import QueryManager, TrainQuery
 
 from schedules.schedule_analyzer import ScheduleAnalyzer
 
@@ -52,12 +53,14 @@ def status():
 
 
 @app.get('/nearest-trains')
-def nearest_trains(lat: float, lon: float):
+def nearest_trains(lat: float, lon: float) -> TrainResponse:
     if sa is None:
-        return {'nearest-trains': 'not implemented'}
+        return TrainResponse(results=[])
     tq = TrainQuery(engine, sa)
-    return tq.get_relevant_stops(lat, lon)
+    return TrainResponse(results=tq.get_relevant_stops(lat, lon))
 
+
+# deprecated
 @app.get('/nearest-stops')
 def nearest_stops(lat: float, lon: float):
     rv = []
@@ -79,13 +82,20 @@ def nearest_stops(lat: float, lon: float):
 
 
 @app.get('/nearest-estimates')
-def nearest_estimates(lat: float, lon: float, include_all: bool = False):
+def nearest_estimates(lat: float, lon: float, include_all: bool = False) -> BusResponse:
     start = datetime.datetime.now()
     results = qm.nearest_stop_vehicles(lat, lon, include_all_items=include_all)
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
-    return {'results': results, 'start': start.isoformat(), 'latency': latency,
-            'lat': lat, 'lon': lon}
+    # return {'results': results, 'start': start.isoformat(), 'latency': latency,
+    #         'lat': lat, 'lon': lon}
+    return BusResponse(
+        results=results,
+        start=start,
+        latency=latency,
+        lat=lat,
+        lon=lon
+    )
 
 
 @app.get('/detail')

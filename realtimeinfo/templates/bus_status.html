@@ -12,16 +12,16 @@ Bus status for {{ lat }}, {{ lon }}
         <td>
             <table><tr><td colspan="4">Northbound</td></tr>
             {% for item in results['Northbound'] %}
-                <tr><td><b><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></b></td>
-                    <td><b>{{ item['last_stop_name'] }}</b></td>
-                    <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate'] }}</td>
+                <tr><td><b><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></b></td>
+                    <td><b>{{ item.destination_stop_name }}</b></td>
+                    <td>{{ item.distance_from_vehicle }}{% if item.waiting_to_depart %}*{% endif %}</td>
+                    <td>{{ item.displayed_estimate }}</td>
                 </tr>
                 <tr>
-                    <td>Age: {{ item['age'] }}</td>
-                    <td>Stop: {{ item['stop_name'] }}</td>
-                    <td>walk {{ item['walk_dist'] }}mi</td>
-                    <td>walk {{ item['walk_time'] }} min</td>
+                    <td>Age: {{ item.age }}</td>
+                    <td>Stop: {{ item.stop_name }}</td>
+                    <td>walk {{ item.walk_distance }}</td>
+                    <td>walk {{ item.walk_time }} min</td>
                 </tr>
             {% endfor %}
             </table>
@@ -29,48 +29,48 @@ Bus status for {{ lat }}, {{ lon }}
     </tr>
     <tr><td>            <table><tr><td colspan="4">Westbound</td></tr>
             {% for item in results['Westbound'] %}
-                <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
-                    <td>{{ item['last_stop_name'] }}</td>
-                    <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate'] }}</td>
+                <tr><td><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></td>
+                    <td>{{ item.destination_stop_name }}</td>
+                    <td>{{ item.distance_from_vehicle }}{% if item.waiting_to_depart %}*{% endif %}</td>
+                    <td>{{ item.displayed_estimate }}</td>
                 </tr>
                 <tr>
-                    <td>Age: {{ item['age'] }}</td>
-                    <td>Stop: {{ item['stop_name'] }}</td>
-                    <td>walk {{ item['walk_dist'] }}mi</td>
-                    <td>walk {{ item['walk_time'] }} min</td>
+                    <td>Age: {{ item.age }}</td>
+                    <td>Stop: {{ item.stop_name }}</td>
+                    <td>walk {{ item.walk_distance }}</td>
+                    <td>walk {{ item.walk_time }} min</td>
                 </tr>
             {% endfor %}
             </table>
 </td>
         <td>            <table><tr><td colspan="4">Eastbound</td></tr>
             {% for item in results['Eastbound'] %}
-                <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
-                    <td>{{ item['last_stop_name'] }}</td>
-                    <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate'] }}</td>
+                <tr><td><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></td>
+                    <td>{{ item.destination_stop_name }}</td>
+                    <td>{{ item.distance_from_vehicle }}</td>
+                    <td>{{ item.displayed_estimate }}</td>
                 </tr>
                 <tr>
-                    <td>Age: {{ item['age'] }}</td>
-                    <td>Stop: {{ item['stop_name'] }}</td>
-                    <td>walk {{ item['walk_dist'] }}mi</td>
-                    <td>walk {{ item['walk_time'] }} min</td>
+                    <td>Age: {{ item.age }}</td>
+                    <td>Stop: {{ item.stop_name }}</td>
+                    <td>walk {{ item.walk_distance }}</td>
+                    <td>walk {{ item.walk_time }} min</td>
                 </tr>
             {% endfor %}
             </table>
 </td></tr>
     <tr><td>            <table><tr><td colspan="4">Southbound</td></tr>
             {% for item in results['Southbound'] %}
-                <tr><td><a href="/detail?pid={{ item['pattern'] }}&stop_dist={{ item['stop_pattern_distance'] }}">{{ item['route'] }}</a></td>
-                    <td>{{ item['last_stop_name'] }}</td>
-                    <td>{{ item['mi'] }}</td>
-                    <td>{{ item['estimate'] }}</td>
+                <tr><td><a href="/detail?pid={{ item.pattern }}&stop_dist={{ item.stop_pattern_distance }}">{{ item.route }}</a></td>
+                    <td>{{ item.destination_stop_name }}</td>
+                    <td>{{ item.distance_from_vehicle }}</td>
+                    <td>{{ item.displayed_estimate }}</td>
                 </tr>
                 <tr>
-                    <td>Age: {{ item['age'] }}</td>
-                    <td>Stop: {{ item['stop_name'] }}</td>
-                    <td>walk {{ item['walk_dist'] }}mi</td>
-                    <td>walk {{ item['walk_time'] }} min</td>
+                    <td>Age: {{ item.age }}</td>
+                    <td>Stop: {{ item.stop_name }}</td>
+                    <td>walk {{ item.walk_distance }}</td>
+                    <td>walk {{ item.walk_time }} min</td>
                 </tr>
             {% endfor %}
             </table>

@@ -7,6 +7,7 @@ Subscribe to streaming updates and insert them into the database.
 import asyncio
 import faulthandler
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -68,32 +69,8 @@ class TrainUpdater(DatabaseUpdater):
         self.schedule_analyzer = kwargs['schedule_analyzer']
         self.schedule_analyzer.engine = self.subscriber.engine
         self.schedule_analyzer.setup_shapes()
-        self.refresh(hours=8)
+        #self.refresh(hours=8)
 
-    def refresh(self, hours=5):
-        now = Util.utcnow()
-        getter = S3Getter()
-        for x in reversed(range(hours)):
-            dt = now - datetime.timedelta(hours=x)
-            daystr = dt.strftime("%Y%m%d")
-            self.s3_refresh(getter, daystr, dt.hour)
-        getter.stats()
-
-    def s3_refresh(self, getter, daystr, hour):
-        cmd = 'ttpositions.aspx'
-        prefix = f'bustracker/raw/{cmd}/{daystr}/t{hour:02d}'
-        print(f'Getting prefix {prefix}')
-        keys = getter.list_with_prefix(prefix)
-        refreshed = 0
-        for k in keys.get('Contents', []):
-            #print(f'Refreshing {k["Key"]}')
-            jd = getter.get_json_contents(k['Key'])
-            datalist = jd['requests']
-            refreshed += 1
-            for item in datalist:
-                response = item['response']
-                self.subscriber_callback(response['ctatt'])
-        return {'refreshed': refreshed}
 
     """
     On each train update
@@ -579,20 +556,20 @@ class BusUpdater(DatabaseUpdater):
                 prev_key = key
             session.commit()
 
-    def s3_refresh(self, daystr, hour):
-        cmd = 'getvehicles'
-        getter = S3Getter()
-        keys = getter.list_with_prefix(f'bustracker/raw/{cmd}/{daystr}/t{hour}')
-        refreshed = 0
-        for k in keys['Contents']:
-            print(f'Refreshing {k["Key"]}')
-            jd = getter.get_json_contents(k['Key'])
-            datalist = jd['requests']
-            refreshed += 1
-            for item in datalist:
-                response = item['response']
-                self.subscriber_callback(response['bustime-response']['vehicle'])
-        return {'refreshed': refreshed}
+    # def s3_refresh(self, daystr, hour):
+    #     cmd = 'getvehicles'
+    #     getter = S3Getter()
+    #     keys = getter.list_with_prefix(f'bustracker/raw/{cmd}/{daystr}/t{hour}')
+    #     refreshed = 0
+    #     for k in keys['Contents']:
+    #         print(f'Refreshing {k["Key"]}')
+    #         jd = getter.get_json_contents(k['Key'])
+    #         datalist = jd['requests']
+    #         refreshed += 1
+    #         for item in datalist:
+    #             response = item['response']
+    #             self.subscriber_callback(response['bustime-response']['vehicle'])
+    #     return {'refreshed': refreshed}
 
 
     """
@@ -749,6 +726,50 @@ class Subscriber:
         self.train_updater = TrainUpdater(self, schedule_analyzer=schedule_analyzer)
         self.bus_updater = BusUpdater(self)
         self.redis_client = redis_async.Redis(host=self.host)
+        self.handle_refresh()
+
+    def handle_refresh(self):
+        hours = os.getenv('REFRESH_HOURS')
+        if hours is None:
+            hours = 4
+        else:
+            hours = int(hours)
+        cmds = os.getenv('REFRESH')
+        if not cmds:
+            print(f'No refresh configured')
+        cmdlist = cmds.strip().split(',')
+        for cmd in cmdlist:
+            print(f'Refreshing {hours} hours of {cmd}')
+        self.refresh(cmdlist, hours)
+
+    def refresh(self, cmds=(), hours=5):
+        if not cmds:
+            print(f'Empty command set. Not refreshing')
+        now = Util.utcnow()
+        getter = S3Getter()
+        for x in reversed(range(hours)):
+            dt = now - datetime.timedelta(hours=x)
+            daystr = dt.strftime("%Y%m%d")
+            for cmd in cmds:
+                self.s3_refresh(getter, cmd, daystr, dt.hour)
+        getter.stats()
+
+    def s3_refresh(self, getter, cmd, daystr, hour):
+        #cmd = 'ttpositions.aspx'
+        prefix = f'bustracker/raw/{cmd}/{daystr}/t{hour:02d}'
+        print(f'Getting prefix {prefix}')
+        keys = getter.list_with_prefix(prefix)
+        refreshed = 0
+        for k in keys.get('Contents', []):
+            #print(f'Refreshing {k["Key"]}')
+            jd = getter.get_json_contents(k['Key'])
+            datalist = jd['requests']
+            refreshed += 1
+            self.handler(datalist, cmd)
+            # for item in datalist:
+            #     response = item['response']
+            #     self.subscriber_callback(response['ctatt'])
+        return {'refreshed': refreshed}
 
     async def periodic_cleanup(self):
         while True:

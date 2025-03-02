@@ -1,0 +1,4 @@
+services:
+  rtserver:
+    environment:
+      - REFRESH_HOURS=0

@@ -28,7 +28,7 @@ def td_round(x: datetime.timedelta):
     return x
 
 
-def route_coalesce(v):
+def route_coalesce(dirname, v):
     routes = {}
     for item in v:
         route = item.route
@@ -38,7 +38,7 @@ def route_coalesce(v):
     for k, v in sorted(routes.items()):
         routev = []
         for d in v:
-            print(f'coalesce {k}')
+            print(f'coalesce {dirname} {k}  vp {d.vehicle_position}  sp {d.stop_position}  le {d.low_estimate}')
             d.age = td_round(d.age)
             d.distance_from_vehicle = d.distance_from_vehicle.to(ureg.miles)
             #print(json.dumps(d, indent=4))
@@ -52,8 +52,6 @@ def route_coalesce(v):
                 continue
             #predicted = d.predicted_minutes
             # age = d.age
-            # el = d.low_estimate
-            # eh = d.high_estimate
             d.low_estimate -= d.age
             d.high_estimate -= d.age
             if d.waiting_to_depart and d.predicted_minutes:
@@ -68,6 +66,8 @@ def route_coalesce(v):
 
 
             if d.walk_time > datetime.timedelta(0) and datetime.timedelta(0) <= d.high_estimate <= d.walk_time:
+                item = d
+                print(f'  filtering out item due to walk time: item {item.pattern} vid ? vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
                 continue
             # age_minutes = round(d['age'] / 60)
             # d['age'] = round(d['age'])
@@ -78,6 +78,12 @@ def route_coalesce(v):
             d.displayed_estimate = f'{elm}-{ehm} min'
             routev.append(d)
         routev.sort(key=lambda x: x.low_estimate)
+        for item in routev:
+            if isinstance(item, TrainEstimate):
+                vehicle = item.run
+            else:
+                vehicle = item.vehicle
+            print(f'  item {item.pattern} vid {vehicle} vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
         results += routev[:2]
     return results
 
@@ -86,6 +92,7 @@ def route_coalesce(v):
 def estimates():
     lat = request.args.get('lat')
     lon = request.args.get('lon')
+    print(f'#############  Start estimates query handing {lat} {lon}')
     skip_estimates = request.args.get('skip')
     backend = 'http://localhost:8500/nearest-estimates'
     resp = requests.get(backend, params=request.args)
@@ -164,7 +171,7 @@ def estimates():
 
         jd = resp.json()
         if 'estimates' in jd:
-            print(jd)
+            #print(jd)
             for e in jd['estimates']:
                 pattern = e['pattern']
                 # TODO: fix this
@@ -186,13 +193,13 @@ def estimates():
             for vd in index[pattern].values():
                 vd.walk_time = datetime.timedelta(seconds=int(seconds))
                 vd.walk_distance = miles * ureg.miles
-                print(vd.walk_distance)
+                #print(vd.walk_distance)
     for item in results:
         directions.setdefault(item.direction, []).append(item)
     directions2 = {}
     for k, v in directions.items():
         #directions.setdefault(item.direction, []).append(item)
-        directions2[k] = route_coalesce(v)
+        directions2[k] = route_coalesce(k, v)
     raw = json.dumps(jsonable_encoder(directions2), indent=4)
     #raw = directions2.model_dump_json
     return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)

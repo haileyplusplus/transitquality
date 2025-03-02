@@ -147,14 +147,13 @@ class QueryManager:
             local_now = Util.ctanow()
             for row in result:
                 row_distance = row.distance
-                print(f'Looking for pattern {row.pattern_id}  distance {row_distance}')
+                print(f'Looking for pattern {row.pattern_id}  distance {row_distance} stop distance {row.stop_pattern_distance}')
                 last_stop_id, last_stop_name = self.last_stops.get(row.pattern_id, (None, None))
                 if last_stop_id is None:
                     print(f'No last stop found for {row.pattern_id} - {row.stop_name} {row.rt}')
                     continue
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
-                predicted_minutes = None
                 row_update = row.last_update
                 if row_distance is None or row_distance >= row.stop_pattern_distance:
                     prediction = predictions.get(row.pattern_id)
@@ -195,12 +194,13 @@ class QueryManager:
                         vehicle=row.vehicle_id,
                     )
                     # TODO: avoid copy
-                    print(dxx)
+                    #print(dxx)
                     key = (row.rt, last_stop_name)
                     routes[key] = dxx
                     all_items.append(dxx)
                     continue
                 if row_distance >= row.stop_pattern_distance:
+                    #print(f'Skip ')
                     continue
                 bus_distance = row.stop_pattern_distance - row_distance
                 # split this out into its own thing
@@ -257,7 +257,7 @@ class QueryManager:
                 #        'last_stop_name': last_stop_name,
                 #        'estimate': estimate,
                 #        }
-                print(dxx)
+                #print(dxx)
                 key = (row.rt, last_stop_name)
                 routes[key] = dxx
                 all_items.append(dxx)
@@ -411,7 +411,7 @@ class QueryManager:
         def process(closest_bus, closest_stop, rk1, rk2):
             if not closest_bus or not closest_stop:
                 return None
-            print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
+            #print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
             bus_time_samp, bus_dist_samp = closest_bus
             stop_time_samp, stop_dist_samp = closest_stop
             travel_time = stop_time_samp - bus_time_samp
@@ -439,7 +439,7 @@ class QueryManager:
             #       f'estimate {actual_dist / travel_rate}')
             computed = actual_dist / travel_rate
             d['raw_estimate'] = round(computed / 60, 1)
-            print(f'computed: {computed}')
+            #print(f'computed: {computed}')
             return computed
 
         while pipeline_stack:
@@ -460,7 +460,7 @@ class QueryManager:
         # consider more sophisticated percentile stuff
         stdev = statistics.stdev(estimates)
         mean = statistics.mean(estimates)
-        print(estimates)
+        #print(estimates)
         considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
         info['stdev'] = stdev
         info['considered'] = considered

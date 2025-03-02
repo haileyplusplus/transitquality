@@ -2,4 +2,5 @@ services:
   rtserver:
     environment:
       - REFRESH_HOURS=5
-      - REFRESH=getpredictions,getvehicles
+      #- REFRESH=getpredictions,getvehicles
+      - REFRESH=ttpositions.aspx

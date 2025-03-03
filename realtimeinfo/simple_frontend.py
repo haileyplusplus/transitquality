@@ -159,6 +159,7 @@ def estimates():
     estimates_query = StopEstimates(estimates=ests)
     if not skip_estimates:
         reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
+        print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
     #print(f'estimate params: ', estimate_params)
     #print(reqs)
 

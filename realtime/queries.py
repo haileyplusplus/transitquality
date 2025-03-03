@@ -62,13 +62,6 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
-    def get_single_estimate(self, row: StopEstimate):
-        #print('row is', row, type(row))
-        el, eh, info = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        #return f'{el}-{eh} min'
-        return el, eh, info
-
     def get_estimates(self, rows: Iterable[StopEstimate]):
         rv = []
         #print(rows)
@@ -356,15 +349,6 @@ class QueryManager:
             heapq.heappush(heap, (value[0], item))
             if len(heap) > heapsize:
                 heapq.heappop(heap)
-        # while True:
-        #     cursor, items = r.scan(cursor, match=f'busposition:{pid}:*')
-        #     for item in items:
-        #         value = ts.get(item)
-        #         heapq.heappush(heap, (value[0], item))
-        #         if len(heap) > heapsize:
-        #             heapq.heappop(heap)
-        #     if cursor == 0:
-        #         break
 
         heap.sort()
         return heap
@@ -394,7 +378,19 @@ class QueryManager:
     def printable_ts(ts: int):
         return datetime.datetime.fromtimestamp(ts).isoformat()
 
-    def estimate_redis(self, pid, bus_dist, stop_dist):
+    def get_single_estimate(self, row: StopEstimate):
+        debug = row.debug
+        #print('row is', row, type(row))
+        #el, eh, info = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
+        #return f'{el}-{eh} min'
+        #return el, eh, info
+        pid = row.pattern_id
+        bus_dist = row.bus_location
+        stop_dist = row.stop_pattern_distance
+        if debug:
+            print(f'Getting estimate {pid} {bus_dist} {stop_dist}')
+        #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
         trips = self.get_latest_redis(pid)
         info = {}
         if bus_dist >= stop_dist:
@@ -450,6 +446,8 @@ class QueryManager:
             result2 = cb2(results.pop(0), results.pop(0))
 
             result = process(result1, result2, rk1, rk2)
+            if debug:
+                print(f'  process {result1} {result2}  {rk1} {rk2} => {result}')
 
             if result:
                 estimates.append(result)

@@ -60,10 +60,10 @@ class TransitEstimate(BaseModel):
     stop_name: str
     stop_lat: float
     stop_lon: float
-    stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
-    vehicle_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
-    distance_from_vehicle: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
-    distance_to_stop: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
+    stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    vehicle_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    distance_from_vehicle: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    distance_to_stop: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
     last_update: datetime.datetime
     age: datetime.timedelta
     destination_stop_id: int
@@ -74,14 +74,14 @@ class TransitEstimate(BaseModel):
     low_estimate: Optional[datetime.timedelta] = None
     high_estimate: Optional[datetime.timedelta] = None
     walk_time: Optional[datetime.timedelta] = None
-    walk_distance: Optional[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]] = None
+    walk_distance: Optional[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str] = None
     display: bool = True
     trace_info: Optional[dict] = None
 
 
 class TrainEstimate(TransitEstimate):
     run: int
-    next_stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
+    next_stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
     next_stop_id: int
 
 
@@ -103,8 +103,9 @@ class TrainResponse(BaseModel):
 
 class StopEstimate(BaseModel):
     pattern_id: int
-    bus_location: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
-    stop_pattern_distance: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
+    bus_location: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    stop_pattern_distance: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    debug: bool = False
 
 
 class StopEstimates(BaseModel):

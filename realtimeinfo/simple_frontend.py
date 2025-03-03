@@ -70,6 +70,10 @@ def route_coalesce(dirname, v):
             # eh = round((d.high_estimate - age) / 60)
             # d.low_estimate = el
             # d.high_estimate = eh
+            if d.walk_time is None:
+                print(f'  Missing walk time in {d.pattern}')
+                d.display = False
+                continue
 
 
             if d.walk_time > datetime.timedelta(0) and datetime.timedelta(0) <= d.high_estimate <= d.walk_time:
@@ -127,7 +131,15 @@ def estimates():
     #estimate_params: list[dict] = []
     index = {}
     ests = {}
+
+    routing_queries = set([])
+    routing_responses = {}
+    stop_to_pattern = {}
     for item in results:
+        stop_to_pattern[item.stop_id] = item.pattern
+        if item.stop_id in routing_queries:
+            continue
+        routing_queries.add(item.stop_id)
         routing_json = {"locations": [
             {"lat": lat,
              "lon": lon,
@@ -137,9 +149,11 @@ def estimates():
              "street": "Street2"}],
             "costing": "pedestrian",
             "units": "miles",
-            "id": str(item.pattern)}
+            "id": str(item.stop_id)}
         jp = json.dumps(routing_json)
         urls.append(f'http://brie.guineafowl-cloud.ts.net:8902/route?json={jp}')
+
+    for item in results:
         estimate_key = (item.pattern, item.stop_position)
         ests.setdefault(estimate_key,
                         StopEstimate(
@@ -153,6 +167,7 @@ def estimates():
         index.setdefault(pattern_id, {})[vehicle_distance] = item
     reqs = []
     for u in urls:
+        print(f'Requesting routing {u}')
         reqs.append(grequests.get(u))
     estimates_query = StopEstimates(estimates=sorted(ests.values()))
     if not skip_estimates:
@@ -195,12 +210,24 @@ def estimates():
             #print(jd)
             seconds = summary['time']
             miles = summary['length']
-            pattern = int(jd['id'])
-            for vd in index[pattern].values():
-                vd.walk_time = datetime.timedelta(seconds=int(seconds))
-                vd.walk_distance = miles * ureg.miles
-                #print(vd.walk_distance)
+            stop_id = int(jd['id'])
+            routing_queries.discard(stop_id)
+            routing_responses[stop_id] = (datetime.timedelta(seconds=int(seconds)), miles * ureg.miles)
+    # print(f'Stops not answered: {routing_queries}')
+    # pattern = stop_to_pattern[stop_id]
+    # print(f'stop {stop_id}  pattern {pattern}  jd {jd}')
+    # for vd in index[pattern].values():
+    #     vd.walk_time =
+    #     vd.walk_distance = miles * ureg.miles
+    #     # print(vd.walk_distance)
+
     for item in results:
+        rr = routing_responses.get(item.stop_id)
+        if rr:
+            item.walk_time, item.walk_distance = rr
+        else:
+            print(f'Warning: stop {item.stop_id} missing routing')
+        #item.walk_time, item.walk
         directions.setdefault(item.direction, []).append(item)
     directions2 = {}
     for k, v in directions.items():

@@ -106,26 +106,7 @@ def route_coalesce(dirname, v):
     return results
 
 
-@app.route('/estimates')
-def estimates():
-    lat = request.args.get('lat')
-    lon = request.args.get('lon')
-    print(f'#############  Start estimates query handing {lat} {lon}')
-    skip_estimates = request.args.get('skip')
-    backend = 'http://localhost:8500/nearest-estimates'
-    resp = requests.get(backend, params=request.args)
-    if resp.status_code != 200:
-        return f'Error handling request'
-    #d = resp.json()
-    #results = d['results']
-    results: list[TransitEstimate] = []
-    bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
-    results += bus_response.results
-    train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
-    if resp.status_code == 200:
-        train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
-        #results += train_resp.json()['results']
-        results += train_response.results
+def estimate_vehicle_locations(lat: str, lon: str, results: list[TransitEstimate]):
     directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
     urls = []
     #estimate_params: list[dict] = []
@@ -170,9 +151,8 @@ def estimates():
         print(f'Requesting routing {u}')
         reqs.append(grequests.get(u))
     estimates_query = StopEstimates(estimates=sorted(ests.values()))
-    if not skip_estimates:
-        reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
-        print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
+    reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
+    print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
     #print(f'estimate params: ', estimate_params)
     #print(reqs)
 
@@ -235,11 +215,39 @@ def estimates():
         directions2[k] = route_coalesce(k, v)
     raw = json.dumps(jsonable_encoder(directions2), indent=4)
     #raw = directions2.model_dump_json
+    return directions2, raw
+
+
+@app.route('/estimates')
+def estimates():
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+    if not lat or not lon:
+        print(f'Invalid estimates query')
+        return f'Invalid estimates query {lat} {lon}'
+    print(f'#############  Start estimates query handing {lat} {lon}')
+    skip_estimates = request.args.get('skip')
+    backend = 'http://localhost:8500/nearest-estimates'
+    resp = requests.get(backend, params=request.args)
+    if resp.status_code != 200:
+        return f'Error handling request'
+    #d = resp.json()
+    #results = d['results']
+    results: list[TransitEstimate] = []
+    bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
+    results += bus_response.results
+    train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
+    if resp.status_code == 200:
+        train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
+        #results += train_resp.json()['results']
+        results += train_response.results
+
+    directions2, raw = estimate_vehicle_locations(lat, lon, results)
     return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)
 
 
 @app.route('/detail')
-def deatail():
+def detail():
     backend = 'http://localhost:8500/detail'
     resp = requests.get(backend, params=request.args)
     if resp.status_code != 200:

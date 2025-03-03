@@ -123,14 +123,8 @@ def estimates():
     urls = []
     #estimate_params: list[dict] = []
     index = {}
-    ests = []
+    ests = {}
     for item in results:
-        # if item.pattern >= 308500000:
-        #     dist_mi = item.bus_distance / 1609.34
-        # else:
-        #     dist_mi = item.bus_distance / 5280.0
-        # item.mi = f'{dist_mi:0.2f}mi'
-        # item.mi_numeric = dist_mi
         routing_json = {"locations": [
             {"lat": lat,
              "lon": lon,
@@ -143,27 +137,20 @@ def estimates():
             "id": str(item.pattern)}
         jp = json.dumps(routing_json)
         urls.append(f'http://brie.guineafowl-cloud.ts.net:8902/route?json={jp}')
-        ests.append(
-            StopEstimate(
-                pattern_id=item.pattern,
-                bus_location=item.vehicle_position,
-                stop_pattern_distance=item.stop_position
-            )
-        )
-        # estimate_params.append(
-        #     {
-        #         'pattern_id': item.pattern,
-        #         'bus_location': item.vehicle_position,
-        #         'stop_pattern_distance': item.stop_position
-        #     }
-        # )
+        ests.setdefault(item.pattern,
+                        StopEstimate(
+                            pattern_id=item.pattern,
+                            stop_position=item.stop_position,
+                            vehicle_positions = [],
+                        )
+                        ).vehicle_positions.append(item.vehicle_position)
         pattern_id = item.pattern
         vehicle_distance = round(item.vehicle_position.m)
         index.setdefault(pattern_id, {})[vehicle_distance] = item
     reqs = []
     for u in urls:
         reqs.append(grequests.get(u))
-    estimates_query = StopEstimates(estimates=ests)
+    estimates_query = StopEstimates(estimates=sorted(ests.values()))
     if not skip_estimates:
         reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
         print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')

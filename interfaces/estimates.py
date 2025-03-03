@@ -103,9 +103,14 @@ class TrainResponse(BaseModel):
 
 class StopEstimate(BaseModel):
     pattern_id: int
-    bus_location: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
-    stop_pattern_distance: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    vehicle_positions: list[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]] | list[str]
     debug: bool = False
+
+    def __lt__(self, other):
+        if self.pattern_id == other.pattern_id:
+            return self.stop_position < other.stop_position
+        return self.pattern_id < other.pattern_id
 
 
 class StopEstimates(BaseModel):

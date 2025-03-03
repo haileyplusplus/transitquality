@@ -82,9 +82,9 @@ def nearest_stops(lat: float, lon: float):
 
 
 @app.get('/nearest-estimates')
-def nearest_estimates(lat: float, lon: float, include_all: bool = False) -> BusResponse:
+def nearest_estimates(lat: float, lon: float) -> BusResponse:
     start = datetime.datetime.now()
-    results = qm.nearest_stop_vehicles(lat, lon, include_all_items=include_all)
+    results = qm.nearest_stop_vehicles(lat, lon)
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
     # return {'results': results, 'start': start.isoformat(), 'latency': latency,

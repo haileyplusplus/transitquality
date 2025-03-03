@@ -284,13 +284,13 @@ class QueryManager:
                          'bus_timestamp': bus_ts.isoformat()})
         return pd.DataFrame(rows)
 
-    def estimate(self, pid, bus_dist, stop_dist):
-        interp = self.interpolate(pid, bus_dist, stop_dist)
-        if interp.empty:
-            return -1, -1, -1
-        x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
-        x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
-        return x1, x2, interp
+    # def estimate(self, pid, bus_dist, stop_dist):
+    #     interp = self.interpolate(pid, bus_dist, stop_dist)
+    #     if interp.empty:
+    #         return -1, -1, -1
+    #     x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
+    #     x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
+    #     return x1, x2, interp
 
     def get_redis_keys(self, pid):
         if pid >= 308500000:
@@ -299,9 +299,8 @@ class QueryManager:
             redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
         return redis_keys
 
-    def get_latest_redis(self, pid):
-        #cursor = 0
-        r = self.redis
+    def get_latest_redis(self, pid, stop_position):
+        #r = self.redis
         pipeline = self.redis.pipeline()
         ts = pipeline.ts()
         heap = []
@@ -313,6 +312,8 @@ class QueryManager:
         index = 0
         for item in redis_keys:
             value = results[index]
+            if value[1] < stop_position.m:
+                continue
             index += 1
             heapq.heappush(heap, (value[0], item))
             if len(heap) > heapsize:
@@ -363,7 +364,7 @@ class QueryManager:
             if debug:
                 print(f'Getting estimate {pid} {bus_dist} {stop_dist}')
             #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
-            trips = self.get_latest_redis(pid)
+            trips = self.get_latest_redis(pid, stop_dist)
             info = {}
             if bus_dist >= stop_dist:
                 #yield -1, -1, info

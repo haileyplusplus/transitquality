@@ -737,6 +737,7 @@ class Subscriber:
         cmds = os.getenv('REFRESH')
         if not cmds:
             print(f'No refresh configured')
+            return
         cmdlist = cmds.strip().split(',')
         for cmd in cmdlist:
             print(f'Refreshing {hours} hours of {cmd}')

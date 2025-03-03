@@ -21,7 +21,7 @@ from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, Tr
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
-    PatternResponse
+    PatternResponse, DetailRequest
 from interfaces import ureg, Q_
 
 
@@ -400,31 +400,54 @@ class QueryManager:
                 all_items.append(dxx)
         return all_items
 
-    def detail(self, pid: int, stop_dist):
+    def detail(self, request: DetailRequest):
+        stop_estimate = StopEstimate(
+                pattern_id=request.pattern_id,
+                stop_position=request.stop_position,
+                vehicle_positions=[]
+        )
         with Session(self.engine) as session:
-            stmt = select(CurrentVehicleState).where(CurrentVehicleState.pid == pid).where(CurrentVehicleState.distance < stop_dist).order_by(CurrentVehicleState.distance)
+            # TODO: make this work for buses
+            pid = request.pattern_id
+            #stop_dist = request.stop_position.m
+            dist_ft = request.stop_position.to(ureg.feet).m
+            stmt = (select(CurrentVehicleState)
+                    .where(CurrentVehicleState.pid == pid)
+                    .where(CurrentVehicleState.distance < dist_ft)
+                    .order_by(CurrentVehicleState.distance))
             result = session.scalars(stmt)
             rt = None
             rv = []
+            rd = {}
             for row in result:
-                bus_dist = row.distance
-                mi_from_here = (stop_dist - bus_dist) / 5280.0
-                timestamp = row.last_update
-                vid = row.id
+                vehicle_position = row.distance * ureg.feet
+                stop_estimate.vehicle_positions.append(vehicle_position)
                 rt = row.rt
-                x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
+                rd[vehicle_position] = row
+
+            response = self.get_estimates([stop_estimate])
+            rp = response.patterns[0]
+            for single_estimate in rp.single_estimates:
+                # bus_dist = row.distance
+                mi_from_here = (request.stop_position - single_estimate.vehicle_position).to('mi')
+                row = rd[single_estimate.vehicle_position]
+                # mi_from_here = (stop_dist - bus_dist) / 5280.0
+                # timestamp = row.last_update
+                # vid = row.id
+                # rt = row.rt
+                # x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
                 rv.append({
-                    'bus_pattern_dist': bus_dist,
-                    'mi_from_here': f'{mi_from_here:0.2f}mi',
-                    'timestamp': timestamp.isoformat(),
-                    'vid': vid,
+                    'bus_pattern_dist': single_estimate.vehicle_position,
+                    'mi_from_here': mi_from_here,
+                    'timestamp': row.last_update.isoformat(),
+                    'vid': row.id,
                     'destination': row.destination,
-                    'estimate': f'{x1}-{x2} min'
+                    'estimate': f'{single_estimate.low_estimate}-{single_estimate.high_estimate}'
                 })
             return {
                 'rt': rt,
                 'pid': pid,
-                'stop_distance': stop_dist,
+                'stop_distance': request.stop_position,
                 'updates': rv
             }
 

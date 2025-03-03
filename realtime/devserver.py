@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
-    EstimateResponse
+    EstimateResponse, DetailRequest
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, TrainQuery
 
@@ -99,10 +99,10 @@ def nearest_estimates(lat: float, lon: float) -> BusResponse:
     )
 
 
-@app.get('/detail')
-def detail(pid: int, stop_dist: int):
+@app.post('/detail')
+def detail(request: DetailRequest):
     start = datetime.datetime.now()
-    detail = qm.detail(pid, stop_dist)
+    detail = qm.detail(request)
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
     return {'detail': detail, 'start': start.isoformat(), 'latency': latency}

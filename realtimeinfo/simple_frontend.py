@@ -9,7 +9,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse
+    StopEstimate, EstimateResponse, DetailRequest
 
 app = Flask(__name__)
 
@@ -249,7 +249,13 @@ def estimates():
 @app.route('/detail')
 def detail():
     backend = 'http://localhost:8500/detail'
-    resp = requests.get(backend, params=request.args)
+    detail_request = DetailRequest(
+        pattern_id=request.args.get('pid'),
+        stop_id=request.args.get('stop_id'),
+        stop_position=request.args.get('stop_dist'),
+        walk_time=request.args.get('walk_time')
+    )
+    resp = requests.post(backend, data=detail_request.model_dump_json())
     if resp.status_code != 200:
         return f'Error handling request'
     d = resp.json()

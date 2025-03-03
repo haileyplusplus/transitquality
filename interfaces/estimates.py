@@ -141,3 +141,10 @@ class EstimateResponse(BaseModel):
                     'info': info
     """
     patterns: list[PatternResponse]
+
+
+class DetailRequest(BaseModel):
+    pattern_id: int
+    stop_id: int
+    stop_position: Meters | str
+    walk_time: datetime.timedelta

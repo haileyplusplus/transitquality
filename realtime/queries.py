@@ -48,14 +48,19 @@ class EstimateFinder:
             ts.get(item)
         results = pipeline.execute()
         index = 0
+        filtered = 0
         for item in redis_keys:
             value = results[index]
             if value[1] < stop_position.m:
+                filtered += 1
                 continue
             index += 1
             heapq.heappush(heap, (value[0], item))
             if len(heap) > heapsize:
                 heapq.heappop(heap)
+
+        if self.debug:
+            print(f'    Filtered {filtered} trips not reaching {stop_position.m}')
 
         heap.sort()
         return heap
@@ -104,7 +109,8 @@ class EstimateFinder:
                 continue
             #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
             trips = self.get_latest_redis(pid, stop_dist)
-            print(f'  Found {len(trips)} total trips')
+            if self.debug:
+                print(f'  Found {len(trips)} total trips')
             info = {}
             pipeline = self.redis.pipeline()
             estimates = []

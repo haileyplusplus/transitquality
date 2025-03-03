@@ -126,7 +126,7 @@ class QueryManager:
             )
             order by pattern_id
         """
-        routes = {}
+        #routes = {}
         all_items = []
         with Session(self.engine) as session:
             result = session.execute(text(query), {"lat": float(lat), "lon": float(lon), "thresh": 1000})
@@ -190,7 +190,7 @@ class QueryManager:
                     # TODO: avoid copy
                     #print(dxx)
                     key = (row.rt, last_stop_name)
-                    routes[key] = dxx
+                    #routes[key] = dxx
                     all_items.append(dxx)
                     continue
                 if row_distance >= row.stop_pattern_distance:
@@ -229,35 +229,10 @@ class QueryManager:
                     waiting_to_depart=False,
                     vehicle=row.vehicle_id,
                 )
-                #if predicted_minutes:
-                #    dxx.predicted_minutes = datetime.timedelta(minutes=predicted_minutes)
-
-                # dxx = {'pattern': row.pattern_id,
-                #        'startquery': startquery.isoformat(),
-                #        'route': row.rt,
-                #        'direction': direction,
-                #        'stop_id': row.stop_id,
-                #        'stop_name': row.stop_name,
-                #        'stop_lat': row.stop_lat,
-                #        'stop_lon': row.stop_lon,
-                #        'predicted_minutes': predicted_minutes,
-                #        'stop_pattern_distance': row.stop_pattern_distance,
-                #        'bus_distance': bus_distance,
-                #        'dist': row.dist,
-                #        'last_update': row_update.isoformat(),
-                #        'age': age,
-                #        'vehicle_distance': row_distance,
-                #        'last_stop_id': last_stop_id,
-                #        'last_stop_name': last_stop_name,
-                #        'estimate': estimate,
-                #        }
-                #print(dxx)
                 key = (row.rt, last_stop_name)
-                routes[key] = dxx
+                #routes[key] = dxx
                 all_items.append(dxx)
-        if include_all_items:
-            return all_items
-        return list(routes.values())
+        return all_items
 
     def get_stop_latlon(self, stop_id):
         with Session(self.engine) as session:
@@ -354,7 +329,7 @@ class QueryManager:
         heap.sort()
         return heap
 
-    def get_closest(self, pipeline, redis_key, dist):
+    def get_closest(self, pipeline, redis_key, dist, debug):
         ts = pipeline.ts()
         thresh = ureg.feet * 3000
         # name msec seems inaccurate - do they mean seconds?
@@ -362,9 +337,13 @@ class QueryManager:
                  filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
         ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
                  filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
-        #  print(f'closest to {dist} in {redis_key}: {left}, {right}')
+        if debug and pipeline.command_stack:
+            for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
+                print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
 
         def callback(left, right):
+            if debug:
+                print(f'    closest to {dist} in {redis_key}: {left}, {right}')
             if not left or not right:
                 return None
             left_ts, left_dist = left[0]
@@ -400,8 +379,8 @@ class QueryManager:
         estimates = []
         pipeline_stack = []
         for ts, redis_key in trips:
-            pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist.to(ureg.meters)))
-            pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist.to(ureg.meters)))
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist.to(ureg.meters), debug))
+            pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist.to(ureg.meters), debug))
 
         results = pipeline.execute()
 

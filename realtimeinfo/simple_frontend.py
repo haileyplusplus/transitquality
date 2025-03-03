@@ -48,6 +48,8 @@ def route_coalesce(dirname, v):
                 miles = d.distance_from_vehicle.to(ureg.miles)
                 if miles <= ureg.miles * 1:
                     d.display = True
+                    if d.distance_from_vehicle <= (200 * ureg.meter):
+                        d.displayed_estimate = 'Due'
                 else:
                     d.display = False
                 # consider better values
@@ -164,10 +166,13 @@ def estimates():
 
     responses = grequests.map(reqs, exception_handler=handler)
     print('index', index.keys())
+    print(f'Sent {len(reqs)} requests and got {len(responses)} responses')
     for resp in responses:
         if resp is None:
+            print(f'  Got null response')
             continue
         if resp.status_code not in {200, 201}:
+            print(f'   Response status code to {resp.request.url}: {resp.staus_code}')
             continue
 
         if '/estimates' in resp.request.url:
@@ -182,6 +187,8 @@ def estimates():
                         index[pattern_id][vehicle_position].low_estimate = se.low_estimate
                         index[pattern_id][vehicle_position].high_estimate = se.high_estimate
                         index[pattern_id][vehicle_position].trace_info = se.info
+                    else:
+                        print(f'Warning: pattern {pattern_id} vehicle position missing {vehicle_position}')
         else:
             jd = resp.json()
             summary = jd['trip']['summary']

@@ -52,16 +52,16 @@ class EstimateFinder:
         filtered = 0
         for item in redis_keys:
             value = results[index]
+            index += 1
             if value[1] < stop_position.m:
                 filtered += 1
                 continue
-            index += 1
             heapq.heappush(heap, (value[0], item))
             if len(heap) > heapsize:
                 heapq.heappop(heap)
 
         if self.debug:
-            print(f'    Filtered {filtered} trips not reaching {stop_position.m}')
+            print(f'    Filtered {filtered} trips for {pid} not reaching {stop_position.m}')
 
         heap.sort()
         return heap
@@ -188,7 +188,7 @@ class EstimateFinder:
             info['stdev'] = stdev
             info['considered'] = considered
             info['bus_position'] = bus_dist.m
-            print(info)
+            #print(info)
             #yield min(considered), max(considered), info
             yield SingleEstimate(
                 vehicle_position=bus_dist,

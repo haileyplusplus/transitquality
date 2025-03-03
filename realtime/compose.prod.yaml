@@ -1,5 +1,4 @@
 services:
   rtserver:
     environment:
-      - REFRESH_HOURS=5
-      - REFRESH=getpredictions,getvehicles
+      - REFRESH_HOURS=0

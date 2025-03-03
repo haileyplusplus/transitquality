@@ -23,6 +23,8 @@ from . import ureg
 #             return self.distance
 #         if self.unit == DistanceUnit.FEET:
 #             return self.distance *
+Meters = Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
+
 
 
 class TransitEstimate(BaseModel):
@@ -60,7 +62,7 @@ class TransitEstimate(BaseModel):
     stop_name: str
     stop_lat: float
     stop_lon: float
-    stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
+    stop_position: Meters | str
     vehicle_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
     distance_from_vehicle: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
     distance_to_stop: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
@@ -117,5 +119,25 @@ class StopEstimates(BaseModel):
     estimates: list[StopEstimate]
 
 
+class SingleEstimate(BaseModel):
+    vehicle_position: Meters | str
+    low_estimate: datetime.timedelta
+    high_estimate: datetime.timedelta
+    info: dict
+
+
+class PatternResponse(BaseModel):
+    pattern_id: int
+    stop_position: Meters | str
+    single_estimates: list[SingleEstimate]
+
+
 class EstimateResponse(BaseModel):
-    pass
+    """
+                    'pattern': row.pattern_id,
+                    'bus_location': info['bus_position'],
+                    'low': el,
+                    'high': eh,
+                    'info': info
+    """
+    patterns: list[PatternResponse]

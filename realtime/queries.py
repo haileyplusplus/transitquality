@@ -20,7 +20,8 @@ import numpy as np
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
-from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate
+from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
+    PatternResponse
 from interfaces import ureg, Q_
 
 
@@ -182,10 +183,19 @@ class EstimateFinder:
             mean = statistics.mean(estimates)
             #print(estimates)
             considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
+            if not considered:
+                continue
             info['stdev'] = stdev
             info['considered'] = considered
-            info['bus_position'] = bus_dist
-            yield min(considered), max(considered), info
+            info['bus_position'] = bus_dist.m
+            print(info)
+            #yield min(considered), max(considered), info
+            yield SingleEstimate(
+                vehicle_position=bus_dist,
+                low_estimate=datetime.timedelta(seconds=min(considered)),
+                high_estimate=datetime.timedelta(seconds=max(considered)),
+                info=info
+            )
 
 
 class QueryManager:
@@ -224,19 +234,18 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
-    def get_estimates(self, rows: Iterable[StopEstimate]):
-        rv = []
-        #print(rows)
+    def get_estimates(self, rows: Iterable[StopEstimate]) -> EstimateResponse:
+        rv = EstimateResponse(patterns=[])
         for row in rows:
+            response = PatternResponse(
+                pattern_id=row.pattern_id,
+                stop_position=row.stop_position,
+                single_estimates=[]
+            )
             estimate_finder = EstimateFinder(self.redis, row)
-            for el, eh, info in estimate_finder.get_single_estimate():
-                rv.append({
-                    'pattern': row.pattern_id,
-                    'bus_location': info['bus_position'],
-                    'low': el,
-                    'high': eh,
-                    'info': info
-                })
+            for single_estimate in estimate_finder.get_single_estimate():
+                response.single_estimates.append(single_estimate)
+            rv.patterns.append(response)
         return rv
 
     def nearest_stop_vehicles(self, lat, lon) -> list[BusEstimate]:

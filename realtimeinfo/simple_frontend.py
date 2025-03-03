@@ -8,7 +8,8 @@ import requests
 
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
-from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, StopEstimate
+from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
+    StopEstimate, EstimateResponse
 
 app = Flask(__name__)
 
@@ -169,22 +170,20 @@ def estimates():
         if resp.status_code not in {200, 201}:
             continue
 
-        jd = resp.json()
-        if 'estimates' in jd:
-            #print(jd)
-            for e in jd['estimates']:
-                pattern = e['pattern']
-                # TODO: fix this
-                vehicle_dist = round(e['bus_location']['_magnitude'])
-                eh = e['high']
-                el = e['low']
-                #eststr = f'{el}-{eh} min'
-                #index[pattern][vehicle_dist].displayed_estimate = eststr
-                if el and eh and vehicle_dist in index[pattern]:
-                    index[pattern][vehicle_dist].low_estimate = datetime.timedelta(seconds=el)
-                    index[pattern][vehicle_dist].high_estimate = datetime.timedelta(seconds=eh)
-                    index[pattern][vehicle_dist].trace_info = e
+        if '/estimates' in resp.request.url:
+            estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
+            for p in estimate_response.patterns:
+                pattern_id = p.pattern_id
+                for se in p.single_estimates:
+                    #vehicle_position = se.vehicle_position
+                    # TODO: fix this
+                    vehicle_position = round(se.vehicle_position.m)
+                    if vehicle_position in index[pattern_id]:
+                        index[pattern_id][vehicle_position].low_estimate = se.low_estimate
+                        index[pattern_id][vehicle_position].high_estimate = se.high_estimate
+                        index[pattern_id][vehicle_position].trace_info = se.info
         else:
+            jd = resp.json()
             summary = jd['trip']['summary']
             #print(jd)
             seconds = summary['time']

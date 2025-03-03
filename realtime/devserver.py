@@ -10,7 +10,8 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate
+from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
+    EstimateResponse
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, TrainQuery
 
@@ -108,7 +109,7 @@ def detail(pid: int, stop_dist: int):
 
 
 @app.post('/estimates/')
-def estimates(stop_estimates: StopEstimates):
+def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
     #print(f'Estimates: ', stop_estimates)
-    rv = qm.get_estimates(stop_estimates.estimates)
-    return {'estimates': rv}
+    return qm.get_estimates(stop_estimates.estimates)
+    #return {'estimates': rv}

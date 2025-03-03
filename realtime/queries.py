@@ -24,6 +24,164 @@ from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate
 from interfaces import ureg, Q_
 
 
+class EstimateFinder:
+    def __init__(self, redis_client, estimate_request: StopEstimate):
+        self.redis = redis_client
+        self.estimate_request = estimate_request
+        self.debug = estimate_request.debug
+
+    def get_redis_keys(self, pid):
+        if pid >= 308500000:
+            redis_keys = self.redis.keys(pattern=f'trainposition:{pid}:*')
+        else:
+            redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
+        return redis_keys
+
+    def get_latest_redis(self, pid, stop_position):
+        #r = self.redis
+        pipeline = self.redis.pipeline()
+        ts = pipeline.ts()
+        heap = []
+        heapsize = 10
+        redis_keys = self.get_redis_keys(pid)
+        for item in redis_keys:
+            ts.get(item)
+        results = pipeline.execute()
+        index = 0
+        for item in redis_keys:
+            value = results[index]
+            if value[1] < stop_position.m:
+                continue
+            index += 1
+            heapq.heappush(heap, (value[0], item))
+            if len(heap) > heapsize:
+                heapq.heappop(heap)
+
+        heap.sort()
+        return heap
+
+    def get_closest(self, pipeline, redis_key, dist):
+        ts = pipeline.ts()
+        thresh = ureg.feet * 3000
+        if redis_key.decode('utf-8').startswith('train'):
+            thresh = 3000 * ureg.meter
+        # name msec seems inaccurate - do they mean seconds?
+        ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
+                 filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
+        ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
+                 filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
+        #if debug and pipeline.command_stack:
+        #    for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
+        #        print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
+
+        def callback(left, right):
+            if self.debug:
+                print(f'    closest to {dist} in {redis_key}: {left}, {right}')
+            if not left or not right:
+                return None
+            left_ts, left_dist = left[0]
+            right_ts, right_dist = right[0]
+            if abs(dist.m - left_dist) < abs(dist.m - right_dist):
+                return left[0]
+            return right[0]
+
+        return redis_key, callback
+
+    @staticmethod
+    def printable_ts(ts: int):
+        return datetime.datetime.fromtimestamp(ts).isoformat()
+
+    def get_single_estimate(self):
+        row = self.estimate_request
+        pid = row.pattern_id
+        stop_dist = row.stop_position
+        for bus_dist in row.vehicle_positions:
+            if self.debug:
+                print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
+            if bus_dist >= stop_dist:
+                #yield -1, -1, info
+                print(f'  skipping')
+                continue
+            #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
+            trips = self.get_latest_redis(pid, stop_dist)
+            print(f'  Found {len(trips)} total trips')
+            info = {}
+            pipeline = self.redis.pipeline()
+            estimates = []
+            pipeline_stack = []
+            for ts, redis_key in trips:
+                pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist.to(ureg.meters)))
+                pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist.to(ureg.meters)))
+
+            results = pipeline.execute()
+
+            def process(closest_bus, closest_stop, rk1, rk2):
+                if self.debug:
+                    print(f'  inner process {closest_bus} st {closest_stop}')
+                if not closest_bus or not closest_stop:
+                    return None
+                #print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
+                bus_time_samp, bus_dist_samp = closest_bus
+                stop_time_samp, stop_dist_samp = closest_stop
+                travel_time = stop_time_samp - bus_time_samp
+                travel_dist = stop_dist_samp - bus_dist_samp
+                if self.debug:
+                    print(f'    tt {travel_time} td {travel_dist}')
+                if travel_dist <= 0 or travel_time <= 0:
+                    return None
+                travel_rate = travel_dist / travel_time
+                # in meters
+                actual_dist = (stop_dist - bus_dist).m
+                key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
+                info[key] = {}
+                d = info[key]
+                d['redis_key'] = rk1
+                if rk1 != rk2:
+                    d['error'] = f'Redis key mismatch: {rk1} / {rk2}'
+                d['from'] = bus_dist_samp
+                d['to'] = stop_dist_samp
+                d['travel_time'] = round(travel_time / 60, 1)
+                d['travel_dist'] = travel_dist
+                d['travel_rate'] = travel_rate
+                # print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
+                #       f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
+                #       f'travel time {travel_time} travel dist {travel_dist} '
+                #       f'travel rate {travel_rate} actual dist {actual_dist} '
+                #       f'estimate {actual_dist / travel_rate}')
+                computed = actual_dist / travel_rate
+                d['raw_estimate'] = round(computed / 60, 1)
+                #print(f'computed: {computed}')
+                return computed
+
+            while pipeline_stack:
+                rk1, cb1 = pipeline_stack.pop(0)
+                result1 = cb1(results.pop(0), results.pop(0))
+
+                rk2, cb2 = pipeline_stack.pop(0)
+                result2 = cb2(results.pop(0), results.pop(0))
+
+                result = process(result1, result2, rk1, rk2)
+                if self.debug:
+                    print(f'  process {result1} {result2}  {rk1} {rk2} => {result}')
+
+                if result:
+                    estimates.append(result)
+
+            if not estimates or len(estimates) < 2:
+                #yield None, None, info
+                continue
+
+            # consider more sophisticated percentile stuff
+            stdev = statistics.stdev(estimates)
+            mean = statistics.mean(estimates)
+            #print(estimates)
+            considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
+            info['stdev'] = stdev
+            info['considered'] = considered
+            info['bus_position'] = bus_dist
+            yield min(considered), max(considered), info
+
+
 class QueryManager:
     def __init__(self, engine):
         self.engine = engine
@@ -64,7 +222,8 @@ class QueryManager:
         rv = []
         #print(rows)
         for row in rows:
-            for el, eh, info in self.get_single_estimate(row):
+            estimate_finder = EstimateFinder(self.redis, row)
+            for el, eh, info in estimate_finder.get_single_estimate():
                 rv.append({
                     'pattern': row.pattern_id,
                     'bus_location': info['bus_position'],
@@ -225,162 +384,6 @@ class QueryManager:
                 #routes[key] = dxx
                 all_items.append(dxx)
         return all_items
-
-    def get_redis_keys(self, pid):
-        if pid >= 308500000:
-            redis_keys = self.redis.keys(pattern=f'trainposition:{pid}:*')
-        else:
-            redis_keys = self.redis.keys(pattern=f'busposition:{pid}:*')
-        return redis_keys
-
-    def get_latest_redis(self, pid, stop_position):
-        #r = self.redis
-        pipeline = self.redis.pipeline()
-        ts = pipeline.ts()
-        heap = []
-        heapsize = 10
-        redis_keys = self.get_redis_keys(pid)
-        for item in redis_keys:
-            ts.get(item)
-        results = pipeline.execute()
-        index = 0
-        for item in redis_keys:
-            value = results[index]
-            if value[1] < stop_position.m:
-                continue
-            index += 1
-            heapq.heappush(heap, (value[0], item))
-            if len(heap) > heapsize:
-                heapq.heappop(heap)
-
-        heap.sort()
-        return heap
-
-    def get_closest(self, pipeline, redis_key, dist, debug):
-        ts = pipeline.ts()
-        thresh = ureg.feet * 3000
-        if redis_key.decode('utf-8').startswith('train'):
-            thresh = 3000 * ureg.meter
-        # name msec seems inaccurate - do they mean seconds?
-        ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
-                 filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
-        ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
-                 filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
-        #if debug and pipeline.command_stack:
-        #    for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
-        #        print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
-
-        def callback(left, right):
-            if debug:
-                print(f'    closest to {dist} in {redis_key}: {left}, {right}')
-            if not left or not right:
-                return None
-            left_ts, left_dist = left[0]
-            right_ts, right_dist = right[0]
-            if abs(dist.m - left_dist) < abs(dist.m - right_dist):
-                return left[0]
-            return right[0]
-
-        return redis_key, callback
-
-    @staticmethod
-    def printable_ts(ts: int):
-        return datetime.datetime.fromtimestamp(ts).isoformat()
-
-    def get_single_estimate(self, row: StopEstimate):
-        debug = row.debug
-        #print('row is', row, type(row))
-        #el, eh, info = self.estimate_redis(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        #el, eh, _ = self.estimate(row.pattern_id, row.bus_location, row.stop_pattern_distance)
-        #return f'{el}-{eh} min'
-        #return el, eh, info
-        pid = row.pattern_id
-        stop_dist = row.stop_position
-        for bus_dist in row.vehicle_positions:
-            if debug:
-                print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
-            if bus_dist >= stop_dist:
-                #yield -1, -1, info
-                print(f'  skipping')
-                continue
-            #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
-            trips = self.get_latest_redis(pid, stop_dist)
-            print(f'  Found {len(trips)} total trips')
-            info = {}
-            pipeline = self.redis.pipeline()
-            estimates = []
-            pipeline_stack = []
-            for ts, redis_key in trips:
-                pipeline_stack.append(self.get_closest(pipeline, redis_key, bus_dist.to(ureg.meters), debug))
-                pipeline_stack.append(self.get_closest(pipeline, redis_key, stop_dist.to(ureg.meters), debug))
-
-            results = pipeline.execute()
-
-            def process(closest_bus, closest_stop, rk1, rk2):
-                if debug:
-                    print(f'  inner process {closest_bus} st {closest_stop}')
-                if not closest_bus or not closest_stop:
-                    return None
-                #print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
-                bus_time_samp, bus_dist_samp = closest_bus
-                stop_time_samp, stop_dist_samp = closest_stop
-                travel_time = stop_time_samp - bus_time_samp
-                travel_dist = stop_dist_samp - bus_dist_samp
-                if debug:
-                    print(f'    tt {travel_time} td {travel_dist}')
-                if travel_dist <= 0 or travel_time <= 0:
-                    return None
-                travel_rate = travel_dist / travel_time
-                # in meters
-                actual_dist = (stop_dist - bus_dist).m
-                key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
-                info[key] = {}
-                d = info[key]
-                d['redis_key'] = rk1
-                if rk1 != rk2:
-                    d['error'] = f'Redis key mismatch: {rk1} / {rk2}'
-                d['from'] = bus_dist_samp
-                d['to'] = stop_dist_samp
-                d['travel_time'] = round(travel_time / 60, 1)
-                d['travel_dist'] = travel_dist
-                d['travel_rate'] = travel_rate
-                # print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
-                #       f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
-                #       f'travel time {travel_time} travel dist {travel_dist} '
-                #       f'travel rate {travel_rate} actual dist {actual_dist} '
-                #       f'estimate {actual_dist / travel_rate}')
-                computed = actual_dist / travel_rate
-                d['raw_estimate'] = round(computed / 60, 1)
-                #print(f'computed: {computed}')
-                return computed
-
-            while pipeline_stack:
-                rk1, cb1 = pipeline_stack.pop(0)
-                result1 = cb1(results.pop(0), results.pop(0))
-
-                rk2, cb2 = pipeline_stack.pop(0)
-                result2 = cb2(results.pop(0), results.pop(0))
-
-                result = process(result1, result2, rk1, rk2)
-                if debug:
-                    print(f'  process {result1} {result2}  {rk1} {rk2} => {result}')
-
-                if result:
-                    estimates.append(result)
-
-            if not estimates or len(estimates) < 2:
-                #yield None, None, info
-                continue
-
-            # consider more sophisticated percentile stuff
-            stdev = statistics.stdev(estimates)
-            mean = statistics.mean(estimates)
-            #print(estimates)
-            considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
-            info['stdev'] = stdev
-            info['considered'] = considered
-            info['bus_position'] = bus_dist
-            yield min(considered), max(considered), info
 
     def detail(self, pid: int, stop_dist):
         with Session(self.engine) as session:

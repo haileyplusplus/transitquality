@@ -364,13 +364,15 @@ class QueryManager:
         stop_dist = row.stop_position
         for bus_dist in row.vehicle_positions:
             if debug:
-                print(f'Getting estimate {pid} {bus_dist} {stop_dist}')
-            #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
-            trips = self.get_latest_redis(pid, stop_dist)
-            info = {}
+                print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:
                 #yield -1, -1, info
+                print(f'  skipping')
                 continue
+            #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
+            trips = self.get_latest_redis(pid, stop_dist)
+            print(f'  Found {len(trips)} total trips')
+            info = {}
             pipeline = self.redis.pipeline()
             estimates = []
             pipeline_stack = []

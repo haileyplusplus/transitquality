@@ -137,7 +137,8 @@ def estimates():
             "id": str(item.pattern)}
         jp = json.dumps(routing_json)
         urls.append(f'http://brie.guineafowl-cloud.ts.net:8902/route?json={jp}')
-        ests.setdefault(item.pattern,
+        estimate_key = (item.pattern, item.stop_position)
+        ests.setdefault(estimate_key,
                         StopEstimate(
                             pattern_id=item.pattern,
                             stop_position=item.stop_position,
@@ -179,7 +180,7 @@ def estimates():
                 el = e['low']
                 #eststr = f'{el}-{eh} min'
                 #index[pattern][vehicle_dist].displayed_estimate = eststr
-                if el and eh:
+                if el and eh and vehicle_dist in index[pattern]:
                     index[pattern][vehicle_dist].low_estimate = datetime.timedelta(seconds=el)
                     index[pattern][vehicle_dist].high_estimate = datetime.timedelta(seconds=eh)
                 index[pattern][vehicle_dist].trace_info = e

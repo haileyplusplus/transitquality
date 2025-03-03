@@ -325,14 +325,16 @@ class QueryManager:
     def get_closest(self, pipeline, redis_key, dist, debug):
         ts = pipeline.ts()
         thresh = ureg.feet * 3000
+        if redis_key.decode('utf-8').startswith('train'):
+            thresh = 3000 * ureg.meter
         # name msec seems inaccurate - do they mean seconds?
         ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
                  filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
         ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
                  filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
-        if debug and pipeline.command_stack:
-            for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
-                print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
+        #if debug and pipeline.command_stack:
+        #    for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
+        #        print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
 
         def callback(left, right):
             if debug:
@@ -379,6 +381,8 @@ class QueryManager:
             results = pipeline.execute()
 
             def process(closest_bus, closest_stop, rk1, rk2):
+                if debug:
+                    print(f'  inner process {closest_bus} st {closest_stop}')
                 if not closest_bus or not closest_stop:
                     return None
                 #print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
@@ -386,6 +390,8 @@ class QueryManager:
                 stop_time_samp, stop_dist_samp = closest_stop
                 travel_time = stop_time_samp - bus_time_samp
                 travel_dist = stop_dist_samp - bus_dist_samp
+                if debug:
+                    print(f'    tt {travel_time} td {travel_dist}')
                 if travel_dist <= 0 or travel_time <= 0:
                     return None
                 travel_rate = travel_dist / travel_time

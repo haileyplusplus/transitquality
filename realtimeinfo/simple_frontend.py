@@ -183,7 +183,7 @@ def estimates():
                 if el and eh and vehicle_dist in index[pattern]:
                     index[pattern][vehicle_dist].low_estimate = datetime.timedelta(seconds=el)
                     index[pattern][vehicle_dist].high_estimate = datetime.timedelta(seconds=eh)
-                index[pattern][vehicle_dist].trace_info = e
+                    index[pattern][vehicle_dist].trace_info = e
         else:
             summary = jd['trip']['summary']
             #print(jd)

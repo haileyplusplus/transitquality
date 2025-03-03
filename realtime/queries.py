@@ -226,72 +226,6 @@ class QueryManager:
                 all_items.append(dxx)
         return all_items
 
-    def get_stop_latlon(self, stop_id):
-        with Session(self.engine) as session:
-            stop = session.get(Stop, stop_id)
-            if stop is None:
-                return 0, 0
-            point = to_shape(stop.geom)
-            return point.y, point.x
-
-    def get_position_dataframe(self, pid):
-        with Session(self.engine) as session:
-            #thresh = datetime.datetime.now(tz=Util.CTA_TIMEZONE) - datetime.timedelta(hours=5)
-            thresh = datetime.datetime.now() - datetime.timedelta(hours=11)
-            # select timestamp, pdist, origtatripno from bus_position where pid = 5907 order by origtatripno, timestamp;
-            query = select(BusPosition).where(BusPosition.pid == pid).where(
-                BusPosition.timestamp > thresh).order_by(
-                BusPosition.origtatripno, BusPosition.timestamp)
-            print('bus position query: ', query, pid, type(pid), thresh, thresh.isoformat())
-            dfrows = []
-            for row in session.scalars(query):
-                dr = row.__dict__
-                del dr['_sa_instance_state']
-                dr['epochstamp'] = int(row.timestamp.timestamp())
-                dfrows.append(dr)
-            print(f'Found {len(dfrows)} rows')
-            df = pd.DataFrame(dfrows)
-            # TODO: remove this later
-            df.to_csv(f'/tmp/df-{pid}.csv', index=False)
-            print(f'Got df {df}')
-            return df
-
-    def interpolate(self, pid, bus_dist, stop_dist):
-        df = self.get_position_dataframe(int(pid))
-        if df.empty:
-            print(f'Could not find df for {pid}, {bus_dist}, {stop_dist}')
-            return pd.DataFrame()
-        rows = []
-        for trip in df.origtatripno.unique():
-            tdf = df[df.origtatripno == trip]
-            if len(tdf) < 10:
-                continue
-            distseq = tdf.pdist.diff().dropna()
-            if distseq.empty:
-                continue
-            if min(distseq) < -1500:
-                continue
-            if min(bus_dist, stop_dist) < tdf.pdist.min():
-                continue
-            if max(bus_dist, stop_dist) > tdf.pdist.max():
-                continue
-            bus_time = np.interp(x=bus_dist, xp=tdf.pdist, fp=tdf.epochstamp)
-            stop_time = np.interp(x=stop_dist, xp=tdf.pdist, fp=tdf.epochstamp)
-            travel = datetime.timedelta(seconds=int(stop_time - bus_time))
-            bus_ts = datetime.datetime.fromtimestamp(int(bus_time))
-            rows.append({'origtatripno': trip,
-                         'travel': travel,
-                         'bus_timestamp': bus_ts.isoformat()})
-        return pd.DataFrame(rows)
-
-    # def estimate(self, pid, bus_dist, stop_dist):
-    #     interp = self.interpolate(pid, bus_dist, stop_dist)
-    #     if interp.empty:
-    #         return -1, -1, -1
-    #     x1 = round(interp[-10:].travel.quantile(0.05).total_seconds() / 60)
-    #     x2 = round(interp[-10:].travel.quantile(0.95).total_seconds() / 60)
-    #     return x1, x2, interp
-
     def get_redis_keys(self, pid):
         if pid >= 308500000:
             redis_keys = self.redis.keys(pattern=f'trainposition:{pid}:*')
@@ -476,22 +410,6 @@ class QueryManager:
                 'updates': rv
             }
 
-    def get_predictions(self, patterns: list[int]):
-        query = """
-select *, timestamp + make_interval(mins => prediction) as departure from bus_prediction 
-inner join schedule_destinations
-on bus_prediction.stop_id = schedule_destinations.first_stop_id and bus_prediction.destination = schedule_destinations.destination_headsign
-and bus_prediction.route = schedule_destinations.route_id
-inner join pattern_destinations
-on bus_prediction.stop_id = pattern_destinations.origin_stop
-and bus_prediction.route = pattern_destinations.rt
-and schedule_destinations.last_stop_id = pattern_destinations.last_stop
-where timestamp + make_interval(mins => prediction) >= now() at time zone 'America/Chicago'
-and pattern_id in (:patterns)
-        """
-        with Session(self.engine) as session:
-            pass
-
 
 class TrainQuery:
     DIRECTION_MAPPING = {
@@ -526,14 +444,6 @@ class TrainQuery:
         self.engine = engine
         self.schedule_analyzer = schedule_analyzer
 
-    # def distance_along_pattern(self, train_position: TrainPosition):
-    #     shape_manager: ShapeManager = self.schedule_analyzer.managed_shapes.get(row.pid)
-    #     train_wkb = geoalchemy2.elements.WKBElement(train_position.geom)
-    #     train_point = to_shape(train_wkb)
-    #     train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
-    #     dist_from_train = row.stop_pattern_distance - train_dist
-    #     return dist_from_train
-
     def get_relevant_stops(self, lat, lon) -> list[TrainEstimate]:
         # TODO: handle rare trips better
         query = """
@@ -562,18 +472,6 @@ class TrainQuery:
         """
         startquery = Util.ctanow().replace(tzinfo=None)
         with Session(self.engine) as session:
-            # routes = set([])
-            # result = [x for x in resultx]
-            # #
-            # for row in result:
-            #     routes.add(row.xrt)
-
-            #state_query = 'select *, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist from current_train_state where rt in (:routes) order by dist;'
-            #state_query = 'select *, ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM(\'SRID=4326;POINT(:lon :lat)\'\\:\\:geometry, 26916) as dist from current_train_state order by dist;'
-            #routestr = ', '.join([f"'{rt}'" for rt in routes])
-            # current_state = session.execute(text(state_query),
-            #                                 {"lat": float(self.lat), "lon": float(self.lon)})
-            #                                  #"routes": routestr})
             state_query = 'select * from current_train_state'
             trains = {}
             current_state = session.execute(text(state_query))
@@ -648,61 +546,19 @@ class TrainQuery:
                         waiting_to_depart=False,
                         last_update=train.last_update,
                     )
-                    # result = {
-                    #     "pattern": row.pid,
-                    #     "startquery": startquery.isoformat(),
-                    #     "route": rt,
-                    #     "direction": dirname,
-                    #     "destination": train.dest_station_name,
-                    #     "run": train.id,
-                    #     "stop_id": stop_id,
-                    #     "stop_name": row.stop_name,
-                    #     "stop_lat": row.stop_lat,
-                    #     "stop_lon": row.stop_lon,
-                    #     "stop_pattern_distance": row.stop_pattern_distance,
-                    #     # needs to be renamed. this is the distance of the train from the station
-                    #     "bus_distance": int(dist_from_train),
-                    #     "dist": int(row.dist),
-                    #     "last_update": train.last_update.isoformat(),
-                    #     "age": int(age),
-                    #     "vehicle_distance": int(train_dist),
-                    #     "last_stop_id": train.dest_station,
-                    #     "last_stop_name": train.dest_station_name,
-                    #     "next_train_pattern_distance": next_train_pattern_distance,
-                    #     "next_stop_id": train.next_stop,
-                    #     "estimate": "?",
-                    #     "mi": "2.01mi",
-                    #     "walk_time": -1,
-                    #     "walk_dist": "?"
-                    # }
                     rv.append(result)
-
-            #return {'results': rv}
             return rv
 
 
 def main():
     engine = db_init(local=True)
     qm = QueryManager(engine)
-    # ,
     lon = -87.610056
     lat = 41.822556
-    #lon = -87.632892
-    #lat = 41.903914
     # no longer includes estimates
     results = qm.nearest_stop_vehicles(lat, lon)
     return results
 
 
 if __name__ == "__main__":
-    #engine = db_init()
-    #qm = QueryManager(engine)
-    #lon = -87.632892
-    #lat = 41.903914
-    #results = qm.nearest_stop_vehicles(lat, lon)
-    #cProfile.run('qm.nearest_stop_vehicles', 'lat', 'lon')
     cProfile.run('main()', sort='cumtime')
-    # for row in results:
-    #     print(row)
-    # df = qm.get_position_dataframe(5907)
-    # inter = qm.interpolate(5907, 32922, 38913)

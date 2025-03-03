@@ -818,7 +818,7 @@ class Subscriber:
             print(f'Creating subscriber task')
             print(f'Starting listener')
             pubsub = self.redis_client.pubsub(ignore_subscribe_messages=True)
-            channels = ['getvehicles', 'ttpositions.aspx', 'getpredictions']
+            channels = ['getvehicles', 'ttpositions.aspx', 'getpredictions', 'ttarrivals.aspx']
             await pubsub.subscribe(*[f'channel:{channel}' for channel in channels])
             print(f'Starting async')
             while True:

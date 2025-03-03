@@ -106,6 +106,7 @@ class QueryManager:
             inner join pattern_destinations
             on bus_prediction.stop_id = pattern_destinations.origin_stop
             and bus_prediction.route = pattern_destinations.rt
+            and bus_prediction.prediction_type = 'D'
             and schedule_destinations.last_stop_id = pattern_destinations.last_stop
             where timestamp + make_interval(mins => prediction) >= now() at time zone 'America/Chicago'
             and pattern_id in (

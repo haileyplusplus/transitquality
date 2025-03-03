@@ -39,6 +39,7 @@ def route_coalesce(dirname, v):
         routev = []
         for d in v:
             print(f'coalesce {dirname} {k}  vp {d.vehicle_position}  sp {d.stop_position}  le {d.low_estimate}')
+            routev.append(d)
             d.age = td_round(d.age)
             d.distance_from_vehicle = d.distance_from_vehicle.to(ureg.miles)
             #print(json.dumps(d, indent=4))
@@ -51,7 +52,7 @@ def route_coalesce(dirname, v):
                 # consider better values
                 d.low_estimate = datetime.timedelta(minutes=1)
                 d.high_estimate = datetime.timedelta(minutes=5)
-                routev.append(d)
+                #routev.append(d)
                 continue
             #predicted = d.predicted_minutes
             # age = d.age
@@ -80,7 +81,7 @@ def route_coalesce(dirname, v):
             elm = round(d.low_estimate.total_seconds() / 60)
             ehm = round(d.high_estimate.total_seconds() / 60)
             d.displayed_estimate = f'{elm}-{ehm} min'
-            routev.append(d)
+            #routev.append(d)
         routev.sort(key=lambda x: x.low_estimate)
         for item in routev:
             if isinstance(item, TrainEstimate):
@@ -88,7 +89,13 @@ def route_coalesce(dirname, v):
             else:
                 vehicle = item.vehicle
             print(f'  item {item.pattern} vid {vehicle} vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
-        results += routev[:2]
+        displayed = 0
+        for r in routev:
+            if r.display:
+                displayed += 1
+            if displayed > 2:
+                r.display = False
+        results += routev
     return results
 
 

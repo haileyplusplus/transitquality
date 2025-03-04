@@ -427,6 +427,7 @@ class QueryManager:
 
             response = self.get_estimates([stop_estimate])
             rp = response.patterns[0]
+            d = lambda x: round(x.total_seconds() / 60)
             for single_estimate in rp.single_estimates:
                 # bus_dist = row.distance
                 mi_from_here = (request.stop_position - single_estimate.vehicle_position).to('mi')
@@ -438,16 +439,16 @@ class QueryManager:
                 # x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
                 rv.append({
                     'bus_pattern_dist': single_estimate.vehicle_position,
-                    'mi_from_here': mi_from_here,
+                    'mi_from_here': f'{mi_from_here:.2f~P}',
                     'timestamp': row.last_update.isoformat(),
                     'vid': row.id,
                     'destination': row.destination,
-                    'estimate': f'{single_estimate.low_estimate}-{single_estimate.high_estimate}'
+                    'estimate': f'{d(single_estimate.low_estimate)} min - {d(single_estimate.high_estimate)} min'
                 })
             return {
                 'rt': rt,
                 'pid': pid,
-                'stop_distance': request.stop_position,
+                'stop_distance': f'{request.stop_position:.2f~P}',
                 'updates': rv
             }
 

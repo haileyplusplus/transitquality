@@ -1,4 +1,5 @@
 import datetime
+from enum import StrEnum
 from typing import Optional, Annotated
 #from enum import IntEnum
 
@@ -148,3 +149,8 @@ class DetailRequest(BaseModel):
     stop_id: int
     stop_position: Meters | str
     walk_time: datetime.timedelta
+
+
+class Mode(StrEnum):
+    BUS = 'bus'
+    TRAIN = 'train'

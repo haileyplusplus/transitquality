@@ -17,11 +17,12 @@ import pandas as pd
 import numpy as np
 
 
-from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop
+from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop, \
+    CurrentTrainState
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
-    PatternResponse, DetailRequest
+    PatternResponse, DetailRequest, Mode
 from interfaces import ureg, Q_
 
 
@@ -406,15 +407,24 @@ class QueryManager:
                 stop_position=request.stop_position,
                 vehicle_positions=[]
         )
+
         with Session(self.engine) as session:
             # TODO: make this work for buses
             pid = request.pattern_id
+            if pid >= 300000000:
+                mode = Mode.TRAIN
+            else:
+                mode = Mode.BUS
             #stop_dist = request.stop_position.m
-            dist_ft = request.stop_position.to(ureg.feet).m
-            stmt = (select(CurrentVehicleState)
-                    .where(CurrentVehicleState.pid == pid)
-                    .where(CurrentVehicleState.distance < dist_ft)
-                    .order_by(CurrentVehicleState.distance))
+            if mode == mode.TRAIN:
+                # not yet implemented
+                return None
+            elif mode == mode.BUS:
+                dist_ft = request.stop_position.to(ureg.feet).m
+                stmt = (select(CurrentVehicleState)
+                        .where(CurrentVehicleState.pid == pid)
+                        .where(CurrentVehicleState.distance < dist_ft)
+                        .order_by(CurrentVehicleState.distance))
             result = session.scalars(stmt)
             rt = None
             rv = []

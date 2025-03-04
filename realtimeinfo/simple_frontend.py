@@ -259,5 +259,7 @@ def detail():
     if resp.status_code != 200:
         return f'Error handling request'
     d = resp.json()
+    if not d['detail']:
+        return f'Not implemented'
     d['detail']['stop_name'] = request.args.get('stop_name')
     return render_template('detail.html', detail=d['detail'])

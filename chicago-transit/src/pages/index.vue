@@ -1,5 +1,5 @@
 <template>
-  <HelloWorld />
+  <Transit />
 </template>
 
 <script setup>

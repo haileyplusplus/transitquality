@@ -1,0 +1,12 @@
+{
+    "landmarks": [
+        {"name": "Garfield Park Conservatory", "lon": -87.716574, "lat": 41.886292},
+        {"name": "Illinois Centennial Monument (Logan Square)", "lon": -87.706870, "lat": 41.927971},
+        {"name": "Ping Tom Park", "lon": -87.633113, "lat": 41.856601},
+        {"name": "South Shore Cultural Center", "lon": -87.566421, "lat": 41.766361},
+        {"name": "Swedish American Museum", "lon": -87.668400, "lat": 41.976632},
+        {"name": "Thalia Hall", "lon": -87.657286, "lat": 41.857955},
+        {"name": "Union Station", "lon": -87.640342, "lat": 41.878048},
+        {"name": "Wrigley Field", "lon": -87.656480, "lat": 41.947217},
+    ]
+}

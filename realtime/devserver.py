@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
     EstimateResponse, DetailRequest
+from realtime.assembly import NearStopQuery
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, TrainQuery
 
@@ -53,14 +54,6 @@ def status():
     return {'status': 'running'}
 
 
-@app.get('/nearest-trains')
-def nearest_trains(lat: float, lon: float) -> TrainResponse:
-    if sa is None:
-        return TrainResponse(results=[])
-    tq = TrainQuery(engine, sa)
-    return TrainResponse(results=tq.get_relevant_stops(lat, lon))
-
-
 # deprecated
 @app.get('/nearest-stops')
 def nearest_stops(lat: float, lon: float):
@@ -99,17 +92,33 @@ def nearest_estimates(lat: float, lon: float) -> BusResponse:
     )
 
 
+@app.get('/nearest-trains')
+def nearest_trains(lat: float, lon: float) -> TrainResponse:
+    if sa is None:
+        return TrainResponse(results=[])
+    tq = TrainQuery(engine, sa)
+    return TrainResponse(results=tq.get_relevant_stops(lat, lon))
+
+
 @app.post('/detail')
-def detail(request: DetailRequest):
+async def detail(request: DetailRequest):
     start = datetime.datetime.now()
-    detail = qm.detail(request)
+    detail = await qm.detail(request)
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
     return {'detail': detail, 'start': start.isoformat(), 'latency': latency}
 
 
 @app.post('/estimates/')
-def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
+async def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
     #print(f'Estimates: ', stop_estimates)
-    return qm.get_estimates(stop_estimates.estimates)
+    return await qm.get_estimates(stop_estimates.estimates)
     #return {'estimates': rv}
+
+
+@app.get('/combined-estimate')
+async def combined_estimate(lat: float, lon: float):
+    print(f'Running query combined estimate 1')
+    q = NearStopQuery(qm, sa, lat, lon)
+    print(f'Running query combined estimate 2')
+    return await q.run_query()

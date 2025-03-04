@@ -33,8 +33,12 @@ def estimates():
         print(f'Invalid estimates query')
         return f'Invalid estimates query {lat} {lon}'
     print(f'#############  Start estimates query handing {lat} {lon}')
-    q = NearStopQuery(lat=float(lat), lon=float(lon))
-    directions2 = q.run_query()
+    # q = NearStopQuery(lat=float(lat), lon=float(lon))
+    backend = 'http://localhost:8500/combined-estimate'
+    resp = requests.get(backend, params=request.args)
+    if resp.status_code != 200:
+        return f'Error handling request'
+    directions2 = resp.json()
     raw = json.dumps(jsonable_encoder(directions2), indent=4)
     return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)
 

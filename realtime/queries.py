@@ -235,7 +235,7 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
-    def get_estimates(self, rows: Iterable[StopEstimate]) -> EstimateResponse:
+    async def get_estimates(self, rows: Iterable[StopEstimate]) -> EstimateResponse:
         rv = EstimateResponse(patterns=[])
         for row in rows:
             response = PatternResponse(
@@ -401,7 +401,7 @@ class QueryManager:
                 all_items.append(dxx)
         return all_items
 
-    def detail(self, request: DetailRequest):
+    async def detail(self, request: DetailRequest):
         stop_estimate = StopEstimate(
                 pattern_id=request.pattern_id,
                 stop_position=request.stop_position,
@@ -435,7 +435,7 @@ class QueryManager:
                 rt = row.rt
                 rd[vehicle_position] = row
 
-            response = self.get_estimates([stop_estimate])
+            response = await self.get_estimates([stop_estimate])
             rp = response.patterns[0]
             d = lambda x: round(x.total_seconds() / 60)
             for single_estimate in rp.single_estimates:

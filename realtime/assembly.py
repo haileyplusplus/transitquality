@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 
@@ -10,10 +11,13 @@ from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
     StopEstimate, EstimateResponse, DetailRequest
+from realtime.queries import QueryManager, TrainQuery
 
 
 class NearStopQuery:
-    def __init__(self, lat: float, lon: float):
+    def __init__(self, qm: QueryManager, sa, lat: float, lon: float):
+        self.qm = qm
+        self.sa = sa
         self.lat = lat
         self.lon = lon
 
@@ -99,14 +103,10 @@ class NearStopQuery:
             results += routev
         return results
 
-    def estimate_vehicle_locations(self, results: list[TransitEstimate]):
-        directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
-        urls = []
-        # estimate_params: list[dict] = []
-        index = {}
-        ests = {}
-
+    async def fetch_routing(self, results: list[TransitEstimate]):
         routing_queries = set([])
+        urls = []
+        reqs = []
         routing_responses = {}
         stop_to_pattern = {}
         for item in results:
@@ -126,6 +126,39 @@ class NearStopQuery:
                 "id": str(item.stop_id)}
             jp = json.dumps(routing_json)
             urls.append(f'http://brie.guineafowl-cloud.ts.net:8902/route?json={jp}')
+        for u in urls:
+            print(f'Requesting routing {u}')
+            reqs.append(grequests.get(u))
+
+        def handler(request, exception):
+            print(f'Issue with {request}: {exception}')
+
+        responses = grequests.map(reqs, exception_handler=handler)
+        #print('index', index.keys())
+        print(f'Sent {len(reqs)} requests and got {len(responses)} responses')
+        for resp in responses:
+            if resp is None:
+                print(f'  Got null response')
+                continue
+            if resp.status_code not in {200, 201}:
+                print(f'   Response status code to {resp.request.url}: {resp.staus_code}')
+                continue
+
+            jd = resp.json()
+            summary = jd['trip']['summary']
+            # print(jd)
+            seconds = summary['time']
+            miles = summary['length']
+            stop_id = int(jd['id'])
+            routing_queries.discard(stop_id)
+            routing_responses[stop_id] = (datetime.timedelta(seconds=int(seconds)), miles * ureg.miles)
+        return routing_responses
+
+    async def estimate_vehicle_locations(self, results: list[TransitEstimate]):
+        directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
+        # estimate_params: list[dict] = []
+        index = {}
+        ests = {}
 
         for item in results:
             estimate_key = (item.pattern, item.stop_position)
@@ -140,60 +173,31 @@ class NearStopQuery:
             vehicle_distance = round(item.vehicle_position.m)
             index.setdefault(pattern_id, {})[vehicle_distance] = item
         reqs = []
-        for u in urls:
-            print(f'Requesting routing {u}')
-            reqs.append(grequests.get(u))
         estimates_query = StopEstimates(estimates=sorted(ests.values()))
         reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
         print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
+        #return qm.get_estimates(stop_estimates.estimates)
 
-        # print(f'estimate params: ', estimate_params)
-        # print(reqs)
+        #estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
 
-        def handler(request, exception):
-            print(f'Issue with {request}: {exception}')
+        gathered = await asyncio.gather(
+            self.qm.get_estimates(estimates_query.estimates),
+            self.fetch_routing(results)
+        )
+        estimate_response, routing_responses = gathered
 
-        responses = grequests.map(reqs, exception_handler=handler)
-        print('index', index.keys())
-        print(f'Sent {len(reqs)} requests and got {len(responses)} responses')
-        for resp in responses:
-            if resp is None:
-                print(f'  Got null response')
-                continue
-            if resp.status_code not in {200, 201}:
-                print(f'   Response status code to {resp.request.url}: {resp.staus_code}')
-                continue
-
-            if '/estimates' in resp.request.url:
-                estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
-                for p in estimate_response.patterns:
-                    pattern_id = p.pattern_id
-                    for se in p.single_estimates:
-                        # vehicle_position = se.vehicle_position
-                        # TODO: fix this
-                        vehicle_position = round(se.vehicle_position.m)
-                        if vehicle_position in index[pattern_id]:
-                            index[pattern_id][vehicle_position].low_estimate = se.low_estimate
-                            index[pattern_id][vehicle_position].high_estimate = se.high_estimate
-                            index[pattern_id][vehicle_position].trace_info = se.info
-                        else:
-                            print(f'Warning: pattern {pattern_id} vehicle position missing {vehicle_position}')
-            else:
-                jd = resp.json()
-                summary = jd['trip']['summary']
-                # print(jd)
-                seconds = summary['time']
-                miles = summary['length']
-                stop_id = int(jd['id'])
-                routing_queries.discard(stop_id)
-                routing_responses[stop_id] = (datetime.timedelta(seconds=int(seconds)), miles * ureg.miles)
-        # print(f'Stops not answered: {routing_queries}')
-        # pattern = stop_to_pattern[stop_id]
-        # print(f'stop {stop_id}  pattern {pattern}  jd {jd}')
-        # for vd in index[pattern].values():
-        #     vd.walk_time =
-        #     vd.walk_distance = miles * ureg.miles
-        #     # print(vd.walk_distance)
+        for p in estimate_response.patterns:
+            pattern_id = p.pattern_id
+            for se in p.single_estimates:
+                # vehicle_position = se.vehicle_position
+                # TODO: fix this
+                vehicle_position = round(se.vehicle_position.m)
+                if vehicle_position in index[pattern_id]:
+                    index[pattern_id][vehicle_position].low_estimate = se.low_estimate
+                    index[pattern_id][vehicle_position].high_estimate = se.high_estimate
+                    index[pattern_id][vehicle_position].trace_info = se.info
+                else:
+                    print(f'Warning: pattern {pattern_id} vehicle position missing {vehicle_position}')
 
         for item in results:
             rr = routing_responses.get(item.stop_id)
@@ -211,17 +215,43 @@ class NearStopQuery:
         # raw = directions2.model_dump_json
         return directions2
 
-    def run_query(self):
-        backend = 'http://localhost:8500/nearest-estimates'
-        resp = requests.get(backend, params=request.args)
-        if resp.status_code != 200:
-            return f'Error handling request'
+    async def nearest_buses(self) -> BusResponse:
+        start = datetime.datetime.now()
+        results = self.qm.nearest_stop_vehicles(self.lat, self.lon)
+        end = datetime.datetime.now()
+        latency = int((end - start).total_seconds())
+        # return {'results': results, 'start': start.isoformat(), 'latency': latency,
+        #         'lat': lat, 'lon': lon}
+        return BusResponse(
+            results=results,
+            start=start,
+            latency=latency,
+            lat=self.lat,
+            lon=self.lon
+        )
+
+    async def nearest_trains(self) -> TrainResponse:
+        if self.sa is None:
+            return TrainResponse(results=[])
+        tq = TrainQuery(self.qm.engine, self.sa)
+        return TrainResponse(results=tq.get_relevant_stops(self.lat, self.lon))
+
+    async def run_query(self):
+        #backend = 'http://localhost:8500/nearest-estimates'
+        #resp = requests.get(backend, params=request.args)
+        #if resp.status_code != 200:
+        #    return f'Error handling request'
         results: list[TransitEstimate] = []
-        bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
+        print(f'Running query')
+        resp = await asyncio.gather(self.nearest_buses(), self.nearest_trains())
+        print(f'Gathered')
+        bus_response, train_response = resp
+        print(f'resp done')
+        #bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
         results += bus_response.results
-        train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
-        if resp.status_code == 200:
-            train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
-            # results += train_resp.json()['results']
-            results += train_response.results
-        return self.estimate_vehicle_locations(results)
+        #train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
+        #if resp.status_code == 200:
+        #    train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
+        #    results += train_resp.json()['results']
+        results += train_response.results
+        return await self.estimate_vehicle_locations(results)

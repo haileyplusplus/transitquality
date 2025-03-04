@@ -1,5 +1,7 @@
 <template>
-  <Transit />
+  <main>
+    <RouterView />
+  </main>
 </template>
 
 <script setup>

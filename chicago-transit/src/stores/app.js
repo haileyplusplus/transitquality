@@ -2,7 +2,9 @@
 import { defineStore } from 'pinia'
 
 export const useAppStore = defineStore('app', {
-  state: () => ({
-    //
-  }),
+  state: () => {
+    return {
+      currentDirection: null
+    }
+  },
 })

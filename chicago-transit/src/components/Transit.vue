@@ -7,6 +7,9 @@
     style="min-height: 300px"
   >
     <div>
+      <button @click="goToSingleDirection">
+        Single direction
+      </button>
       <v-list @click:select="listSelected">
         <v-list-item
           v-for="item in landmarks.landmarks"
@@ -42,11 +45,23 @@
 
 <script>
   import landmarks from "@/assets/landmarks.json"
+import { useAppStore } from '@/stores/app';
+
+  export const currentDirection = ref([]);
 
   export default {
     data() {
       return {
         landmarks: landmarks
+      }
+    },
+    beforeMount() {
+      console.log('mounting transit');
+      console.log('current direction: ' + currentDirection.value);
+    },
+    methods: {
+      goToSingleDirection() {
+        this.$router.push('/single-direction');
       }
     }
   }
@@ -65,6 +80,17 @@
 
   function listSelected(event) {
     console.log('list item selected: ' + JSON.stringify(event.id.lon));
-    backendFetch(event.id.lat, event.id.lon).then(() => console.log('fetched'));
+    backendFetch(event.id.lat, event.id.lon).then(
+      () => {
+        console.log('fetched');
+        if ('response' in transitInfo.value && 'Northbound' in transitInfo.value.response) {
+          currentDirection.value = transitInfo.value.response.Northbound;
+          const store = useAppStore();
+          store.currentDirection = transitInfo.value.response.Northbound;
+        }
+        //console.log('current direction: ' + JSON.stringify(currentDirection.value));
+        //this.$router.push('/single-direction')
+      }
+    );
   }
 </script>

@@ -6,12 +6,21 @@
 
 // Composables
 import { createRouter, createWebHistory } from 'vue-router/auto'
-import { setupLayouts } from 'virtual:generated-layouts'
-import { routes } from 'vue-router/auto-routes'
+//import { setupLayouts } from 'virtual:generated-layouts'
+//import { routes } from 'vue-router/auto-routes'
+import Transit from '@/components/Transit.vue'
+import SingleDirection from '@/components/SingleDirection.vue'
+
+// setupLayouts(routes),
+
+const routes = [
+  { path: '/', component: Transit },
+  { path: '/single-direction', component: SingleDirection }
+]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: setupLayouts(routes),
+  routes,
 })
 
 // Workaround for https://github.com/vitejs/vite/issues/11804

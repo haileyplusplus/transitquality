@@ -70,7 +70,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       }
-    }
+    },
+    allowedHosts: [
+      'greendale',
+      'brie'
+    ]
   },
   css: {
     preprocessorOptions: {

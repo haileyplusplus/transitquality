@@ -9,7 +9,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse, DetailRequest
+    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType, CombinedResponse
 from realtime.assembly import NearStopQuery
 
 app = Flask(__name__)
@@ -38,9 +38,12 @@ def estimates():
     resp = requests.get(backend, params=request.args)
     if resp.status_code != 200:
         return f'Error handling request'
-    directions2 = resp.json()
-    raw = json.dumps(jsonable_encoder(directions2), indent=4)
-    return render_template('bus_status.html', results=directions2, raw=raw, lat=lat, lon=lon)
+    #directions2 = resp.json()
+    #raw = json.dumps(jsonable_encoder(directions2), indent=4)
+    ureg.formatter.default_format = '.2fP'
+    directions2 = CombinedResponse.model_validate_json(resp.text)
+    raw = directions2.model_dump_json(indent=4)
+    return render_template('bus_status.html', results=directions2.response, raw=raw, lat=lat, lon=lon)
 
 
 @app.route('/detail')

@@ -10,7 +10,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse, DetailRequest
+    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType
 from realtime.queries import QueryManager, TrainQuery
 
 
@@ -154,7 +154,7 @@ class NearStopQuery:
             routing_responses[stop_id] = (datetime.timedelta(seconds=int(seconds)), miles * ureg.miles)
         return routing_responses
 
-    async def estimate_vehicle_locations(self, results: list[TransitEstimate]):
+    async def estimate_vehicle_locations(self, results: list[TransitEstimate]) -> CombinedResponseType:
         directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
         # estimate_params: list[dict] = []
         index = {}
@@ -236,7 +236,7 @@ class NearStopQuery:
         tq = TrainQuery(self.qm.engine, self.sa)
         return TrainResponse(results=tq.get_relevant_stops(self.lat, self.lon))
 
-    async def run_query(self):
+    async def run_query(self) -> CombinedResponseType:
         #backend = 'http://localhost:8500/nearest-estimates'
         #resp = requests.get(backend, params=request.args)
         #if resp.status_code != 200:

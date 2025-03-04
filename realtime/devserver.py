@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
-    EstimateResponse, DetailRequest
+    EstimateResponse, DetailRequest, CombinedResponseType, CombinedResponse
 from realtime.assembly import NearStopQuery
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, TrainQuery
@@ -117,8 +117,9 @@ async def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
 
 
 @app.get('/combined-estimate')
-async def combined_estimate(lat: float, lon: float):
+async def combined_estimate(lat: float, lon: float) -> CombinedResponse:
     print(f'Running query combined estimate 1')
     q = NearStopQuery(qm, sa, lat, lon)
     print(f'Running query combined estimate 2')
-    return await q.run_query()
+    response = await q.run_query()
+    return CombinedResponse(response=response)

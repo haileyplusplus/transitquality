@@ -27,7 +27,6 @@ from . import ureg
 Meters = Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
 
 
-
 class TransitEstimate(BaseModel):
     """
     "pattern": 2170,
@@ -154,3 +153,10 @@ class DetailRequest(BaseModel):
 class Mode(StrEnum):
     BUS = 'bus'
     TRAIN = 'train'
+
+
+CombinedResponseType = dict[str, list[TransitEstimate]]
+
+
+class CombinedResponse(BaseModel):
+    response: CombinedResponseType

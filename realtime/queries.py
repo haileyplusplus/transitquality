@@ -339,6 +339,9 @@ class QueryManager:
                     pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
                     age = (local_now - pts).total_seconds() / 60
                     predicted_minutes = round(predicted_minutes - age)
+                    if direction is None:
+                        print(f'Warning: Unknown direction in route {row.rt} pattern {row.pattern_id}')
+                        direction = 'unknown'
                     dxx = BusEstimate(
                         query_start=startquery,
                         pattern=row.pattern_id,

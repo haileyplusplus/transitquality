@@ -263,7 +263,10 @@ class NearStopQuery:
     def convert_output(self, e: TransitEstimate) -> TransitOutput:
         if isinstance(e, BusEstimate):
             mode = Mode.BUS
-            vehicle = e.vehicle
+            if e.vehicle is None:
+                vehicle = 0
+            else:
+                vehicle = e.vehicle
         else:
             mode = Mode.TRAIN
             vehicle = e.run

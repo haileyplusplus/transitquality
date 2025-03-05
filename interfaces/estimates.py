@@ -27,33 +27,12 @@ from . import ureg
 Meters = Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
 
 
+class Mode(StrEnum):
+    BUS = 'bus'
+    TRAIN = 'train'
+
+
 class TransitEstimate(BaseModel):
-    """
-    "pattern": 2170,
-"startquery": "2025-03-01T15:07:06.892402",
-"route": "73",
-"direction": "Eastbound",
-"stop_id": 1410,
-"stop_name": "Lasalle & Eugenie",
-"stop_lat": 41.912578000001,
-"stop_lon": -87.633340000002,
-"predicted_minutes": -4,
-"stop_pattern_distance": 36396,
-"bus_distance": 36396,
-"dist": 450.1714418220115,
-"last_update": "2025-03-01T15:06:00",
-"age": 67,
-"vehicle_distance": 0,
-"last_stop_id": 15417,
-"last_stop_name": "Clark & North",
-"estimate": "-5--5 min",
-"mi": "6.89mi",
-"mi_numeric": 6.8931818181818185,
-"walk_time": 6,
-"walk_dist": "0.31",
-"el": -5,
-"eh": -5,
-    """
     query_start: datetime.datetime
     pattern: int
     route: str
@@ -79,6 +58,35 @@ class TransitEstimate(BaseModel):
     walk_distance: Optional[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str] = None
     display: bool = True
     trace_info: Optional[dict] = None
+
+
+class TransitOutput(BaseModel):
+    pattern: int
+    vehicle: int
+    route: str
+    mode: Mode
+    direction: str
+    stop_id: int
+    stop_name: str
+    stop_lat: float
+    stop_lon: float
+    stop_position: str
+    vehicle_position: str
+    distance_from_vehicle: str
+    distance_to_stop: str
+    last_update: str
+    age_seconds: int
+    destination_stop_id: int
+    destination_stop_name: str
+    waiting_to_depart: bool
+    predicted_minutes: Optional[int] = None
+    low_estimate_minutes: Optional[int] = None
+    high_estimate_minutes: Optional[int] = None
+    walk_time_minutes: Optional[int] = None
+    total_low_minutes: Optional[int] = None
+    total_high_minutes: Optional[int] = None
+    walk_distance: Optional[str] = None
+    display: bool = True
 
 
 class TrainEstimate(TransitEstimate):
@@ -150,13 +158,12 @@ class DetailRequest(BaseModel):
     walk_time: datetime.timedelta
 
 
-class Mode(StrEnum):
-    BUS = 'bus'
-    TRAIN = 'train'
-
-
 CombinedResponseType = dict[str, list[TransitEstimate]]
 
 
 class CombinedResponse(BaseModel):
     response: CombinedResponseType
+
+
+class CombinedOutput(BaseModel):
+    response: dict[str, list[TransitOutput]]

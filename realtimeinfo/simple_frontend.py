@@ -34,7 +34,7 @@ def estimates():
         return f'Invalid estimates query {lat} {lon}'
     print(f'#############  Start estimates query handing {lat} {lon}')
     # q = NearStopQuery(lat=float(lat), lon=float(lon))
-    backend = 'http://localhost:8500/combined-estimate'
+    backend = 'http://localhost:8500/combined-estimate-raw'
     resp = requests.get(backend, params=request.args)
     if resp.status_code != 200:
         return f'Error handling request'

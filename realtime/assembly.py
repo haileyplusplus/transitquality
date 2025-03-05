@@ -10,16 +10,17 @@ import requests
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType
+    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType, TransitOutput, BusEstimate, Mode
 from realtime.queries import QueryManager, TrainQuery
 
 
 class NearStopQuery:
-    def __init__(self, qm: QueryManager, sa, lat: float, lon: float):
+    def __init__(self, qm: QueryManager, sa, lat: float, lon: float, do_conversion):
         self.qm = qm
         self.sa = sa
         self.lat = lat
         self.lon = lon
+        self.do_conversion = do_conversion
 
     @staticmethod
     def td_round(x: datetime.timedelta):
@@ -101,6 +102,8 @@ class NearStopQuery:
                 if displayed > 2:
                     r.display = False
             results += routev
+        if self.do_conversion:
+            return [self.convert_output(x) for x in results]
         return results
 
     async def fetch_routing(self, results: list[TransitEstimate]):
@@ -207,13 +210,7 @@ class NearStopQuery:
                 print(f'Warning: stop {item.stop_id} missing routing')
             # item.walk_time, item.walk
             directions.setdefault(item.direction, []).append(item)
-        directions2 = {}
-        for k, v in directions.items():
-            # directions.setdefault(item.direction, []).append(item)
-            directions2[k] = self.route_coalesce(k, v)
-        #raw = json.dumps(jsonable_encoder(directions2), indent=4)
-        # raw = directions2.model_dump_json
-        return directions2
+        return directions
 
     async def nearest_buses(self) -> BusResponse:
         start = datetime.datetime.now()
@@ -254,4 +251,53 @@ class NearStopQuery:
         #    train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
         #    results += train_resp.json()['results']
         results += train_response.results
-        return await self.estimate_vehicle_locations(results)
+        directions = await self.estimate_vehicle_locations(results)
+        directions2 = {}
+        for k, v in directions.items():
+            # directions.setdefault(item.direction, []).append(item)
+            directions2[k] = self.route_coalesce(k, v)
+        #raw = json.dumps(jsonable_encoder(directions2), indent=4)
+        # raw = directions2.model_dump_json
+        return directions2
+
+    def convert_output(self, e: TransitEstimate) -> TransitOutput:
+        if isinstance(e, BusEstimate):
+            mode = Mode.BUS
+            vehicle = e.vehicle
+        else:
+            mode = Mode.TRAIN
+            vehicle = e.run
+        miles = lambda x: f"{x.to('mi').m:0.2f} mi" if x is not None else None
+        minutes = lambda x: round(x.total_seconds() / 60) if x is not None else None
+        if e.waiting_to_depart:
+            adj = e.predicted_minutes - e.age
+        else:
+            adj = -1 * e.age
+        return TransitOutput(
+            pattern=e.pattern,
+            vehicle=vehicle,
+            route=e.route,
+            mode=mode,
+            direction=e.direction,
+            stop_id=e.stop_id,
+            stop_name=e.stop_name,
+            stop_lat=e.stop_lat,
+            stop_lon=e.stop_lon,
+            stop_position=miles(e.stop_position),
+            vehicle_position=miles(e.vehicle_position),
+            distance_from_vehicle=miles(e.distance_from_vehicle),
+            distance_to_stop=miles(e.distance_to_stop),
+            last_update=e.last_update.isoformat(),
+            age_seconds=round(e.age.total_seconds()),
+            destination_stop_id=e.destination_stop_id,
+            destination_stop_name=e.destination_stop_name,
+            waiting_to_depart=e.waiting_to_depart,
+            predicted_minutes=minutes(e.predicted_minutes),
+            low_estimate_minutes=minutes(e.low_estimate),
+            high_estimate_minutes=minutes(e.high_estimate),
+            walk_time_minutes=minutes(e.walk_time),
+            total_low_minutes=minutes(e.low_estimate + adj),
+            total_high_minutes=minutes(e.high_estimate + adj),
+            walk_distance=miles(e.walk_distance),
+            display=e.display
+        )

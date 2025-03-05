@@ -2,43 +2,43 @@
     "colors": [
         {
             "route": "red",
-            "bg": "C60C30",
-            "fg": "FFFFFF"
+            "bg": "#C60C30",
+            "fg": "#FFFFFF"
         },
         {
             "route": "p",
-            "bg": "522398",
-            "fg": "FFFFFF"
+            "bg": "#522398",
+            "fg": "#FFFFFF"
         },
         {
             "route": "y",
-            "bg": "F9E300",
-            "fg": "000000"
+            "bg": "#F9E300",
+            "fg": "#000000"
         },
         {
             "route": "blue",
-            "bg": "00A1DE",
-            "fg": "FFFFFF"
+            "bg": "#00A1DE",
+            "fg": "#FFFFFF"
         },
         {
             "route": "pink",
-            "bg": "E27EA6",
-            "fg": "FFFFFF"
+            "bg": "#E27EA6",
+            "fg": "#FFFFFF"
         },
         {
             "route": "g",
-            "bg": "009B3A",
-            "fg": "FFFFFF"
+            "bg": "#009B3A",
+            "fg": "#FFFFFF"
         },
         {
             "route": "org",
-            "bg": "F9461C",
-            "fg": "FFFFFF"
+            "bg": "#F9461C",
+            "fg": "#FFFFFF"
         },
         {
             "route": "brn",
-            "bg": "62361B",
-            "fg": "FFFFFF"
+            "bg": "#62361B",
+            "fg": "#FFFFFF"
         }
     ]
 }

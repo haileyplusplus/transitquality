@@ -17,7 +17,7 @@
             <tr>
               <td
                 rowspan="3"
-                style="{{ this.routeColor(item.route) }}"
+                :style="routeColor(item.route)"
               >
                 {{ item.route }}
               </td>
@@ -257,13 +257,16 @@ export default {
 
     },
     methods: {
-      routeColor(route) {
-        console.log('getting color for ' + route);
+      routeColor: function(route) {
         var obj = this.colorMap.get(route)
+        // console.log('getting color for ' + route + ': ' + JSON.stringify(obj));
         if (!obj) {
-          return "background-color: none;";
+          return { backgroundColor: 'none' }
         }
-        return `background-color: ${obj.bg}; color: ${obj.fg};`
+        return {
+          backgroundColor: obj.bg,
+          color: obj.fg
+        }
       }
     }
 }

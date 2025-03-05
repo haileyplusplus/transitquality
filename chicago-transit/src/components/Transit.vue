@@ -69,6 +69,9 @@
 
 <script setup>
   import { ref } from 'vue'
+  import { useRouter } from 'vue-router';
+
+  const router = useRouter();
 
   const BACKEND_URL = `/api/combined-estimate`;
   const transitInfo = ref({})
@@ -90,6 +93,7 @@
         }
         //console.log('current direction: ' + JSON.stringify(currentDirection.value));
         //this.$router.push('/single-direction')
+        router.push('/single-direction');
       }
     );
   }

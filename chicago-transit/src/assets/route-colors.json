@@ -1,44 +1,659 @@
 {
     "colors": [
         {
+            "route": "1",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "2",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "3",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "4",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "x4",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "5",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "6",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "7",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "8",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "8a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "9",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "x9",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "11",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "12",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "j14",
+            "backgroundColor": "#0065bd",
+            "color": "#ffffff"
+        },
+        {
+            "route": "15",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "18",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "20",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "21",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "22",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "24",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "26",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "28",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "29",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "31",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "30",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "34",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "35",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "36",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "37",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "39",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "43",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "44",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "47",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "48",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "49",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "49b",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "x49",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "50",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "51",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "52",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "52a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "53",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "53a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "54",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "54a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "54b",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "55",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "55a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "55n",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "56",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "57",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "59",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "60",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "62",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "62h",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "63",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "63w",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "65",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "66",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "67",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "68",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "70",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "71",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "72",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "73",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "74",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "75",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "76",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "77",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "78",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "79",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "80",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "81",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "81w",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "82",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "84",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "95",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "85",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "85a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "86",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "87",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "88",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "90",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "91",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "92",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "93",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "94",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "96",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "97",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "100",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "103",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "106",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "108",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "111",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "111a",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "112",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "115",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "119",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "120",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "121",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "124",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "125",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "126",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "134",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "135",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "136",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "143",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "146",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "147",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "148",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "151",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "152",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "155",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "156",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "157",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "165",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "169",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "171",
+            "backgroundColor": "#b71234",
+            "color": "#ffffff"
+        },
+        {
+            "route": "172",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "192",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "201",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
+            "route": "206",
+            "backgroundColor": "#565a5c",
+            "color": "#ffffff"
+        },
+        {
             "route": "red",
-            "bg": "#C60C30",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#C60C30",
+            "color": "#FFFFFF"
         },
         {
             "route": "p",
-            "bg": "#522398",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#522398",
+            "color": "#FFFFFF"
         },
         {
             "route": "y",
-            "bg": "#F9E300",
-            "fg": "#000000"
+            "backgroundColor": "#F9E300",
+            "color": "#000000"
         },
         {
             "route": "blue",
-            "bg": "#00A1DE",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#00A1DE",
+            "color": "#FFFFFF"
         },
         {
             "route": "pink",
-            "bg": "#E27EA6",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#E27EA6",
+            "color": "#FFFFFF"
         },
         {
             "route": "g",
-            "bg": "#009B3A",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#009B3A",
+            "color": "#FFFFFF"
         },
         {
             "route": "org",
-            "bg": "#F9461C",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#F9461C",
+            "color": "#FFFFFF"
         },
         {
             "route": "brn",
-            "bg": "#62361B",
-            "fg": "#FFFFFF"
+            "backgroundColor": "#62361B",
+            "color": "#FFFFFF"
         }
     ]
 }

@@ -69,7 +69,8 @@ export default {
     data() {
       const colorMap = new Map();
       routeColors.colors.forEach((elem) => {
-        colorMap.set(elem.route, elem);
+        colorMap.set(elem.route.toLowerCase(), elem);
+        //delete elem.route;
       });
       return {
         colorMap: colorMap
@@ -258,15 +259,12 @@ export default {
     },
     methods: {
       routeColor: function(route) {
-        var obj = this.colorMap.get(route)
-        // console.log('getting color for ' + route + ': ' + JSON.stringify(obj));
+        var obj = this.colorMap.get(route.toLowerCase())
+        console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
         if (!obj) {
           return { backgroundColor: 'none' }
         }
-        return {
-          backgroundColor: obj.bg,
-          color: obj.fg
-        }
+        return obj
       }
     }
 }

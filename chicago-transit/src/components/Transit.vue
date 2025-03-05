@@ -45,7 +45,7 @@
 
 <script>
   import landmarks from "@/assets/landmarks.json"
-import { useAppStore } from '@/stores/app';
+  import { useAppStore } from '@/stores/app';
 
   export const currentDirection = ref([]);
 

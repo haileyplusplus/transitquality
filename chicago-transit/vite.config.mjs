@@ -66,7 +66,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://businfo-1:8500',
+        target: 'http://businfo:8500',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       }

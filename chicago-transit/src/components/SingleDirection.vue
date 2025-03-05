@@ -45,8 +45,8 @@
               <td>{{ item.distance_from_vehicle }} away</td>
             </tr>
             <tr>
-              <td>{{ item.walk_time }}</td>
-              <td>{{ item.displayed_estimate }}</td>
+              <td>{{ item.walk_time_minutes }} min</td>
+              <td>{{ item.total_low_minutes }} - {{ item.total_high_minutes }} min</td>
             </tr>
           </template>
         </tbody>

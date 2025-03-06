@@ -12,12 +12,12 @@
       v-if="currentDirection"
       style="align-items: center, display: flex"
     >
-      <table style="width: 100%">
-        <tr>
-          <td
-            colspan="3"
-            class="ns"
-          >
+      <v-row>
+        <v-col
+          cols="12"
+          class="ns"
+        >
+          <span class="innerns">
             <v-card
               v-for="item in summaries.n"
               :key="item"
@@ -31,10 +31,15 @@
                 </div>
               </v-card-item>
             </v-card>
-          </td>
-        </tr>
-        <tr>
-          <td class="ew">
+          </span>
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-col
+          cols="5"
+          class="ew"
+        >
+          <span class="innerew">
             <v-card
               v-for="item in summaries.w"
               :key="item"
@@ -46,14 +51,22 @@
                 </div>
               </v-card-item>
             </v-card>
-          </td>
-          <td>
-            <img
-              src="@/assets/compass.png"
-              height="40px"
-            >
-          </td>
-          <td class="ew">
+          </span>
+        </v-col>
+        <v-col
+          cols="2"
+          class="compass"
+        >
+          <img
+            src="@/assets/compass.png"
+            height="40px"
+          >
+        </v-col>
+        <v-col
+          cols="5"
+          class="ew"
+        >
+          <span class="innerew">
             <v-card
               v-for="item in summaries.e"
               :key="item"
@@ -65,13 +78,15 @@
                 </div>
               </v-card-item>
             </v-card>
-          </td>
-        </tr>
-        <tr>
-          <td
-            colspan="3"
-            class="ns"
-          >
+          </span>
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-col
+          cols="12"
+          class="ns"
+        >
+          <span class="innerns">
             <v-card
               v-for="item in summaries.s"
               :key="item"
@@ -83,9 +98,10 @@
                 </div>
               </v-card-item>
             </v-card>
-          </td>
-        </tr>
-      </table>
+          </span>
+        </v-col>
+      </v-row>
+
       <table style="max-width: 500px;">
         <tbody>
           <template
@@ -385,13 +401,34 @@ onMounted(() => {
   text-align: center;
 }
 .ns {
-  display: grid;
-  grid-template-columns: repeat(4, 100px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background-color: #eeeeee;
 }
 .ew {
-  display: grid;
-  grid-template-columns: repeat(2, 100px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background-color: #eeee00;
+}
+.innerns {
+  display: grid;
+  margin: auto;
+  align-items: center;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-gap: 10px;
+}
+.innerew {
+  display: grid;
+  margin: auto;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 10px;
+}
+.compass {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: pink;
 }
 </style>

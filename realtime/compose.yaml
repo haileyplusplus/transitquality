@@ -31,9 +31,19 @@ services:
         condition: service_started
       memstore:
         condition: service_started
+    restart: always
   memstore:
     image: redis/redis-stack:latest
     network_mode: service:transit-realtime-sidecar
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    volumes:
+      - ~/projects/valhalla/data:/custom_files
+    network_mode: service:transit-realtime-sidecar
+    depends_on:
+      transit-realtime-sidecar:
+        condition: service_started
+    restart: always
   db:
      build:
        context: postgis

@@ -8,7 +8,7 @@ class ValhallaHelper:
     """
     Helper for querying Vahalla
     """
-    BASE_URL = 'http://brie:8902/'
+    BASE_URL = 'http://rttransit:8002/'
 
     def query(self, cmd, jd):
         jp = json.dumps(jd)

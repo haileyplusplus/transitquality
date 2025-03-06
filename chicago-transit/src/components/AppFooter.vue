@@ -1,5 +1,8 @@
 <template>
-  <v-footer height="40" app>
+  <v-footer
+    height="40"
+    app
+  >
     <a
       v-for="item in items"
       :key="item.title"
@@ -31,9 +34,22 @@
       </a>
       <br>
       Icon attribution:
-      <a href="https://www.flaticon.com/free-icons/walking" title="walking icons">Walking icons created by Leremy - Flaticon</a>
-      <a href="https://www.flaticon.com/free-icons/bus" title="bus icons">Bus icons created by Freepik - Flaticon</a>
-      <a href="https://www.flaticon.com/free-icons/train" title="train icons">Train icons created by Freepik - Flaticon</a>
+      <a
+        href="https://www.flaticon.com/free-icons/walking"
+        title="walking icons"
+      >Walking icons created by Leremy - Flaticon</a>
+      <a
+        href="https://www.flaticon.com/free-icons/bus"
+        title="bus icons"
+      >Bus icons created by Freepik - Flaticon</a>
+      <a
+        href="https://www.flaticon.com/free-icons/train"
+        title="train icons"
+      >Train icons created by Freepik - Flaticon</a>
+      <a
+        href="https://www.flaticon.com/free-icons/compass"
+        title="compass icons"
+      >Compass icons created by Creative Stall Premium - Flaticon</a>
     </div>
   </v-footer>
 </template>

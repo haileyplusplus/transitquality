@@ -12,20 +12,20 @@
       v-if="currentDirection"
       style="align-items: center, display: flex"
     >
-      Single direction
       <table style="width: 100%">
         <tr>
           <td
             colspan="3"
-            style="text-align: center"
+            class="ns"
           >
             <v-card
               v-for="item in summaries.n"
               :key="item"
-              max-width="70px"
-              class="mx-auto"
+              class="buschip"
             >
-              <v-card-item>
+              <v-card-item
+                :style="routeColor(item)"
+              >
                 <div class="text-h6 mb-1">
                   {{ routeDisp(item) }}
                 </div>
@@ -34,24 +34,59 @@
           </td>
         </tr>
         <tr>
-          <td style="text-align: center">
-            W
+          <td class="ew">
+            <v-card
+              v-for="item in summaries.w"
+              :key="item"
+              class="buschip"
+            >
+              <v-card-item :style="routeColor(item)">
+                <div class="text-h6 mb-1">
+                  {{ routeDisp(item) }}
+                </div>
+              </v-card-item>
+            </v-card>
           </td>
-          <td>&nbsp;</td>
-          <td style="text-align: center">
-            E
+          <td>
+            <img
+              src="@/assets/compass.png"
+              height="40px"
+            >
+          </td>
+          <td class="ew">
+            <v-card
+              v-for="item in summaries.e"
+              :key="item"
+              class="buschip"
+            >
+              <v-card-item :style="routeColor(item)">
+                <div class="text-h6 mb-1">
+                  {{ routeDisp(item) }}
+                </div>
+              </v-card-item>
+            </v-card>
           </td>
         </tr>
         <tr>
           <td
             colspan="3"
-            style="text-align: center"
+            class="ns"
           >
-            S
+            <v-card
+              v-for="item in summaries.s"
+              :key="item"
+              class="buschip"
+            >
+              <v-card-item :style="routeColor(item)">
+                <div class="text-h6 mb-1">
+                  {{ routeDisp(item) }}
+                </div>
+              </v-card-item>
+            </v-card>
           </td>
         </tr>
       </table>
-      <table>
+      <table style="max-width: 500px;">
         <tbody>
           <template
             v-for="item in currentDirection"
@@ -84,6 +119,7 @@
               <td>{{ item.distance_to_stop }}</td>
               <td rowspan="2">
                 <img
+                  v-if="item.mode == 'bus'"
                   src="@/assets/front-of-bus.png"
                   height="40px"
                 >
@@ -100,7 +136,6 @@
     </div>
   </v-main>
 </template>
-
 
 <script setup>
 
@@ -342,3 +377,21 @@ onMounted(() => {
 })
 
 </script>
+
+<style scoped>
+.buschip {
+  min-width: 70px;
+  max-width: 70px;
+  text-align: center;
+}
+.ns {
+  display: grid;
+  grid-template-columns: repeat(4, 100px);
+  background-color: #eeeeee;
+}
+.ew {
+  display: grid;
+  grid-template-columns: repeat(2, 100px);
+  background-color: #eeee00;
+}
+</style>

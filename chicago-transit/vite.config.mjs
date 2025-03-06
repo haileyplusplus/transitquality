@@ -75,7 +75,9 @@ export default defineConfig({
       'greendale',
       'brie',
       'businfo',
-      'businfo-1'
+      'businfo-1',
+      'businfo.guineafowl-cloud.ts.net',
+      'businfo-1.guineafowl-cloud.ts.net'
     ]
   },
   css: {

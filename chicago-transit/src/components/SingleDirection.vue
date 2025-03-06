@@ -1,18 +1,61 @@
 <template>
   <v-app-bar>
-    <div>Transit Single Direction</div>
+    <div style="align-items: center, display: flex">
+      Transit Single Direction
+    </div>
   </v-app-bar>
   <v-main
     class="d-flex align-center justify-center"
     style="min-height: 300px"
   >
-    <div v-if="currentDirection">
+    <div
+      v-if="currentDirection"
+      style="align-items: center, display: flex"
+    >
       Single direction
+      <table style="width: 100%">
+        <tr>
+          <td
+            colspan="3"
+            style="text-align: center"
+          >
+            <v-card
+              v-for="item in summaries.n"
+              :key="item"
+              max-width="60px"
+              class="mx-auto"
+            >
+              <v-card-item>
+                <div class="text-h6 mb-1">
+                  {{ item }}
+                </div>
+              </v-card-item>
+            </v-card>
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align: center">
+            W
+          </td>
+          <td>&nbsp;</td>
+          <td style="text-align: center">
+            E
+          </td>
+        </tr>
+        <tr>
+          <td
+            colspan="3"
+            style="text-align: center"
+          >
+            S
+          </td>
+        </tr>
+      </table>
       <table>
         <tbody>
           <template
             v-for="item in currentDirection"
-            :key="item.pattern"
+            :key="item.pattern + '-' + item.vehicle"
           >
             <tr>
               <td
@@ -64,6 +107,7 @@
   import routeColors from '@/assets/route-colors.json'
 
 const currentDirection = ref([]);
+const summaries = ref({});
 
 export default {
     data() {
@@ -80,7 +124,12 @@ export default {
       console.log('mounting single direction');
       const store = useAppStore();
       currentDirection.value = store.currentDirection;
+      summaries.value = store.summaries;
+      // summaries.value.n.forEach((elem, index, arr) => {
+      //   arr[index] = this.routeDisp(elem);
+      // });
       console.log('current direction (single): ' + currentDirection.value);
+      console.log('displaying ' + JSON.stringify(store.summaries));
 
       const testData = [{
         "pattern": 6414,
@@ -259,13 +308,32 @@ export default {
     },
     methods: {
       routeColor: function(route) {
+        //console.log('getting route ' + JSON.stringify(route));
         var obj = this.colorMap.get(route.toLowerCase())
-        console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
+        //console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
         if (!obj) {
           return { backgroundColor: 'none' }
         }
         return obj
       }
+    },
+    routeDisp: function(route) {
+      const routes = {
+        brn: 'Br',
+        blue: 'Bl',
+        p: 'Pu',
+        pink: 'Pk',
+        g: 'G',
+        red: 'R',
+        y: 'Y',
+        org: 'O'
+      };
+      const rv = routes[route];
+      console.log('route ' + route + ' is ' + rv);
+      if (!rv) {
+        return route;
+      }
+      return rv;
     }
 }
 

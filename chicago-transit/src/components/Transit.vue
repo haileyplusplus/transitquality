@@ -81,15 +81,40 @@
     transitInfo.value = await (await fetch(url)).json();
   }
 
+  function getRoutes(items) {
+    var rv = new Set([]);
+    items.forEach((elem) => {
+      rv.add(elem.route);
+    });
+    return Array.from(rv);
+  }
+
   function listSelected(event) {
     console.log('list item selected: ' + JSON.stringify(event.id.lon));
     backendFetch(event.id.lat, event.id.lon).then(
       () => {
         console.log('fetched');
-        if ('response' in transitInfo.value && 'Northbound' in transitInfo.value.response) {
-          currentDirection.value = transitInfo.value.response.Northbound;
+        if ('response' in transitInfo.value) {
           const store = useAppStore();
-          store.currentDirection = transitInfo.value.response.Northbound;
+          var dirs = [];
+          if ('Northbound' in transitInfo.value.response) {
+            store.currentDirection = transitInfo.value.response.Northbound;
+            dirs.push(...transitInfo.value.response.Northbound);
+            store.summaries.n = getRoutes(transitInfo.value.response.Northbound);
+          }
+          if ('Westbound' in transitInfo.value.response) {
+            dirs.push(...transitInfo.value.response.Westbound);
+            store.summaries.w = getRoutes(transitInfo.value.response.Westbound);
+          }
+          if ('Eastbound' in transitInfo.value.response) {
+            dirs.push(...transitInfo.value.response.Eastbound);
+            store.summaries.e = getRoutes(transitInfo.value.response.Eastbound);
+          }
+          if ('Southbound' in transitInfo.value.response) {
+            dirs.push(...transitInfo.value.response.Southbound);
+            store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
+          }
+          store.currentDirection = dirs
         }
         //console.log('current direction: ' + JSON.stringify(currentDirection.value));
         //this.$router.push('/single-direction')

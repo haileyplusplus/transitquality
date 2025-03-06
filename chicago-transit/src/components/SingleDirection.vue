@@ -139,6 +139,11 @@
                   src="@/assets/front-of-bus.png"
                   height="40px"
                 >
+                <img
+                  v-if="item.mode == 'train'"
+                  src="@/assets/underground.png"
+                  height="40px"
+                >
               </td>
               <td>{{ item.distance_from_vehicle }} away</td>
             </tr>

@@ -1,6 +1,6 @@
 <template>
   <v-app-bar>
-    <div style="align-items: center, display: flex">
+    <div style="align-items: center; display: flex">
       Transit Single Direction
     </div>
   </v-app-bar>
@@ -10,7 +10,6 @@
   >
     <div
       v-if="currentDirection"
-      style="align-items: center, display: flex"
     >
       <v-row>
         <v-col

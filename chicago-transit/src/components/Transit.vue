@@ -48,6 +48,7 @@
   import { useAppStore } from '@/stores/app';
 
   export const currentDirection = ref([]);
+  const searchLocation = ref({lat: null, lon: null})
 
   export default {
     data() {
@@ -58,6 +59,18 @@
     beforeMount() {
       console.log('mounting transit');
       console.log('current direction: ' + currentDirection.value);
+      function setPosition(position) {
+        searchLocation.value = {
+          lat: position.coords.latitude,
+          lon: position.coords.longitude
+        }
+        console.log('set location: ' + JSON.stringify(searchLocation.value))
+      }
+
+      if (navigator.geolocation) {
+        console.log('setting geolocation')
+        navigator.geolocation.getCurrentPosition(setPosition);
+      }
     },
     methods: {
       goToSingleDirection() {
@@ -70,6 +83,7 @@
 <script setup>
   import { ref } from 'vue'
   import { useRouter } from 'vue-router';
+  //import { useGeolocation } from '@vueuse/core'
 
   const router = useRouter();
 
@@ -89,37 +103,83 @@
     return Array.from(rv);
   }
 
+
+  // function errCallback(e) {
+  //   console.log('error getting position: ' + e)
+  // }
+
   function listSelected(event) {
-    console.log('list item selected: ' + JSON.stringify(event.id.lon));
-    backendFetch(event.id.lat, event.id.lon).then(
-      () => {
-        console.log('fetched');
-        if ('response' in transitInfo.value) {
-          const store = useAppStore();
-          var dirs = [];
-          if ('Northbound' in transitInfo.value.response) {
-            store.currentDirection = transitInfo.value.response.Northbound;
-            dirs.push(...transitInfo.value.response.Northbound);
-            store.summaries.n = getRoutes(transitInfo.value.response.Northbound);
-          }
-          if ('Westbound' in transitInfo.value.response) {
-            dirs.push(...transitInfo.value.response.Westbound);
-            store.summaries.w = getRoutes(transitInfo.value.response.Westbound);
-          }
-          if ('Eastbound' in transitInfo.value.response) {
-            dirs.push(...transitInfo.value.response.Eastbound);
-            store.summaries.e = getRoutes(transitInfo.value.response.Eastbound);
-          }
-          if ('Southbound' in transitInfo.value.response) {
-            dirs.push(...transitInfo.value.response.Southbound);
-            store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
-          }
-          store.currentDirection = dirs.filter((elem) => elem.display);
-        }
-        //console.log('current direction: ' + JSON.stringify(currentDirection.value));
-        //this.$router.push('/single-direction')
-        router.push('/single-direction');
+    console.log('list item selected: ' + JSON.stringify(event.id));
+
+    //var getSearchLocation = null;
+
+    if (event.id.name === "My Current Location") {
+      if (!searchLocation.value.lat) {
+        console.log('No current location available');
+        return;
       }
-    );
+      console.log('Looking for current location');
+      // const { coords, locatedAt, error, resume, pause } = useGeolocation()
+      // if (error) {
+      //   console.log('Geolocation error: ' + error);
+      //   return;
+      // }
+      // lat = coords.latitude;
+      // lon = coords.longitude;
+      // if (navigator.geolocation) {
+      //   console.log('setting geolocation')
+      //   //getSearchLocation = navigator.geolocation.getCurrentPosition(setPosition, errCallback);
+      //   getSearchLocation = () => {
+      //     return new Promise(function (resolve, reject) {
+      //       navigator.geolocation.getCurrentPosition((position) => resolve(position),
+      //       (err) => reject(err));
+      //     });
+      //   }
+      //   console.log('setting to ' + getSearchLocation)
+      // } else {
+      //   console.log('location not available');
+      // }
+    } else {
+        searchLocation.value.lat = event.id.lat;
+        searchLocation.value.lon = event.id.lon;
+    }
+
+    // console.log('search function: ' + getSearchLocation);
+
+    // if (!getSearchLocation) {
+    //   console.log("no position");
+    //   return;
+    // }
+
+    backendFetch(searchLocation.value.lat, searchLocation.value.lon).then(
+        () => {
+          console.log('fetched');
+          if ('response' in transitInfo.value) {
+            const store = useAppStore();
+            var dirs = [];
+            if ('Northbound' in transitInfo.value.response) {
+              store.currentDirection = transitInfo.value.response.Northbound;
+              dirs.push(...transitInfo.value.response.Northbound);
+              store.summaries.n = getRoutes(transitInfo.value.response.Northbound);
+            }
+            if ('Westbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Westbound);
+              store.summaries.w = getRoutes(transitInfo.value.response.Westbound);
+            }
+            if ('Eastbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Eastbound);
+              store.summaries.e = getRoutes(transitInfo.value.response.Eastbound);
+            }
+            if ('Southbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Southbound);
+              store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
+            }
+            store.currentDirection = dirs.filter((elem) => elem.display);
+          }
+          //console.log('current direction: ' + JSON.stringify(currentDirection.value));
+          //this.$router.push('/single-direction')
+          router.push('/single-direction');
+        }
+      );
   }
 </script>

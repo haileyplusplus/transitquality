@@ -73,7 +73,9 @@ export default defineConfig({
     },
     allowedHosts: [
       'greendale',
-      'brie'
+      'brie',
+      'businfo',
+      'businfo-1'
     ]
   },
   css: {

@@ -22,12 +22,12 @@
             <v-card
               v-for="item in summaries.n"
               :key="item"
-              max-width="60px"
+              max-width="70px"
               class="mx-auto"
             >
               <v-card-item>
                 <div class="text-h6 mb-1">
-                  {{ item }}
+                  {{ routeDisp(item) }}
                 </div>
               </v-card-item>
             </v-card>
@@ -62,7 +62,7 @@
                 rowspan="3"
                 :style="routeColor(item.route)"
               >
-                {{ item.route }}
+                {{ routeDisp(item.route) }}
               </td>
               <td colspan="2">
                 {{ item.stop_name }}
@@ -101,27 +101,62 @@
   </v-main>
 </template>
 
-<script>
-  import { ref } from 'vue';
+
+<script setup>
+
+// mounted() {
+//   console.log('Mounted');
+// }
+import { onMounted, ref } from 'vue';
   import { useAppStore } from '@/stores/app';
   import routeColors from '@/assets/route-colors.json'
 
 const currentDirection = ref([]);
 const summaries = ref({});
 
-export default {
-    data() {
-      const colorMap = new Map();
-      routeColors.colors.forEach((elem) => {
+const colorMap = new Map();
+
+      {/* return {
+        colorMap: colorMap
+      } */}
+
+      function routeColor(route) {
+        //console.log('getting route ' + JSON.stringify(route));
+        var obj = this.colorMap.get(route.toLowerCase())
+        //console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
+        if (!obj) {
+          return { backgroundColor: 'none' }
+        }
+        return obj
+      }
+
+    function routeDisp(route) {
+      const routes = {
+        brn: 'Br',
+        blue: 'Bl',
+        p: 'Pu',
+        pink: 'Pk',
+        g: 'G',
+        red: 'R',
+        y: 'Y',
+        org: 'O'
+      };
+      const rv = routes[route];
+      console.log('route ' + route + ' is ' + rv);
+      if (!rv) {
+        return route;
+      }
+      return rv;
+    }
+
+
+onMounted(() => {
+  routeColors.colors.forEach((elem) => {
         colorMap.set(elem.route.toLowerCase(), elem);
         //delete elem.route;
       });
-      return {
-        colorMap: colorMap
-      }
-    },
-    mounted() {
-      console.log('mounting single direction');
+
+  console.log('mounting single direction');
       const store = useAppStore();
       currentDirection.value = store.currentDirection;
       summaries.value = store.summaries;
@@ -304,45 +339,6 @@ export default {
         console.log('using test data')
         currentDirection.value = testData;
       }
-
-    },
-    methods: {
-      routeColor: function(route) {
-        //console.log('getting route ' + JSON.stringify(route));
-        var obj = this.colorMap.get(route.toLowerCase())
-        //console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
-        if (!obj) {
-          return { backgroundColor: 'none' }
-        }
-        return obj
-      }
-    },
-    routeDisp: function(route) {
-      const routes = {
-        brn: 'Br',
-        blue: 'Bl',
-        p: 'Pu',
-        pink: 'Pk',
-        g: 'G',
-        red: 'R',
-        y: 'Y',
-        org: 'O'
-      };
-      const rv = routes[route];
-      console.log('route ' + route + ' is ' + rv);
-      if (!rv) {
-        return route;
-      }
-      return rv;
-    }
-}
-
-</script>
-
-<script setup>
-
-// mounted() {
-//   console.log('Mounted');
-// }
+})
 
 </script>

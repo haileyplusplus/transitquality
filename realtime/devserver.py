@@ -109,6 +109,15 @@ async def detail(request: DetailRequest):
     return {'detail': detail, 'start': start.isoformat(), 'latency': latency}
 
 
+@app.get('/single-estimate/')
+async def single_estimate(pattern_id: int, stop_position: str, vehicle_position: str) -> EstimateResponse:
+    return await qm.get_estimates([StopEstimate(
+        pattern_id=pattern_id,
+        stop_position=stop_position,
+        vehicle_positions=[vehicle_position]
+    )])
+
+
 @app.post('/estimates/')
 async def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
     #print(f'Estimates: ', stop_estimates)

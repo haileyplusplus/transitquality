@@ -5,7 +5,8 @@ export const useAppStore = defineStore('app', {
   state: () => {
     return {
       currentDirection: [],
-      summaries: {n: [], w: [], e: [], s:[]}
+      summaries: {n: [], w: [], e: [], s:[]},
+      currentDetail: {}
     }
   },
 })

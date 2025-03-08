@@ -107,7 +107,7 @@
             v-for="item in currentDirection"
             :key="item.pattern + '-' + item.vehicle"
           >
-            <tr>
+            <tr @click="itemDetail(item)">
               <td
                 rowspan="3"
                 :style="routeColor(item.route)"
@@ -164,6 +164,9 @@
 // }
 import { onMounted, ref } from 'vue';
   import { useAppStore } from '@/stores/app';
+  import { useRouter } from 'vue-router';
+
+  const router = useRouter();
   import routeColors from '@/assets/route-colors.json'
 
 const currentDirection = ref([]);
@@ -204,6 +207,13 @@ const colorMap = new Map();
       return rv;
     }
 
+
+    function itemDetail(item) {
+      console.log('selected for detail 2: ' + JSON.stringify(item));
+      const store = useAppStore();
+      store.currentDetail = item;
+      router.push('/detail');
+    }
 
 onMounted(() => {
   routeColors.colors.forEach((elem) => {

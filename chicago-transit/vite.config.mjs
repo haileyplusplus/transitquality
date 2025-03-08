@@ -68,6 +68,7 @@ export default defineConfig({
       '/api': {
         target: 'http://businfo:8500',
         changeOrigin: true,
+        headers: {'Content-Type': 'application/json'},
         rewrite: (path) => path.replace(/^\/api/, ''),
       }
     },

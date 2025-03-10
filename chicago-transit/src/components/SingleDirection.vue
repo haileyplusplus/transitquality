@@ -212,6 +212,7 @@ const colorMap = new Map();
       console.log('selected for detail 2: ' + JSON.stringify(item));
       const store = useAppStore();
       store.currentDetail = item;
+      localStorage.setItem('currentDetail', JSON.stringify(store.currentDetail));
       router.push('/detail');
     }
 

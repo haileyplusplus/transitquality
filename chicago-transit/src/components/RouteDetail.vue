@@ -63,31 +63,21 @@
 
 const currentDetail = ref(null);
 
-const BACKEND_URL = `/api/estimates`;
+const BACKEND_URL = `/api/single-estimate`;
   const estimateResponse = ref({})
 
   async function backendFetch(item) {
-    const request = {
-      estimates: [
-        {
-          pattern_id: item.pattern,
-          stop_position: item.stop_position,
-          vehicle_positions: [item.vehicle_position]
-        }
-      ]
-    };
-    console.log('fetching: ' + JSON.stringify(item) + " request (" + JSON.stringify(request) + ")");
-    const url = `${BACKEND_URL}`;
-    estimateResponse.value = await (await fetch(
-      url, {
-        method: "POST",
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(request)
-      }
-    )).json();
+    const params = new URLSearchParams();
+    params.set('pattern_id', item.pattern);
+    params.set('stop_position', item.stop_position);
+    params.set('vehicle_position', item.vehicle_position);
+    const url = `${BACKEND_URL}?${params.toString()}`;
+    console.log('fetching: ' + JSON.stringify(item) + " url " + url);
+    //transitInfo.value = await (await fetch(url)).json();
+    const response = await fetch(url);
+    console.log('raw response: ' + JSON.stringify(response));
+    estimateResponse.value =  await (response).json();
+    //console.log('fetched ' + JSON.stringify(response));
   }
 
 
@@ -95,9 +85,14 @@ onMounted(() => {
       const store = useAppStore();
       console.log('displaying ' + JSON.stringify(store.currentDetail));
       currentDetail.value = store.currentDetail;
+      console.log('current detail: ' + JSON.stringify(currentDetail.value));
+      if (!Object.hasOwn(currentDetail.value, 'route')) {
+        console.log('No current detail')
+        currentDetail.value = JSON.parse(localStorage.getItem('currentDetail'))
+      }
       backendFetch(currentDetail.value).then(() => {
         console.log('fetched estimate: ' + JSON.stringify(estimateResponse.value));
-      });
+      }).catch(e => { console.log('fetch error: ' + e)});
     });
 
 </script>

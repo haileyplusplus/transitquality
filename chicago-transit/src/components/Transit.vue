@@ -175,6 +175,8 @@
               store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
             }
             store.currentDirection = dirs.filter((elem) => elem.display);
+            localStorage.setItem('summaries', JSON.stringify(store.summaries));
+            localStorage.setItem('currentDirection', JSON.stringify(store.curretnDirection));
           }
           //console.log('current direction: ' + JSON.stringify(currentDirection.value));
           //this.$router.push('/single-direction')

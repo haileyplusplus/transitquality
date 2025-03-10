@@ -24,6 +24,7 @@ import redis.asyncio as redis_async
 from backend.util import Util
 from realtime.rtmodel import *
 from realtime.load_patterns import load_routes, load, S3Getter
+from realtime.redisclean import Cleaner
 from interfaces import ureg, Q_
 
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
@@ -503,6 +504,11 @@ class BusUpdater(DatabaseUpdater):
                                      '(select max(timestamp) - interval \'24 hours\' from train_position)'))
             self.cleanup_iteration += 1
             session.commit()
+        if self.cleanup_iteration % 500 == 0:
+            host = None
+            print(f'  Cleaning up redis {host}')
+            c = Cleaner(host=host)
+            c.clean()
         finish = datetime.datetime.now()
         td = finish - start
         print(f'Cleanup run {self.cleanup_iteration} took {td}')

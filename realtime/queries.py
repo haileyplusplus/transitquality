@@ -198,7 +198,7 @@ class EstimateFinder:
             for e in info['estimates']:
                 if abs(e['raw_estimate_seconds'] - info['mean']) > (4 * stdev):
                     e['display'] = False
-            info['estimates'].sort(key=lambda x: x.timestamp, reverse=True)
+            info['estimates'].sort(key=lambda x: x['timestamp'], reverse=True)
             #print(info)
             #yield min(considered), max(considered), info
             yield SingleEstimate(

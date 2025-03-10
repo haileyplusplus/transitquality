@@ -50,6 +50,21 @@
           <td>{{ currentDetail.walk_time_minutes }} min</td>
           <td>{{ currentDetail.total_low_minutes }} - {{ currentDetail.total_high_minutes }} min</td>
         </tr>
+        <tr v-if="estimateResponse">
+          <td colspan="6">
+            <v-card
+              v-for="item in estimateResponse"
+              :key="item.redis_key"
+              class="buschip"
+            >
+              <v-card-item>
+                <div class="text-h6 mb-1">
+                  {{ item.timestamp }}: {{ item.travel_time }}min
+                </div>
+              </v-card-item>
+            </v-card>
+          </td>
+        </tr>
       </tbody>
     </table>
   </v-main>
@@ -62,9 +77,9 @@
   import { useAppStore } from '@/stores/app';
 
 const currentDetail = ref(null);
+const estimateResponse = ref(null);
 
 const BACKEND_URL = `/api/single-estimate`;
-  const estimateResponse = ref({})
 
   async function backendFetch(item) {
     const params = new URLSearchParams();
@@ -75,8 +90,13 @@ const BACKEND_URL = `/api/single-estimate`;
     console.log('fetching: ' + JSON.stringify(item) + " url " + url);
     //transitInfo.value = await (await fetch(url)).json();
     const response = await fetch(url);
-    console.log('raw response: ' + JSON.stringify(response));
-    estimateResponse.value =  await (response).json();
+    //console.log('raw response: ' + JSON.stringify(response));
+    const jd =  await (response).json();
+    const estimates = jd.patterns[0].single_estimates[0].info.estimates;
+    console.log('estimates raw ' + JSON.stringify(estimates));
+    estimateResponse.value = estimates;
+    //const estimate = estimates.patterns[0].single_estimates.info;
+    //console.log('estimate: ' + estimate)
     //console.log('fetched ' + JSON.stringify(response));
   }
 

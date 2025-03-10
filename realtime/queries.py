@@ -140,7 +140,7 @@ class EstimateFinder:
                 travel_rate = travel_dist / travel_time
                 # in meters
                 actual_dist = (stop_dist - bus_dist).m
-                key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
+                key = datetime.datetime.fromtimestamp(stop_time_samp).isoformat()
                 #info[key] = {}
                 d = {}
                 d['timestamp']  = key
@@ -153,12 +153,14 @@ class EstimateFinder:
                 d['travel_time'] = round(travel_time / 60, 1)
                 d['travel_dist'] = travel_dist
                 d['travel_rate'] = travel_rate
+                d['display'] = True
                 # print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
                 #       f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
                 #       f'travel time {travel_time} travel dist {travel_dist} '
                 #       f'travel rate {travel_rate} actual dist {actual_dist} '
                 #       f'estimate {actual_dist / travel_rate}')
                 computed = actual_dist / travel_rate
+                d['raw_estimate_seconds'] = computed
                 d['raw_estimate'] = round(computed / 60, 1)
                 #print(f'computed: {computed}')
                 info['estimates'].append(d)
@@ -190,8 +192,13 @@ class EstimateFinder:
             if not considered:
                 continue
             info['stdev'] = stdev
+            info['mean'] = mean
             info['considered'] = considered
             info['bus_position'] = bus_dist.m
+            for e in info['estimates']:
+                if abs(e['raw_estimate_seconds'] - info['mean']) > (4 * stdev):
+                    e['display'] = False
+            info['estimates'].sort(key=lambda x: x.timestamp, reverse=True)
             #print(info)
             #yield min(considered), max(considered), info
             yield SingleEstimate(

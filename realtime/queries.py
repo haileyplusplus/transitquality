@@ -113,7 +113,7 @@ class EstimateFinder:
             trips = self.get_latest_redis(pid, stop_dist)
             if self.debug:
                 print(f'  Found {len(trips)} total trips')
-            info = {}
+            info = {"estimates": []}
             pipeline = self.redis.pipeline()
             estimates = []
             pipeline_stack = []
@@ -141,8 +141,10 @@ class EstimateFinder:
                 # in meters
                 actual_dist = (stop_dist - bus_dist).m
                 key = datetime.datetime.fromtimestamp(bus_time_samp).isoformat()
-                info[key] = {}
-                d = info[key]
+                #info[key] = {}
+                d = {}
+                d['timestamp']  = key
+                #d = info[key]
                 d['redis_key'] = rk1
                 if rk1 != rk2:
                     d['error'] = f'Redis key mismatch: {rk1} / {rk2}'
@@ -159,6 +161,7 @@ class EstimateFinder:
                 computed = actual_dist / travel_rate
                 d['raw_estimate'] = round(computed / 60, 1)
                 #print(f'computed: {computed}')
+                info['estimates'].append(d)
                 return computed
 
             while pipeline_stack:

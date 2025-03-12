@@ -22,7 +22,7 @@ from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, Tr
 from backend.util import Util
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
-    PatternResponse, DetailRequest, Mode
+    PatternResponse, DetailRequest, Mode, StopEstimates
 from interfaces import ureg, Q_
 
 
@@ -246,8 +246,9 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
-    async def get_estimates(self, rows: Iterable[StopEstimate]) -> EstimateResponse:
+    async def get_estimates(self, request: StopEstimates) -> EstimateResponse:
         rv = EstimateResponse(patterns=[])
+        rows = request.estimates
         for row in rows:
             response = PatternResponse(
                 pattern_id=row.pattern_id,
@@ -449,7 +450,7 @@ class QueryManager:
                 rt = row.rt
                 rd[vehicle_position] = row
 
-            response = await self.get_estimates([stop_estimate])
+            response = await self.get_estimates(StopEstimates(estimates=[stop_estimate]))
             rp = response.patterns[0]
             d = lambda x: round(x.total_seconds() / 60)
             for single_estimate in rp.single_estimates:

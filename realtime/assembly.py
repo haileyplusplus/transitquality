@@ -193,7 +193,7 @@ class NearStopQuery:
         #estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
 
         gathered = await asyncio.gather(
-            self.qm.get_estimates(estimates_query.estimates),
+            self.qm.get_estimates(estimates_query),
             self.fetch_routing(results)
         )
         estimate_response, routing_responses = gathered

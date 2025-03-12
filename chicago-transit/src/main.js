@@ -6,6 +6,7 @@
 
 // Plugins
 import { registerPlugins } from '@/plugins'
+import VueApexCharts from "vue3-apexcharts";
 import router from './router'
 
 // Components
@@ -15,6 +16,7 @@ import App from './App.vue'
 import { createApp } from 'vue'
 
 const app = createApp(App)
+app.use(VueApexCharts);
 
 registerPlugins(app)
 

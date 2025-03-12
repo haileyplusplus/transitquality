@@ -63,6 +63,16 @@
                 </div>
               </v-card-item>
             </v-card>
+            <v-card>
+              <v-card-item>
+                <apexchart
+                  width="500"
+                  type="bar"
+                  :options="chartOptions"
+                  :series="chartSeries"
+                />
+              </v-card-item>
+            </v-card>
           </td>
         </tr>
       </tbody>
@@ -75,9 +85,16 @@
  //       currentDetail: {route: null, pattern: null, stopId: null, stopPosition: null, vehiclePosition: null}
   import { onMounted, ref } from 'vue';
   import { useAppStore } from '@/stores/app';
+  //import VueApexCharts from 'vue-apexcharts'
 
 const currentDetail = ref(null);
 const estimateResponse = ref(null);
+const chartOptions = ref({
+  chart: {id: 'arrivalDetail'},
+  plotOptions: {bar: {horizontal: true}}
+});
+
+const chartSeries = ref([])
 
 const BACKEND_URL = `/api/single-estimate`;
 
@@ -112,7 +129,26 @@ onMounted(() => {
       }
       backendFetch(currentDetail.value).then(() => {
         console.log('fetched estimate: ' + JSON.stringify(estimateResponse.value));
+        const data = new Array();
+        chartOptions.value.xaxis = {};
+        chartOptions.value.dataLabels = {
+          enabled: true,
+          formatter: function (val) {
+            return val + ' min';
+          }
+        };
+
+        chartOptions.value.xaxis.categories = new Array();
+        estimateResponse.value.forEach((item) => {
+          const date = new Date(item.timestamp);
+          //data.push();
+          data.push('' + Math.round(item.travel_time) + ' minutes');
+          chartOptions.value.xaxis.categories.push(date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit"}));
+        });
+        chartSeries.value = [{name: "arrival-times", data: data}]
+        console.log('chart options: ' + JSON.stringify(chartOptions.value));
       }).catch(e => { console.log('fetch error: ' + e)});
+
     });
 
 </script>

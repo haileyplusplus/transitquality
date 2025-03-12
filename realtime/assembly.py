@@ -10,7 +10,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 from interfaces import Q_, ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType, TransitOutput, BusEstimate, Mode
+    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType, TransitOutput, BusEstimate, Mode, PositionInfo
 from realtime.queries import QueryManager, TrainQuery
 
 
@@ -165,13 +165,22 @@ class NearStopQuery:
 
         for item in results:
             estimate_key = (item.pattern, item.stop_position)
+            if isinstance(item, BusEstimate):
+                vehicle = item.vehicle
+            else:
+                vehicle = item.run
             ests.setdefault(estimate_key,
                             StopEstimate(
                                 pattern_id=item.pattern,
                                 stop_position=item.stop_position,
                                 vehicle_positions=[],
                             )
-                            ).vehicle_positions.append(item.vehicle_position)
+                            ).vehicle_positions.append(
+                PositionInfo(
+                    vehicle_position=item.vehicle_position,
+                    vehicle_id=vehicle,
+                )
+            )
             pattern_id = item.pattern
             vehicle_distance = round(item.vehicle_position.m)
             index.setdefault(pattern_id, {})[vehicle_distance] = item

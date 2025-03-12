@@ -111,10 +111,15 @@ class TrainResponse(BaseModel):
     results: list[TrainEstimate]
 
 
+class PositionInfo(BaseModel):
+    vehicle_position: Meters | str
+    vehicle_id: Optional[int]
+
+
 class StopEstimate(BaseModel):
     pattern_id: int
     stop_position: Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)] | str
-    vehicle_positions: list[Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]] | list[str]
+    vehicle_positions: list[PositionInfo]
     debug: bool = False
 
     def __lt__(self, other):

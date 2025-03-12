@@ -102,7 +102,8 @@ class EstimateFinder:
         row = self.estimate_request
         pid = row.pattern_id
         stop_dist = row.stop_position
-        for bus_dist in row.vehicle_positions:
+        for position_info in row.vehicle_positions:
+            bus_dist = position_info.vehicle_position
             if self.debug:
                 print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
-    EstimateResponse, DetailRequest, CombinedResponseType, CombinedResponse, CombinedOutput
+    EstimateResponse, DetailRequest, CombinedResponseType, CombinedResponse, CombinedOutput, PositionInfo
 from realtime.assembly import NearStopQuery
 from realtime.rtmodel import db_init
 from realtime.queries import QueryManager, TrainQuery
@@ -125,11 +126,14 @@ async def detail(request: DetailRequest):
 
 
 @app.get('/single-estimate/')
-async def single_estimate(pattern_id: int, stop_position: str, vehicle_position: str) -> EstimateResponse:
+async def single_estimate(pattern_id: int, stop_position: str, vehicle_position: str, vehicle_id: Optional[int]) -> EstimateResponse:
     return await qm.get_estimates([StopEstimate(
         pattern_id=pattern_id,
         stop_position=stop_position,
-        vehicle_positions=[vehicle_position]
+        vehicle_positions=[PositionInfo(
+            vehicle_position=vehicle_position,
+            vehicle_id=vehicle_id
+        )],
     )])
 
 

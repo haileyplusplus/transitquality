@@ -103,6 +103,7 @@ const BACKEND_URL = `/api/single-estimate`;
     params.set('pattern_id', item.pattern);
     params.set('stop_position', item.stop_position);
     params.set('vehicle_position', item.vehicle_position);
+    params.set('vehicle_id', item.vehicle);
     const url = `${BACKEND_URL}?${params.toString()}`;
     console.log('fetching: ' + JSON.stringify(item) + " url " + url);
     //transitInfo.value = await (await fetch(url)).json();

@@ -27,10 +27,15 @@ from interfaces import ureg, Q_
 
 
 class EstimateFinder:
-    def __init__(self, redis_client, estimate_request: StopEstimate):
+    def __init__(self, redis_client, estimate_request: StopEstimate,
+                 engine=None, recalculate_positions=False):
         self.redis = redis_client
         self.estimate_request = estimate_request
         self.debug = estimate_request.debug
+        self.recalculate_positions = recalculate_positions
+        self.engine = engine
+        if self.recalculate_positions:
+            assert self.engine is not None
 
     def get_redis_keys(self, pid):
         if pid >= 308500000:
@@ -98,12 +103,38 @@ class EstimateFinder:
     def printable_ts(ts: int):
         return datetime.datetime.fromtimestamp(ts).isoformat()
 
+    def do_recalculate(self):
+        with (Session(self.engine) as session):
+            row = self.estimate_request
+            vehicles = {}
+            for position_info in row.vehicle_positions:
+                #vids.append(position_info.vehicle_id)
+                print(f'Looking for {position_info.vehicle_id}')
+                vehicle = session.get(CurrentVehicleState, position_info.vehicle_id)
+                if vehicle:
+                    print(f'Recalculated: {vehicle.__dict__}')
+                    vehicles[position_info.vehicle_id] = vehicle
+                    #e.distance * ureg.feet
+            return vehicles
+
     def get_single_estimate(self):
         row = self.estimate_request
         pid = row.pattern_id
         stop_dist = row.stop_position
+        vehicles = {}
+        print(f'Get estimate {pid} recalcluate {self.recalculate_positions}')
+        if self.recalculate_positions:
+            vehicles = self.do_recalculate()
+            print(f'vehicles {vehicles}')
         for position_info in row.vehicle_positions:
-            bus_dist = position_info.vehicle_position
+            bus_dist = None
+            timestamp = None
+            if self.recalculate_positions and position_info.vehicle_id in vehicles:
+                recalc = vehicles[position_info.vehicle_id]
+                bus_dist = recalc.distance * ureg.feet
+                timestamp = recalc.last_update
+            if bus_dist is None:
+                bus_dist = position_info.vehicle_position
             if self.debug:
                 print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:
@@ -202,8 +233,12 @@ class EstimateFinder:
             info['estimates'].sort(key=lambda x: x['timestamp'], reverse=True)
             #print(info)
             #yield min(considered), max(considered), info
+            miles = lambda x: f"{x.to('mi').m:0.2f} mi" if x is not None else None
             yield SingleEstimate(
                 vehicle_position=bus_dist,
+                vehicle_position_mi=str(miles(bus_dist)),
+                timestamp=timestamp,
+                vehicle_id=position_info.vehicle_id,
                 low_estimate=datetime.timedelta(seconds=min(considered)),
                 high_estimate=datetime.timedelta(seconds=max(considered)),
                 info=info
@@ -255,7 +290,9 @@ class QueryManager:
                 stop_position=row.stop_position,
                 single_estimates=[]
             )
-            estimate_finder = EstimateFinder(self.redis, row)
+            estimate_finder = EstimateFinder(self.redis, row,
+                                             self.engine,
+                                             recalculate_positions=request.recalculate_positions)
             for single_estimate in estimate_finder.get_single_estimate():
                 response.single_estimates.append(single_estimate)
             rv.patterns.append(response)

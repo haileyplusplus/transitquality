@@ -130,10 +130,14 @@ class StopEstimate(BaseModel):
 
 class StopEstimates(BaseModel):
     estimates: list[StopEstimate]
+    recalculate_positions: bool = False
 
 
 class SingleEstimate(BaseModel):
     vehicle_position: Meters | str
+    vehicle_position_mi: str
+    timestamp: Optional[datetime.datetime]
+    vehicle_id: Optional[int]
     low_estimate: datetime.timedelta
     high_estimate: datetime.timedelta
     info: dict

@@ -127,14 +127,19 @@ async def detail(request: DetailRequest):
 
 @app.get('/single-estimate/')
 async def single_estimate(pattern_id: int, stop_position: str, vehicle_position: str, vehicle_id: Optional[int]) -> EstimateResponse:
-    return await qm.get_estimates(StopEstimates(estimates=[StopEstimate(
-        pattern_id=pattern_id,
-        stop_position=stop_position,
-        vehicle_positions=[PositionInfo(
-            vehicle_position=vehicle_position,
-            vehicle_id=vehicle_id
-        )],
-    )]))
+    return await qm.get_estimates(
+        StopEstimates(
+            estimates=[StopEstimate(
+                        pattern_id=pattern_id,
+                        stop_position=stop_position,
+                        vehicle_positions=[
+                            PositionInfo(
+                                vehicle_position=vehicle_position,
+                                vehicle_id=vehicle_id
+                            )],
+                        )],
+            recalculate_positions=True
+        ))
 
 
 @app.post('/estimates/')

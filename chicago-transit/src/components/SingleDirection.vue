@@ -169,8 +169,8 @@ import { onMounted, ref } from 'vue';
   const router = useRouter();
   import routeColors from '@/assets/route-colors.json'
 
-const currentDirection = ref([]);
-const summaries = ref({});
+const currentDirection = ref(null);
+const summaries = ref(null);
 
 const colorMap = new Map();
 
@@ -226,6 +226,10 @@ onMounted(() => {
       const store = useAppStore();
       currentDirection.value = store.currentDirection;
       summaries.value = store.summaries;
+      if (!currentDirection.value && (localStorage.getItem('currentDirection') !== null)) {
+        currentDirection.value = JSON.parse(localStorage.getItem('currentDirection'));
+        summaries.value = JSON.parse(localStorage.getItem('summaries'));
+      }
       // summaries.value.n.forEach((elem, index, arr) => {
       //   arr[index] = this.routeDisp(elem);
       // });

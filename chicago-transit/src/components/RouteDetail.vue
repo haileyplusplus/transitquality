@@ -65,6 +65,11 @@
             </v-card>
             <v-card>
               <v-card-item>
+                <div class="text-h6 mb-1">
+                  Last update: {{ currentDetail.timestamp }}
+                </div>
+              </v-card-item>
+              <v-card-item>
                 <apexchart
                   width="500"
                   type="bar"
@@ -110,8 +115,14 @@ const BACKEND_URL = `/api/single-estimate`;
     const response = await fetch(url);
     //console.log('raw response: ' + JSON.stringify(response));
     const jd =  await (response).json();
-    const estimates = jd.patterns[0].single_estimates[0].info.estimates;
-    console.log('estimates raw ' + JSON.stringify(estimates));
+    //const estimates = jd.patterns[0].single_estimates[0].info.estimates;
+    const outer = jd.patterns[0].single_estimates[0];
+    currentDetail.value.distance_from_vehicle = outer.distance_to_vehicle_mi;
+    currentDetail.value.total_low_minutes = outer.low_mins;
+    currentDetail.value.total_high_minutes = outer.high_mins;
+    currentDetail.value.timestamp = outer.timestamp;
+    const estimates = outer.info.estimates;
+    console.log('estimates raw ' + JSON.stringify(outer));
     estimateResponse.value = estimates;
     //const estimate = estimates.patterns[0].single_estimates.info;
     //console.log('estimate: ' + estimate)

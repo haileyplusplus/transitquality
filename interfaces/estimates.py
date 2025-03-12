@@ -135,11 +135,13 @@ class StopEstimates(BaseModel):
 
 class SingleEstimate(BaseModel):
     vehicle_position: Meters | str
-    vehicle_position_mi: str
+    distance_to_vehicle_mi: str
     timestamp: Optional[datetime.datetime]
     vehicle_id: Optional[int]
     low_estimate: datetime.timedelta
     high_estimate: datetime.timedelta
+    low_mins: int
+    high_mins: int
     info: dict
 
 

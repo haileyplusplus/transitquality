@@ -231,16 +231,20 @@ class EstimateFinder:
                 if abs(e['raw_estimate_seconds'] - info['mean']) > (4 * stdev):
                     e['display'] = False
             info['estimates'].sort(key=lambda x: x['timestamp'], reverse=True)
-            #print(info)
             #yield min(considered), max(considered), info
             miles = lambda x: f"{x.to('mi').m:0.2f} mi" if x is not None else None
+            low_estimate = datetime.timedelta(seconds=min(considered))
+            high_estimate = datetime.timedelta(seconds=max(considered))
+            distance_to_vehicle = stop_dist - bus_dist
             yield SingleEstimate(
                 vehicle_position=bus_dist,
-                vehicle_position_mi=str(miles(bus_dist)),
+                distance_to_vehicle_mi=str(miles(distance_to_vehicle)),
                 timestamp=timestamp,
                 vehicle_id=position_info.vehicle_id,
-                low_estimate=datetime.timedelta(seconds=min(considered)),
-                high_estimate=datetime.timedelta(seconds=max(considered)),
+                low_estimate=low_estimate,
+                high_estimate=high_estimate,
+                low_mins=round(low_estimate.total_seconds() / 60),
+                high_mins=round(high_estimate.total_seconds() / 60),
                 info=info
             )
 

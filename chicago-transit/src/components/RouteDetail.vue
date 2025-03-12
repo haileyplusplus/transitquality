@@ -52,18 +52,12 @@
         </tr>
         <tr v-if="estimateResponse">
           <td colspan="6">
-            <v-card
-              v-for="item in estimateResponse"
-              :key="item.redis_key"
-              class="buschip"
-            >
+            <v-card>
               <v-card-item>
                 <div class="text-h6 mb-1">
-                  {{ item.timestamp }}: {{ item.travel_time }}min
+                  Vehicle id: {{ currentDetail.vehicle }}
                 </div>
               </v-card-item>
-            </v-card>
-            <v-card>
               <v-card-item>
                 <div class="text-h6 mb-1">
                   Last update: {{ currentDetail.timestamp }}
@@ -120,7 +114,8 @@ const BACKEND_URL = `/api/single-estimate`;
     currentDetail.value.distance_from_vehicle = outer.distance_to_vehicle_mi;
     currentDetail.value.total_low_minutes = outer.low_mins;
     currentDetail.value.total_high_minutes = outer.high_mins;
-    currentDetail.value.timestamp = outer.timestamp;
+    currentDetail.value.timestamp = new Date(outer.timestamp).toLocaleString();
+    currentDetail.value.vehicle = outer.vehicle_id;
     const estimates = outer.info.estimates;
     console.log('estimates raw ' + JSON.stringify(outer));
     estimateResponse.value = estimates;

@@ -15,8 +15,11 @@
         <v-col
           cols="12"
           class="ns"
+          @click="chooseDirection('Northbound')"
         >
-          <span class="innerns">
+          <span
+            class="innerns"
+          >
             <v-card
               v-for="item in summaries.n"
               :key="item"
@@ -37,6 +40,7 @@
         <v-col
           cols="5"
           class="ew"
+          @click="chooseDirection('Eastbound')"
         >
           <span class="innerew">
             <v-card
@@ -55,6 +59,7 @@
         <v-col
           cols="2"
           class="compass"
+          @click="chooseDirection('all')"
         >
           <img
             src="@/assets/compass.png"
@@ -64,6 +69,7 @@
         <v-col
           cols="5"
           class="ew"
+          @click="chooseDirection('Westbound')"
         >
           <span class="innerew">
             <v-card
@@ -84,6 +90,7 @@
         <v-col
           cols="12"
           class="ns"
+          @click="chooseDirection('Southbound')"
         >
           <span class="innerns">
             <v-card
@@ -188,6 +195,18 @@ const colorMap = new Map();
         return obj
       }
 
+    function chooseDirection(dir) {
+      console.log('chose direction: ' + dir);
+      const store = useAppStore();
+      if (dir == 'all') {
+        currentDirection.value = store.currentDirection;
+        return;
+      }
+      currentDirection.value = store.currentDirection.filter((item) => {
+        return item.direction == dir;
+      });
+    }
+
     function routeDisp(route) {
       const routes = {
         brn: 'Br',
@@ -229,6 +248,8 @@ onMounted(() => {
       if (!currentDirection.value && (localStorage.getItem('currentDirection') !== null)) {
         currentDirection.value = JSON.parse(localStorage.getItem('currentDirection'));
         summaries.value = JSON.parse(localStorage.getItem('summaries'));
+        store.currentDirection = currentDirection.value;
+        store.summaries = summaries.value;
       }
       // summaries.value.n.forEach((elem, index, arr) => {
       //   arr[index] = this.routeDisp(elem);

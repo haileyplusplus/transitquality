@@ -27,6 +27,7 @@
             >
               <v-card-item
                 :style="routeColor(item)"
+                @click.stop="chooseRoute(item, 'Northbound')"
               >
                 <div class="text-h6 mb-1">
                   {{ routeDisp(item) }}
@@ -48,7 +49,10 @@
               :key="item"
               class="buschip"
             >
-              <v-card-item :style="routeColor(item)">
+              <v-card-item
+                :style="routeColor(item)"
+                @click.stop="chooseRoute(item, 'Westbound')"
+              >
                 <div class="text-h6 mb-1">
                   {{ routeDisp(item) }}
                 </div>
@@ -77,7 +81,10 @@
               :key="item"
               class="buschip"
             >
-              <v-card-item :style="routeColor(item)">
+              <v-card-item
+                :style="routeColor(item)"
+                @click.stop="chooseRoute(item, 'Eastbound')"
+              >
                 <div class="text-h6 mb-1">
                   {{ routeDisp(item) }}
                 </div>
@@ -98,7 +105,10 @@
               :key="item"
               class="buschip"
             >
-              <v-card-item :style="routeColor(item)">
+              <v-card-item
+                :style="routeColor(item)"
+                @click.stop="chooseRoute(item, 'Southbound')"
+              >
                 <div class="text-h6 mb-1">
                   {{ routeDisp(item) }}
                 </div>
@@ -204,6 +214,14 @@ const colorMap = new Map();
       }
       currentDirection.value = store.currentDirection.filter((item) => {
         return item.direction == dir;
+      });
+    }
+
+    function chooseRoute(rt, dir) {
+      console.log('chose route: ' + JSON.stringify(rt));
+      const store = useAppStore();
+      currentDirection.value = store.currentDirection.filter((item) => {
+        return item.route == rt && item.direction == dir;
       });
     }
 

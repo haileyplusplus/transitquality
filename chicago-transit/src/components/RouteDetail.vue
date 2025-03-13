@@ -64,6 +64,11 @@
                 </div>
               </v-card-item>
               <v-card-item>
+                <div class="text-h6 mb-1">
+                  Recent arrivals at this stop
+                </div>
+              </v-card-item>
+              <v-card-item>
                 <apexchart
                   width="500"
                   type="bar"

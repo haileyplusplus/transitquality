@@ -139,7 +139,8 @@ async def single_estimate(pattern_id: int, stop_position: str, vehicle_position:
                             )],
                         )],
             recalculate_positions=True
-        ))
+        ), schedule_analyzer=sa
+    )
 
 
 @app.post('/estimates/')

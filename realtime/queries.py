@@ -28,14 +28,17 @@ from interfaces import ureg, Q_
 
 class EstimateFinder:
     def __init__(self, redis_client, estimate_request: StopEstimate,
-                 engine=None, recalculate_positions=False):
+                 engine=None, recalculate_positions=False,
+                 schedule_analyzer=None):
         self.redis = redis_client
         self.estimate_request = estimate_request
         self.debug = estimate_request.debug
         self.recalculate_positions = recalculate_positions
         self.engine = engine
+        self.schedule_analyzer = schedule_analyzer
         if self.recalculate_positions:
             assert self.engine is not None
+            assert self.schedule_analyzer is not None
 
     def get_redis_keys(self, pid):
         if pid >= 308500000:
@@ -103,38 +106,81 @@ class EstimateFinder:
     def printable_ts(ts: int):
         return datetime.datetime.fromtimestamp(ts).isoformat()
 
-    def do_recalculate(self):
+    def do_recalculate(self, mode):
         with (Session(self.engine) as session):
             row = self.estimate_request
             vehicles = {}
             for position_info in row.vehicle_positions:
                 #vids.append(position_info.vehicle_id)
                 print(f'Looking for {position_info.vehicle_id}')
-                vehicle = session.get(CurrentVehicleState, position_info.vehicle_id)
+                if mode == mode.TRAIN:
+                    vehicle = session.get(CurrentTrainState, position_info.vehicle_id)
+                else:
+                    vehicle = session.get(CurrentVehicleState, position_info.vehicle_id)
                 if vehicle:
                     print(f'Recalculated: {vehicle.__dict__}')
                     vehicles[position_info.vehicle_id] = vehicle
                     #e.distance * ureg.feet
             return vehicles
 
+    def get_train_distance(self, session, stop_pattern_distance, pid, train):
+        shape_manager: ShapeManager = self.schedule_analyzer.managed_shapes.get(pid)
+        stmt = (select(PatternStop).where(PatternStop.pattern_id == int(pid)).
+                where(PatternStop.stop_id == int(train.next_stop)))
+        try:
+            pattern_stop = session.scalar(stmt)
+        except sqlalchemy.exc.NoResultFound as e:
+            pattern_stop = None
+        if pattern_stop is None:
+            print(f'Could not find pattern stop {pid} {train.rt} {train.id}')
+            return None
+        next_train_pattern_distance = pattern_stop.distance
+        # print(train.geom, type(train.geom))
+        # The ORM would do this for us automatically, but we have a manual query here
+        #train_wkb = geoalchemy2.elements.WKBElement(train.geom)
+        train_wkb = train.geom
+        train_point = to_shape(train_wkb)
+        # train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
+        _, train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point, False)
+        train_dist_m = train_dist * ureg.meters
+        print(f'Got train distance: {train_dist_m} stop pattern {stop_pattern_distance}')
+        if train_dist_m > stop_pattern_distance:
+            return None
+        #dist_from_train = stop_pattern_distance - train_dist_m
+        #print(f' Distance from train: {dist_from_train}')
+        return train_dist_m
+
     def get_single_estimate(self):
         row = self.estimate_request
         pid = row.pattern_id
         stop_dist = row.stop_position
         vehicles = {}
+        if pid >= 300000000:
+            mode = Mode.TRAIN
+        else:
+            mode = Mode.BUS
         print(f'Get estimate {pid} recalcluate {self.recalculate_positions}')
         if self.recalculate_positions:
-            vehicles = self.do_recalculate()
+            vehicles = self.do_recalculate(mode)
             print(f'vehicles {vehicles}')
         for position_info in row.vehicle_positions:
             bus_dist = None
             timestamp = None
+            # bus dist is position, not delta
             if self.recalculate_positions and position_info.vehicle_id in vehicles:
                 recalc = vehicles[position_info.vehicle_id]
-                bus_dist = recalc.distance * ureg.feet
+                if mode == mode.TRAIN:
+                    print(f'got train: {recalc.__dict__}')
+                    with Session(self.engine) as session:
+                        bus_dist = self.get_train_distance(session,
+                                                           stop_dist, pid, recalc)
+                else:
+                    bus_dist = recalc.distance * ureg.feet
                 timestamp = recalc.last_update
+            print(f'Using bus dist {bus_dist}')
             if bus_dist is None:
                 bus_dist = position_info.vehicle_position
+                print(f'Bus dist fallback to {bus_dist}')
             if self.debug:
                 print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:
@@ -285,7 +331,8 @@ class QueryManager:
         for p in patterns:
             self.patterns[p['pattern_id']] = p
 
-    async def get_estimates(self, request: StopEstimates) -> EstimateResponse:
+    async def get_estimates(self, request: StopEstimates,
+                            schedule_analyzer=None) -> EstimateResponse:
         rv = EstimateResponse(patterns=[])
         rows = request.estimates
         for row in rows:
@@ -296,7 +343,8 @@ class QueryManager:
             )
             estimate_finder = EstimateFinder(self.redis, row,
                                              self.engine,
-                                             recalculate_positions=request.recalculate_positions)
+                                             recalculate_positions=request.recalculate_positions,
+                                             schedule_analyzer=schedule_analyzer)
             for single_estimate in estimate_finder.get_single_estimate():
                 response.single_estimates.append(single_estimate)
             rv.patterns.append(response)

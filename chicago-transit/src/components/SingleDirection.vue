@@ -209,12 +209,19 @@ const colorMap = new Map();
       console.log('chose direction: ' + dir);
       const store = useAppStore();
       if (dir == 'all') {
+        store.directionFilter = null;
         currentDirection.value = store.currentDirection;
         return;
       }
       currentDirection.value = store.currentDirection.filter((item) => {
         return item.direction == dir;
       });
+      store.directionFilter = dir;
+      store.routeFilter = null;
+      localStorage.setItem('filters', JSON.stringify({
+        directionFilter: store.directionFilter,
+        routeFilter: store.routeFilter
+      }));
     }
 
     function chooseRoute(rt, dir) {
@@ -223,6 +230,12 @@ const colorMap = new Map();
       currentDirection.value = store.currentDirection.filter((item) => {
         return item.route == rt && item.direction == dir;
       });
+      store.routeFilter = rt;
+      store.directionFilter = dir;
+      localStorage.setItem('filters', JSON.stringify({
+        directionFilter: store.directionFilter,
+        routeFilter: store.routeFilter
+      }));
     }
 
     function routeDisp(route) {
@@ -237,7 +250,7 @@ const colorMap = new Map();
         org: 'O'
       };
       const rv = routes[route];
-      console.log('route ' + route + ' is ' + rv);
+      //console.log('route ' + route + ' is ' + rv);
       if (!rv) {
         return route;
       }
@@ -274,6 +287,18 @@ onMounted(() => {
       // });
       console.log('current direction (single): ' + currentDirection.value);
       console.log('displaying ' + JSON.stringify(store.summaries));
+
+      const filters = JSON.parse(localStorage.getItem('filters', '{}'));
+      if (filters) {
+        console.log('store df ' + filters.directionFilter);
+        if (filters.directionFilter) {
+          if (filters.routeFilter) {
+            chooseRoute(filters.routeFilter, filters.directionFilter);
+          } else {
+            chooseDirection(filters.directionFilter);
+          }
+        }
+      }
 
       const testData = [{
         "pattern": 6414,

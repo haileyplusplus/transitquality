@@ -36,7 +36,8 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     'http://localhost:3000',
     'http://businfo:3000',
-    'http://businfo-1:3000'
+    'http://businfo-1:3000',
+    'https://businfo.guineafowl-cloud.ts.net:8501',
 ]
 
 app.add_middleware(CORSMiddleware,

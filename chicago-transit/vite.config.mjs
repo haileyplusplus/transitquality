@@ -66,7 +66,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://businfo:8500',
+        target: 'https://businfo.guineafowl-cloud.ts.net:8501',
         changeOrigin: true,
         headers: {'Content-Type': 'application/json'},
         rewrite: (path) => path.replace(/^\/api/, ''),

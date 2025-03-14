@@ -2,6 +2,9 @@
   "TCP": {
     "443": {
       "HTTPS": true
+    },
+    "8501": {
+      "HTTPS": true
     }
   },
   "Web": {
@@ -11,22 +14,11 @@
           "Proxy": "http://127.0.0.1:3000"
         }
       }
-    }
-  },
-  "Foreground": {
-    "63ef7473e50b3696": {
-      "TCP": {
-        "3001": {
-          "HTTPS": true
-        }
-      },
-      "Web": {
-        "businfo.guineafowl-cloud.ts.net:8501": {
-          "Handlers": {
-            "/": {
-              "Proxy": "http://127.0.0.1:8500"
-            }
-          }
+    },
+    "businfo.guineafowl-cloud.ts.net:8501": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:8500"
         }
       }
     }

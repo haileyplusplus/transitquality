@@ -37,7 +37,7 @@ origins = [
     'http://localhost:3000',
     'http://businfo:3000',
     'http://businfo-1:3000',
-    'https://businfo.guineafowl-cloud.ts.net:8501',
+    'https://businfo.guineafowl-cloud.ts.net',
 ]
 
 app.add_middleware(CORSMiddleware,

@@ -141,7 +141,7 @@
                 {{ item.destination_stop_name }}
               </td>
             </tr>
-            <tr>
+            <tr @click="itemDetail(item)">
               <td rowspan="2">
                 <img
                   src="@/assets/woman.png"
@@ -163,7 +163,7 @@
               </td>
               <td>{{ item.distance_from_vehicle }} away</td>
             </tr>
-            <tr>
+            <tr @click="itemDetail(item)">
               <td>{{ item.walk_time_minutes }} min</td>
               <td>{{ item.total_low_minutes }} - {{ item.total_high_minutes }} min</td>
             </tr>

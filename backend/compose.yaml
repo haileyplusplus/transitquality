@@ -76,18 +76,6 @@ services:
        interval: 10s
        timeout: 5s
        retries: 5
-#  datadog:
-#    build: datadog
-#    pid: host
-#    environment:
-#      - DD_API_KEY_FILE=/run/secrets/datadog_api_key
-#      - DD_SITE=datadoghq.com
-#    volumes:
-#      - /var/run/docker.sock:/var/run/docker.sock
-#      - /proc/:/host/proc/:ro
-#      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
-#    secrets:
-#      - datadog_api_key
   beszel-agent:
     image: "henrygd/beszel-agent"
     container_name: "beszel-agent"
@@ -110,5 +98,3 @@ secrets:
    file: ~/.config/cta/bus_api_key
  train_api_key:
    file: ~/.config/cta/train_api_key
- datadog_api_key:
-   file: ~/tscontrol/secrets/datadog_api_key

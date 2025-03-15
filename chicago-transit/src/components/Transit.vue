@@ -41,6 +41,7 @@
       </table>
     </div>
   </v-main>
+  <AppFooter />
 </template>
 
 <script setup>
@@ -48,6 +49,8 @@
   import { useAppStore } from '@/stores/app';
   import { onBeforeMount, ref } from 'vue'
   import { useRouter } from 'vue-router';
+
+  import AppFooter from "./AppFooter.vue";
   //import { useGeolocation } from '@vueuse/core'
 
   const router = useRouter();

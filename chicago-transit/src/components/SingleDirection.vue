@@ -178,6 +178,7 @@
       </table>
     </div>
   </v-main>
+  <AppFooter />
 </template>
 
 <script setup>
@@ -188,6 +189,8 @@
 import { onMounted, ref } from 'vue';
   import { useAppStore } from '@/stores/app';
   import { useRouter } from 'vue-router';
+
+import AppFooter from './AppFooter.vue';
 
   const router = useRouter();
   import routeColors from '@/assets/route-colors.json'

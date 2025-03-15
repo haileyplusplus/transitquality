@@ -87,6 +87,7 @@
       </tbody>
     </table>
   </v-main>
+  <AppFooter />
 </template>
 
 
@@ -95,6 +96,8 @@
   import { onMounted, ref } from 'vue';
   import { useAppStore } from '@/stores/app';
   //import VueApexCharts from 'vue-apexcharts'
+
+  import AppFooter from './AppFooter.vue';
 
 const currentDetail = ref(null);
 const estimateResponse = ref(null);

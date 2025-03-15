@@ -33,12 +33,10 @@ services:
       - POSTGRES_SERVER=db
       - POSTGRES_USER=postgres
       - POSTGRES_DB=busscrapestate
-      - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
+      - POSTGRES_PASSWORD=mypostgrespassword
     secrets:
-      - db-password
       - bus_api_key
       - train_api_key
-      #- cloud-credentials
     develop:
       watch:
         - action: rebuild
@@ -59,8 +57,6 @@ services:
      image: postgres
      restart: always
      user: postgres
-     secrets:
-       - db-password
      volumes:
        - db-data:/var/lib/postgresql/data
      #networks:
@@ -68,7 +64,7 @@ services:
      environment:
        - POSTGRES_SERVER=db
        - POSTGRES_DB=busscrapestate
-       - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
+       - POSTGRES_PASSWORD=mypostgrespassword
      ports:
        - 5432:5432
      healthcheck:
@@ -92,8 +88,6 @@ volumes:
  transit-data:
  db-data:
 secrets:
- db-password:
-   file: ../db/password.txt
  bus_api_key:
    file: ~/.config/cta/bus_api_key
  train_api_key:

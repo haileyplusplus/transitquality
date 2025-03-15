@@ -120,6 +120,12 @@
 
       <table style="max-width: 500px;">
         <tbody>
+          <tr style="height: 20px;">
+            <td />
+          </tr>
+          <tr v-if="currentDirection.length == 0">
+            <td><b>{{ getFilterInfo() }}</b></td>
+          </tr>
           <template
             v-for="item in currentDirection"
             :key="item.pattern + '-' + item.vehicle"
@@ -264,6 +270,20 @@ const colorMap = new Map();
       store.currentDetail = item;
       localStorage.setItem('currentDetail', JSON.stringify(store.currentDetail));
       router.push('/detail');
+    }
+
+    function getFilterInfo() {
+      const filters = JSON.parse(localStorage.getItem('filters', '{}'));
+      if (filters) {
+        console.log('store df ' + filters.directionFilter);
+        if (filters.directionFilter) {
+          if (filters.routeFilter) {
+            return 'No information currently available for ' + filters.directionFilter + ' ' + filters.routeFilter;
+          }
+          return 'No information currently available for ' + filters.directionFilter + ' routes';
+        }
+        return 'No information currently available for these routes';
+       }
     }
 
 onMounted(() => {

@@ -27,7 +27,7 @@ import os
 
 from backend.util import Util
 
-from bundler.schedule_manager import ScheduleManager
+from schedules.schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__file__)
 

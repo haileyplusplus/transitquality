@@ -19,8 +19,6 @@ class RunState(IntEnum):
     STOPPED = 4
 
 
-# move rate limiting out of bowels of make_request and into scrape_one
-# that should make async run easier
 class Runner:
     def __init__(self, scraper: ScraperInterface):
         self.polling_task = None
@@ -35,14 +33,12 @@ class Runner:
 
     def handle_shutdown(self):
         logger.info(f'Gracefully handling shutdown.')
-        #self.scraper.requestor.bundler.output()
         self.scraper.do_shutdown()
 
     def status(self):
         with self.mutex:
             state = self.state
         running = (state == RunState.RUNNING or state == RunState.IDLE)
-        #write_local = self.scraper.requestor.write_local
         write_local = self.scraper.get_write_local()
         return {'running': running, 'state': state.name, 'write_local': write_local,
                 'name': self.scraper.get_name(),
@@ -50,7 +46,6 @@ class Runner:
 
     def exithandler(self, *args):
         logging.info(f'Shutdown requested: {args}')
-        #asyncio.run(self.stop())
         self.stop()
 
     def syncstart(self):
@@ -93,8 +88,6 @@ class Runner:
                     logging.info(f'Polling cancelled 2 {self.state}')
                     break
                 self.state = RunState.IDLE
-            #logging.info(f'Iteration done')
-        #self.state = RunState.SHUTDOWN
         logging.info(f'Recorded shutdown')
 
     async def start(self):
@@ -113,15 +106,9 @@ class Runner:
             self.state = RunState.SHUTDOWN_REQUESTED
         if not was_running:
             self.polling_task.cancel()
-        # if self.polling_task:
-        #     #self.requestor.cancel()
-        #     self.polling_task.cancel()
-        # self.state = RunState.SHUTDOWN_REQUESTED
-        # self.polling_task.cancel()
 
     async def run_until_done(self):
         async with asyncio.TaskGroup() as task_group:
-            #await self.polling_task
             self.polling_task = task_group.create_task(self.loop())
         self.handle_shutdown()
         logging.info(f'Task group done')

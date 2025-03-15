@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 
-import argparse
-import os
 import datetime
 import logging
 from pathlib import Path
-import json
-import time
 
 import requests
 
@@ -16,11 +12,6 @@ from backend.util import Util
 from backend.requestor import Requestor
 
 logger = logging.getLogger(__file__)
-
-
-"""
-{"ctatt":{"tmst":"2024-12-31T17:26:15","TimeStamp":"2024-12-31T17:26:15","errCd":"106","errNm":"Invalid route identifier: 'bxn'"}}
-"""
 
 
 class TrainParser(ParserInterface):
@@ -107,8 +98,6 @@ class TrainScraper(ScraperInterface):
         self.callback = callback
         self.night = False
         logger.info('Train scraper')
-        #self.locations_url = f'https://lapi.transitchicago.com/api/1.0/ttpositions.aspx?key={self.api_key}&rt=Red,Blue,Brn,G,Org,P,Pink,Y&outputType=JSON'
-        #self.initialize_logging()
 
     def get_requestor(self):
         return self.requestor
@@ -138,17 +127,6 @@ class TrainScraper(ScraperInterface):
                             datefmt='%Y%m%d %H:%S',
                             level=logging.INFO)
 
-    def check_interval(self):
-        hour = datetime.datetime.now().hour
-        if hour <= 4:
-            if not self.night:
-                self.night = True
-                logging.info(f'Entering night mode.')
-                return
-        if self.night:
-            self.night = False
-            logging.info(f'Exiting night mode.')
-
     def get_scrape_interval(self):
         if self.night:
             return datetime.timedelta(minutes=5)
@@ -161,12 +139,8 @@ class TrainScraper(ScraperInterface):
         cmd = 'ttpositions.aspx'
         # response doesn't affect scraping logic but we do want to publish it to
         # any subscribers
-        #response = (
         self.requestor.make_request(
             cmd, rt='Red,Blue,Brn,G,Org,P,Pink,Y', outputType='JSON', noformat=1)
-        #if self.callback and response.ok():
-        #    d = response.payload()
-        #    self.callback(d)
         for mapid in self.TERMINAL_STATIONS:
             self.requestor.make_request(
                 'ttarrivals.aspx',

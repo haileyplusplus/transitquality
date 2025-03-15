@@ -1,30 +1,19 @@
 #!/usr/bin/env python3
 
-import argparse
 import os
 import datetime
 import logging
 from pathlib import Path
-from enum import IntEnum
-import json
-import time
-import pytz
 import sys
-import signal
 from typing import Iterable, Tuple
 from abc import ABC, abstractmethod
-import asyncio
-import threading
 
 import requests
 
 from backend.scrapemodels import Route, Pattern, Count, ErrorMessage, db_initialize, Stop
 from backend.util import Util
-from backend.s3client import S3Client
 from backend.scraper_interface import ScraperInterface, ScrapeState, ResponseWrapper, ParserInterface
 from backend.requestor import Requestor
-
-# import pandas as pd
 
 
 logger = logging.getLogger(__file__)
@@ -33,13 +22,6 @@ logger = logging.getLogger(__file__)
 class BusParser(ParserInterface):
     COMMAND_RESPONSE_SCHEMA = {
         'gettime': ('tm', str),
-        # 'getvehicles': ('vehicle', list[dict[str, str | int | bool]]),
-        # 'getvehicles': ('vehicle', list[dict]),
-        # 'getroutes': ('routes', list[dict[str, str]]),
-        # 'getpatterns': ('ptr', list[dict]),
-        # 'getstops': ('stops', list[dict]),
-        # 'getdirections': ('directions', list[dict]),
-        # 'getpredictions': ('prd', list[dict]),
         'getvehicles': ('vehicle', list),
         'getroutes': ('routes', list),
         'getpatterns': ('ptr', list),
@@ -256,7 +238,6 @@ class VehicleTask(ScrapeTask):
         for p in pattern_ids:
             rt, pid = p
             pattern = Pattern.get_or_none(Pattern.pattern_id == pid)
-            #if not Pattern.select().where(Pattern.pattern_id == pid).exists():
             if pattern is None:
                 rtm = self.model_dict.get(rt)
                 if rtm is None:
@@ -386,19 +367,12 @@ class Routes:
                   .order_by(Route.last_scrape_attempt).limit(10))
         if not routes.exists():
             return None
-        #print(type(routes))
         scrapetime = Util.utcnow()
         models = [r for r in routes]
-        #print(type(models[-1]))
-        #print(models[-1].last_scrape_attempt)
-        #print(type(models[-1].last_scrape_attempt))
         if models[-1].last_scrape_attempt is not None:
             latest_scrape = Util.read_datetime(models[-1].last_scrape_attempt)
             if latest_scrape + scrape_interval > scrapetime:
                 return None
-        #for r in models:
-        #    r.scrape_state = ScrapeState.PENDING
-        #    r.save()
         return VehicleTask(models=routes, callback=self.callback)
 
     def choose_predictions(self, scrape_interval):
@@ -440,7 +414,6 @@ class BusScraper(ScraperInterface):
         self.routes = Routes(self.requestor, callback=None)
         self.count = 0
         self.scrape_predictions = scrape_predictions
-        #self.routes.initialize(fetch_routes)
         self.fetch_routes = fetch_routes
         self.seen_days: set[str] = set([])
 
@@ -511,7 +484,6 @@ class BusScraper(ScraperInterface):
                                         (Pattern.timestamp < pattern_thresh)).
                                   limit(1))
             if patterns_to_scrape.exists():
-                #self.consecutive_patterns += 1
                 scrapetask = PatternTask(patterns_to_scrape)
                 scrapetask.scrape(self.requestor)
                 self.last_scraped = Util.utcnow()

@@ -28,8 +28,6 @@ services:
 # to set the database password. You must create `db/password.txt` and add
 # a password of your choosing to it before running `docker compose up`.
     environment:
-      - TRACKERWRITE=$TRACKERWRITE
-      - BUCKET=$BUCKET
       - POSTGRES_SERVER=db
       - POSTGRES_USER=postgres
       - POSTGRES_DB=busscrapestate

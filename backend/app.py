@@ -8,8 +8,6 @@ from pathlib import Path
 import datetime
 import logging
 import json
-import sys
-import faulthandler
 
 
 import redis.asyncio as redis
@@ -31,23 +29,8 @@ from schedules.schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__file__)
 
-# don't log every message the subscriber sends
-logging.getLogger('PubSubServer').setLevel(logging.WARNING)
 
 LOCALDIR = Path(__file__).parent.parent
-
-faulthandler.enable()
-
-db_initialize()
-outdir = Path('/transit/scraping/bustracker')
-tracker_env = os.getenv('TRACKERWRITE')
-if tracker_env == 's3':
-    write_local = False
-elif tracker_env == 'local':
-    write_local = True
-else:
-    print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
-    write_local = False
 
 
 class SubscriptionManager:
@@ -65,24 +48,49 @@ class SubscriptionManager:
         ))
 
 
-subscription_manager = SubscriptionManager()
+class Settings(BaseSettings):
+    # TODO: put bucket settings here
+    model_config = SettingsConfigDict(secrets_dir='/run/secrets')
+    bus_api_key: str
+    train_api_key: str
 
 
-bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
-                         fetch_routes=False, write_local=write_local,
-                         callback=subscription_manager.common_callback)
-bus_runner = Runner(bus_scraper)
-train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60),
-                             write_local=write_local, callback=subscription_manager.common_callback)
-train_runner = Runner(train_scraper)
+class ScraperManager:
+    START_TIME = datetime.datetime.now(datetime.UTC)
 
-START_TIME = datetime.datetime.now(datetime.UTC)
+    def __init__(self):
+        db_initialize()
+        outdir = Path('/transit/scraping/bustracker')
+        tracker_env = os.getenv('TRACKERWRITE')
+        if tracker_env == 's3':
+            write_local = False
+        elif tracker_env == 'local':
+            write_local = True
+        else:
+            print(f'Unexpected value for TRACKERWRITE env var: {tracker_env}')
+            write_local = False
+        self.subscription_manager = SubscriptionManager()
+        self.bus_scraper = BusScraper(outdir, datetime.timedelta(seconds=60), debug=False,
+                                 fetch_routes=False, write_local=write_local,
+                                 callback=self.subscription_manager.common_callback)
+        self.bus_runner = Runner(self.bus_scraper)
+        self.train_scraper = TrainScraper(outdir, datetime.timedelta(seconds=60),
+                                     write_local=write_local, callback=self.subscription_manager.common_callback)
+        self.train_runner = Runner(self.train_scraper)
+        s = Settings()
+        self.bus_scraper.set_api_key(s.bus_api_key)
+        self.train_scraper.set_api_key(s.train_api_key)
+
+
+scraper_manager = ScraperManager()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f'App starting up')
     print('App starting up in lifespan')
+    bus_runner = scraper_manager.bus_runner
+    train_runner = scraper_manager.train_runner
     bus_runner.syncstart()
     bus_task = asyncio.create_task(bus_runner.loop())
     train_runner.syncstart()
@@ -98,23 +106,7 @@ async def lifespan(app: FastAPI):
     print('Tasks stopped')
 
 
-class Settings(BaseSettings):
-    # TODO: put bucket settings here
-    model_config = SettingsConfigDict(secrets_dir='/run/secrets')
-    bus_api_key: str
-    train_api_key: str
-
-
 app = FastAPI(lifespan=lifespan)
-
-
-def apply_settings():
-    s = Settings()
-    bus_scraper.set_api_key(s.bus_api_key)
-    train_scraper.set_api_key(s.train_api_key)
-
-
-apply_settings()
 
 
 def sshelper(d: dict):
@@ -179,16 +171,16 @@ def status():
     else:
         git = {}
     d['build'] = git
-    d['started'] = START_TIME.isoformat()
-    for x in {bus_runner, train_runner}:
+    d['started'] = ScraperManager.START_TIME.isoformat()
+    for x in {scraper_manager.bus_runner, scraper_manager.train_runner}:
         d[x.scraper.get_name()] = x.status()
     return d
 
 
 @app.get('/stop')
 def stop():
-    bus_runner.syncstop()
-    train_runner.syncstop()
+    scraper_manager.bus_runner.syncstop()
+    scraper_manager.train_runner.syncstop()
     return {'result': 'success'}
 
 
@@ -200,27 +192,27 @@ def tests3(testarg: str):
 
 @app.get('/loghead')
 def loghead():
-    v = bus_scraper.requestor.readlog(tail=False)
+    v = scraper_manager.bus_scraper.requestor.readlog(tail=False)
     return {'log_contents': v}
 
 
 @app.get('/logtail')
 def logtail():
-    v = bus_scraper.requestor.readlog(tail=True)
+    v = scraper_manager.bus_scraper.requestor.readlog(tail=True)
     return {'log_contents': v}
 
 
 @app.get('/bus-bundle')
 def bus_bundle():
     request_time = Util.utcnow()
-    return {'bus_bundle': bus_scraper.get_bundle(),
+    return {'bus_bundle': scraper_manager.bus_scraper.get_bundle(),
             'request_time': request_time.isoformat()}
 
 
 @app.get('/train-bundle')
 def train_bundle():
     request_time = Util.utcnow()
-    return {'train_bundle': train_scraper.get_bundle(),
+    return {'train_bundle': scraper_manager.train_scraper.get_bundle(),
             'request_time': request_time.isoformat()}
 
 

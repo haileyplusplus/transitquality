@@ -1,6 +1,6 @@
 <template>
   <v-app-bar>
-    <div>Transit</div>
+    <div>Chicago Transit</div>
   </v-app-bar>
   <v-main
     class="d-flex align-center justify-center"

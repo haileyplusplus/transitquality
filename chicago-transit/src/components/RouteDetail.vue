@@ -1,4 +1,9 @@
 <template>
+  <v-app-bar>
+    <div style="align-items: center; display: flex">
+      <a href="/">Home</a>
+    </div>
+  </v-app-bar>
   <v-main
     class="d-flex align-center justify-center"
     style="min-height: 300px"

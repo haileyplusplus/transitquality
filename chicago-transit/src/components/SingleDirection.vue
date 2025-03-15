@@ -1,7 +1,7 @@
 <template>
   <v-app-bar>
     <div style="align-items: center; display: flex">
-      Transit Single Direction
+      <a href="/">Home</a>
     </div>
   </v-app-bar>
   <v-main

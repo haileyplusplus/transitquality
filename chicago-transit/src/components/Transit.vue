@@ -8,7 +8,7 @@
   >
     <div>
       <button @click="goToSingleDirection">
-        Single direction
+        <b>Choose an origin</b>
       </button>
       <v-list @click:select="listSelected">
         <v-list-item
@@ -43,49 +43,17 @@
   </v-main>
 </template>
 
-<script>
+<script setup>
   import landmarks from "@/assets/landmarks.json"
   import { useAppStore } from '@/stores/app';
-
-  export const currentDirection = ref([]);
-  const searchLocation = ref({lat: null, lon: null})
-
-  export default {
-    data() {
-      return {
-        landmarks: landmarks
-      }
-    },
-    beforeMount() {
-      console.log('mounting transit');
-      console.log('current direction: ' + currentDirection.value);
-      function setPosition(position) {
-        searchLocation.value = {
-          lat: position.coords.latitude,
-          lon: position.coords.longitude
-        }
-        console.log('set location: ' + JSON.stringify(searchLocation.value))
-      }
-
-      if (navigator.geolocation) {
-        console.log('setting geolocation')
-        navigator.geolocation.getCurrentPosition(setPosition);
-      }
-    },
-    methods: {
-      goToSingleDirection() {
-        this.$router.push('/single-direction');
-      }
-    }
-  }
-</script>
-
-<script setup>
-  import { ref } from 'vue'
+  import { onBeforeMount, ref } from 'vue'
   import { useRouter } from 'vue-router';
   //import { useGeolocation } from '@vueuse/core'
 
   const router = useRouter();
+  //export
+  const currentDirection = ref([]);
+  const searchLocation = ref({lat: null, lon: null})
 
   const BACKEND_URL = `/api/combined-estimate`;
   const transitInfo = ref({})
@@ -103,6 +71,26 @@
     return Array.from(rv);
   }
 
+  function goToSingleDirection() {
+      router.push('/single-direction');
+  }
+
+  onBeforeMount(() => {
+    console.log('mounting transit');
+    console.log('current direction: ' + currentDirection.value);
+    function setPosition(position) {
+      searchLocation.value = {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+      }
+      console.log('set location: ' + JSON.stringify(searchLocation.value))
+    }
+
+    if (navigator.geolocation) {
+      console.log('setting geolocation')
+      navigator.geolocation.getCurrentPosition(setPosition);
+    }
+  });
 
   // function errCallback(e) {
   //   console.log('error getting position: ' + e)

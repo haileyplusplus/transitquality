@@ -141,6 +141,7 @@
 
     backendFetch(searchLocation.value.lat, searchLocation.value.lon).then(
         () => {
+          localStorage.clear();
           console.log('fetched');
           if ('response' in transitInfo.value) {
             const store = useAppStore();

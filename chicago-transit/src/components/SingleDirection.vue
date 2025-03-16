@@ -194,6 +194,8 @@ import AppBar from './AppBar.vue';
 
 const currentDirection = ref(null);
 const summaries = ref(null);
+const searchLocation = ref({lat: null, lon: null})
+const transitInfo = ref({})
 
 const colorMap = new Map();
 
@@ -286,14 +288,18 @@ const colorMap = new Map();
        }
     }
 
-onMounted(() => {
-  routeColors.colors.forEach((elem) => {
-        colorMap.set(elem.route.toLowerCase(), elem);
-        //delete elem.route;
-      });
 
-  console.log('mounting single direction: ' + new Date());
-      const store = useAppStore();
+  function getRoutes(items) {
+    var rv = new Set([]);
+    items.forEach((elem) => {
+      rv.add(elem.route);
+    });
+    return Array.from(rv);
+  }
+
+  function showLatestFetched() {
+    const store = useAppStore();
+    console.log('mounting single direction: ' + new Date());
       currentDirection.value = store.currentDirection;
       summaries.value = store.summaries;
       if (!currentDirection.value && (localStorage.getItem('currentDirection') !== null)) {
@@ -319,6 +325,71 @@ onMounted(() => {
           }
         }
       }
+  }
+
+onMounted(() => {
+  const store = useAppStore();
+
+  routeColors.colors.forEach((elem) => {
+        colorMap.set(elem.route.toLowerCase(), elem);
+        //delete elem.route;
+      });
+
+
+
+      const BACKEND_URL = `/api/combined-estimate`;
+
+    async function backendFetch(lat, lon) {
+      const url = `${BACKEND_URL}?lat=${lat}&lon=${lon}`;
+      transitInfo.value = await (await fetch(url)).json();
+    }
+
+    if (store.searchLocation) {
+      console.log('using pinia search location');
+      searchLocation.value = store.searchLocation;
+    } else {
+      console.log('using localstorage search location');
+      const stored = localStorage.getItem('searchLocation');
+      if (!stored) {
+        console.log('No location; redirecting');
+        router.push('/');
+      }
+      searchLocation.value = JSON.parse(stored);
+    }
+
+    backendFetch(searchLocation.value.lat, searchLocation.value.lon).then(
+        () => {
+          console.log('fetched');
+          if ('response' in transitInfo.value) {
+            const store = useAppStore();
+            var dirs = [];
+            if ('Northbound' in transitInfo.value.response) {
+              store.currentDirection = transitInfo.value.response.Northbound;
+              dirs.push(...transitInfo.value.response.Northbound);
+              store.summaries.n = getRoutes(transitInfo.value.response.Northbound);
+            }
+            if ('Westbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Westbound);
+              store.summaries.w = getRoutes(transitInfo.value.response.Westbound);
+            }
+            if ('Eastbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Eastbound);
+              store.summaries.e = getRoutes(transitInfo.value.response.Eastbound);
+            }
+            if ('Southbound' in transitInfo.value.response) {
+              dirs.push(...transitInfo.value.response.Southbound);
+              store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
+            }
+            store.currentDirection = dirs.filter((elem) => elem.display);
+            if (store.currentDirection !== null) {
+              localStorage.setItem('summaries', JSON.stringify(store.summaries));
+              localStorage.setItem('currentDirection', JSON.stringify(store.currentDirection));
+            }
+          }
+          showLatestFetched();
+        }
+      );
+
 })
 
 </script>

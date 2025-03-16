@@ -54,22 +54,7 @@
   const router = useRouter();
   const currentDirection = ref([]);
   const searchLocation = ref({lat: null, lon: null})
-
-  const BACKEND_URL = `/api/combined-estimate`;
   const transitInfo = ref({})
-
-  async function backendFetch(lat, lon) {
-    const url = `${BACKEND_URL}?lat=${lat}&lon=${lon}`;
-    transitInfo.value = await (await fetch(url)).json();
-  }
-
-  function getRoutes(items) {
-    var rv = new Set([]);
-    items.forEach((elem) => {
-      rv.add(elem.route);
-    });
-    return Array.from(rv);
-  }
 
   function goToSingleDirection() {
       router.push('/single-direction');
@@ -110,38 +95,10 @@
         searchLocation.value.lon = event.id.lon;
     }
 
-    backendFetch(searchLocation.value.lat, searchLocation.value.lon).then(
-        () => {
-          localStorage.clear();
-          console.log('fetched');
-          if ('response' in transitInfo.value) {
-            const store = useAppStore();
-            var dirs = [];
-            if ('Northbound' in transitInfo.value.response) {
-              store.currentDirection = transitInfo.value.response.Northbound;
-              dirs.push(...transitInfo.value.response.Northbound);
-              store.summaries.n = getRoutes(transitInfo.value.response.Northbound);
-            }
-            if ('Westbound' in transitInfo.value.response) {
-              dirs.push(...transitInfo.value.response.Westbound);
-              store.summaries.w = getRoutes(transitInfo.value.response.Westbound);
-            }
-            if ('Eastbound' in transitInfo.value.response) {
-              dirs.push(...transitInfo.value.response.Eastbound);
-              store.summaries.e = getRoutes(transitInfo.value.response.Eastbound);
-            }
-            if ('Southbound' in transitInfo.value.response) {
-              dirs.push(...transitInfo.value.response.Southbound);
-              store.summaries.s = getRoutes(transitInfo.value.response.Southbound)
-            }
-            store.currentDirection = dirs.filter((elem) => elem.display);
-            if (store.currentDirection !== null) {
-              localStorage.setItem('summaries', JSON.stringify(store.summaries));
-              localStorage.setItem('currentDirection', JSON.stringify(store.currentDirection));
-            }
-          }
-          router.push('/single-direction');
-        }
-      );
+    localStorage.clear();
+    localStorage.setItem('searchLocation', JSON.stringify(searchLocation.value));
+    const store = useAppStore();
+    store.searchLocation = searchLocation;
+    router.push('/single-direction');
   }
 </script>

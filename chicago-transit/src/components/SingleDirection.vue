@@ -126,7 +126,10 @@
             v-for="item in currentDirection"
             :key="item.pattern + '-' + item.vehicle"
           >
-            <tr @click="itemDetail(item)">
+            <tr
+              :style="routeStyle(item)"
+              @click="itemDetail(item)"
+            >
               <td
                 rowspan="3"
                 :style="routeColor(item.route)"
@@ -143,7 +146,10 @@
                 {{ item.destination_stop_name }}
               </td>
             </tr>
-            <tr @click="itemDetail(item)">
+            <tr
+              :style="routeStyle(item)"
+              @click="itemDetail(item)"
+            >
               <td rowspan="2">
                 <img
                   src="@/assets/woman.png"
@@ -165,7 +171,10 @@
               </td>
               <td>{{ item.distance_from_vehicle }} away</td>
             </tr>
-            <tr @click="itemDetail(item)">
+            <tr
+              :style="routeStyle(item)"
+              @click="itemDetail(item)"
+            >
               <td>{{ item.walk_time_minutes }} min</td>
               <td>{{ item.total_low_minutes }} - {{ item.total_high_minutes }} min</td>
             </tr>
@@ -211,6 +220,14 @@ const colorMap = new Map();
           return { backgroundColor: 'none' }
         }
         return obj
+      }
+
+      function routeStyle(item) {
+        if (item.waiting_to_depart) {
+          return { backgroundColor: 'moccasin' }
+        } else {
+          return { backgroundColor: 'none' }
+        }
       }
 
     function chooseDirection(dir) {

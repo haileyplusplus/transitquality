@@ -50,10 +50,8 @@
 
   import AppFooter from "./AppFooter.vue";
   import AppBar from "./AppBar.vue";
-  //import { useGeolocation } from '@vueuse/core'
 
   const router = useRouter();
-  //export
   const currentDirection = ref([]);
   const searchLocation = ref({lat: null, lon: null})
 
@@ -101,45 +99,16 @@
   function listSelected(event) {
     console.log('list item selected: ' + JSON.stringify(event.id));
 
-    //var getSearchLocation = null;
-
     if (event.id.name === "My Current Location") {
       if (!searchLocation.value.lat) {
         console.log('No current location available');
         return;
       }
       console.log('Looking for current location');
-      // const { coords, locatedAt, error, resume, pause } = useGeolocation()
-      // if (error) {
-      //   console.log('Geolocation error: ' + error);
-      //   return;
-      // }
-      // lat = coords.latitude;
-      // lon = coords.longitude;
-      // if (navigator.geolocation) {
-      //   console.log('setting geolocation')
-      //   //getSearchLocation = navigator.geolocation.getCurrentPosition(setPosition, errCallback);
-      //   getSearchLocation = () => {
-      //     return new Promise(function (resolve, reject) {
-      //       navigator.geolocation.getCurrentPosition((position) => resolve(position),
-      //       (err) => reject(err));
-      //     });
-      //   }
-      //   console.log('setting to ' + getSearchLocation)
-      // } else {
-      //   console.log('location not available');
-      // }
     } else {
         searchLocation.value.lat = event.id.lat;
         searchLocation.value.lon = event.id.lon;
     }
-
-    // console.log('search function: ' + getSearchLocation);
-
-    // if (!getSearchLocation) {
-    //   console.log("no position");
-    //   return;
-    // }
 
     backendFetch(searchLocation.value.lat, searchLocation.value.lon).then(
         () => {
@@ -171,8 +140,6 @@
               localStorage.setItem('currentDirection', JSON.stringify(store.currentDirection));
             }
           }
-          //console.log('current direction: ' + JSON.stringify(currentDirection.value));
-          //this.$router.push('/single-direction')
           router.push('/single-direction');
         }
       );

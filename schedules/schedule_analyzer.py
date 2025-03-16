@@ -14,8 +14,6 @@ from realtime.rtmodel import *
 
 
 class ShapeManager:
-    # Clark / Lake
-    #LOOP_MIDPOINT = (41.885737, -87.630886)
     # Washington / Wabash
     LOOP_MIDPOINT = (41.88322, -87.626189)
     # geometry lengths are in meters
@@ -95,12 +93,6 @@ class ShapeManager:
         complement = self.shape.length - x
         dx = abs(x - previous_distance)
         dcomplement = abs(complement - previous_distance)
-        # if dx < dcomplement:
-        #     rv = x
-        # else:
-        #     rv = complement
-        # if rv < previous_distance:
-        #     rv = previous_distance
         if x < previous_distance and complement < previous_distance:
             rv = previous_distance
         else:
@@ -182,32 +174,6 @@ class ShapeManager:
             return 0
         return (self.shape.length / 2) + 1
 
-    def get_distance_along_shape_direction(self, direction, train_point, debug=False):
-        coord_point = shapely.Point(self.XFM.transform(train_point.y, train_point.x))
-        if debug:
-            print(f'Get distance for {direction} point {train_point} coord point {coord_point}')
-        if self.front is None:
-            distance = self.shape.line_locate_point(coord_point)
-            return distance
-        dist_from_front = self.front.distance(coord_point)
-        dist_from_back = self.back.distance(coord_point)
-        use_front = None
-        if dist_from_front > 50:
-            use_front = False
-        if dist_from_back > 50:
-            use_front = True
-        if use_front is None:
-            use_front = int(direction) == self.FRONT_DIRECTIONS.get(int(self.pattern.pattern_id))
-        if debug:
-            print(f'  Use front: {use_front} dist from front {dist_from_front} back {dist_from_back}')
-        if use_front:
-            # only in first
-            distance = self.front.line_locate_point(coord_point)
-            return distance
-        distance = self.back.line_locate_point(coord_point)
-        distance += self.front.length
-        return distance
-
 
 class ScheduleAnalyzer:
     def __init__(self, schedule_location: Path, engine=None):
@@ -219,7 +185,6 @@ class ScheduleAnalyzer:
         self.feed = None
         self.geo_shapes = None
         self.managed_shapes = {}
-        #self.setup_shapes()
 
     def load_feed(self):
         if self.feed is not None:
@@ -278,17 +243,8 @@ class ScheduleAnalyzer:
                 return None
             return rdist[1]
 
-    # def schedule_start(self):
-    #     return self.feed.get_dates()[0]
-
     def setup_shapes(self):
-        # shape_df = self.shape_trips_joined()
-        # for _, row in shape_df.iterrows():
-        #     shape_id = int(row.shape_id)
-        #     self.managed_shapes[shape_id] = ShapeManager(row)
         with Session(self.engine) as session:
-            #print(f'rt {rt}  last station {last_station}  train point {train_point}')
-            #j = self.shape_trips_joined()
             stmt = (select(TrainPatternDetail)
                     .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
                     )
@@ -381,14 +337,11 @@ class ScheduleAnalyzer:
                             id=stop_id,
                             stop_name=stop_name,
                             geom=from_shape(stop_geom)
-                            #geom=f'POINT({stop_info.stop_lon} {stop_info.stop_lat})'
                         )
                         session.add(stop)
                     stop_point = to_shape(stop.geom)
                     distance = shape_manager.get_distance_along_shape(previous_distance, stop_point)
                     previous_distance = distance
-                    #coord_point = shapely.Point(ShapeManager.XFM.transform(stop_point.y, stop_point.x))
-                    #distance = row.geometry.line_locate_point(coord_point)
                     direction_change = 0
                     if isinstance(stop_headsign, str) and stop_headsign != first_headsign:
                         direction_change = 1
@@ -407,10 +360,6 @@ class ScheduleAnalyzer:
             session.commit()
         print(f'Database updated')
 
-    # def train_shapes(self):
-    #     feed = self.feed
-    #     return feed.shapes[feed.shapes.shape_id.str.startswith('3')].shape_id.unique()
-
     def train_trips(self):
         self.load_feed()
         feed = self.feed
@@ -420,10 +369,6 @@ class ScheduleAnalyzer:
         self.load_feed()
         train_trips = self.train_trips()
         return train_trips.groupby(['route_id', 'shape_id']).first()
-
-    # def shape_services(self):
-    #     return sa.train_trips()[['shape_id', 'service_id']].drop_duplicates().join(
-    #         self.feed.calendar.set_index('service_id'), on='service_id')
 
     def shape_trips_joined(self):
         if self.joined_shapes is not None:
@@ -463,22 +408,6 @@ class ScheduleAnalyzer:
         train_summary['stop_list'] = train_summary.apply(
             lambda x: [(z.stop_id, z.stop_name) for _, z in self.get_stop_list(x.trip_id).iterrows()], axis=1)
         return train_summary
-
-    def train_stops(self):
-        """
-        train platforms (matches stop in train feed)
-        - feed.stops[(feed.stops.location_type == 0) & ~(feed.stops.parent_station.isna()) & (feed.stops.stop_id.str.startswith('3'))]
-        train stations (matches station in train feed)
-        - feed.stops[feed.stops.location_type == 1]
-        aux entrances
-        - feed.stops[feed.stops.location_type == 2]
-        :return:
-
-        For now, group by and use parent station
-        GTFS doesn't have specific station entrances. Maybe use OSM data eventually
-
-        """
-        pass
 
 
 if __name__ == "__main__":

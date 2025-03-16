@@ -11,8 +11,6 @@ import datetime
 from dateutil.parser import parse
 
 
-# Need to map service date to GTFS file
-
 class ScheduleManager:
     BUCKET = S3Path('/transitquality2024/schedules/cta')
     URL = 'https://www.transitchicago.com/downloads/sch_data/google_transit.zip'
@@ -73,12 +71,10 @@ class ScheduleManager:
     def poll(self):
         h = requests.head(self.URL)
         try:
-            #dt = parse(h.headers.get('Last-Modified'))
             tag = h.headers['ETag']
             needs_update = True
             if self.state and self.state['ETag'] == tag:
                 needs_update = False
-            #self.state = h.headers
             return needs_update
         except ValueError:
             return False

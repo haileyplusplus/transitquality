@@ -1,9 +1,5 @@
 <template>
-  <v-app-bar>
-    <div style="align-items: center; display: flex">
-      <a href="/">Home</a>
-    </div>
-  </v-app-bar>
+  <AppBar />
   <v-main
     class="d-flex align-center justify-center"
     style="min-height: 300px"
@@ -191,6 +187,7 @@ import { onMounted, ref } from 'vue';
   import { useRouter } from 'vue-router';
 
 import AppFooter from './AppFooter.vue';
+import AppBar from './AppBar.vue';
 
   const router = useRouter();
   import routeColors from '@/assets/route-colors.json'
@@ -295,7 +292,7 @@ onMounted(() => {
         //delete elem.route;
       });
 
-  console.log('mounting single direction');
+  console.log('mounting single direction: ' + new Date());
       const store = useAppStore();
       currentDirection.value = store.currentDirection;
       summaries.value = store.summaries;

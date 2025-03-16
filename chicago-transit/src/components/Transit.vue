@@ -1,7 +1,5 @@
 <template>
-  <v-app-bar>
-    <div>Chicago Transit</div>
-  </v-app-bar>
+  <AppBar />
   <v-main
     class="d-flex align-center justify-center"
     style="min-height: 300px"
@@ -51,6 +49,7 @@
   import { useRouter } from 'vue-router';
 
   import AppFooter from "./AppFooter.vue";
+  import AppBar from "./AppBar.vue";
   //import { useGeolocation } from '@vueuse/core'
 
   const router = useRouter();

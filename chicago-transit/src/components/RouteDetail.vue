@@ -1,9 +1,5 @@
 <template>
-  <v-app-bar>
-    <div style="align-items: center; display: flex">
-      <a href="/">Home</a>
-    </div>
-  </v-app-bar>
+  <AppBar />
   <v-main
     class="d-flex align-center justify-center"
     style="min-height: 300px"
@@ -98,6 +94,7 @@
   //import VueApexCharts from 'vue-apexcharts'
 
   import AppFooter from './AppFooter.vue';
+  import AppBar from './AppBar.vue';
 
 const currentDetail = ref(null);
 const estimateResponse = ref(null);

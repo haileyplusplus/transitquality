@@ -37,7 +37,7 @@
         <v-col
           cols="5"
           class="ew"
-          @click="chooseDirection('Eastbound')"
+          @click="chooseDirection('Westbound')"
         >
           <span class="innerew">
             <v-card
@@ -69,7 +69,7 @@
         <v-col
           cols="5"
           class="ew"
-          @click="chooseDirection('Westbound')"
+          @click="chooseDirection('Eastbound')"
         >
           <span class="innerew">
             <v-card

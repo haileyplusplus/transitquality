@@ -92,8 +92,12 @@ class EstimateFinder:
         def callback(left, right):
             if self.debug:
                 print(f'    closest to {dist} in {redis_key}: {left}, {right}')
-            if not left or not right:
+            if not left and not right:
                 return None
+            if not left:
+                return right[0]
+            if not right:
+                return left[0]
             left_ts, left_dist = left[0]
             right_ts, right_dist = right[0]
             if abs(dist.m - left_dist) < abs(dist.m - right_dist):
@@ -159,15 +163,21 @@ class EstimateFinder:
             mode = Mode.TRAIN
         else:
             mode = Mode.BUS
-        print(f'Get estimate {pid} recalcluate {self.recalculate_positions}')
-        if self.recalculate_positions:
+        if row.vehicle_positions[0].vehicle_position.m == 0:
+            recalculate = False
+        else:
+            recalculate = self.recalculate_positions
+        print(f'Get estimate {pid} recalcluate {recalculate}')
+        if recalculate:
             vehicles = self.do_recalculate(mode)
             print(f'vehicles {vehicles}')
         for position_info in row.vehicle_positions:
             bus_dist = None
             timestamp = None
+            if row.vehicle_positions[0].vehicle_position.m == 0:
+                bus_dist = 0 * ureg.feet
             # bus dist is position, not delta
-            if self.recalculate_positions and position_info.vehicle_id in vehicles:
+            if recalculate and position_info.vehicle_id in vehicles:
                 recalc = vehicles[position_info.vehicle_id]
                 if mode == mode.TRAIN:
                     print(f'got train: {recalc.__dict__}')

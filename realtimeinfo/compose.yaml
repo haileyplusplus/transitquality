@@ -27,7 +27,7 @@ services:
     develop:
         watch:
           - action: rebuild
-            path: ../realtime
+            path: .
   transit-realtimeinfo-sidecar:
     image: tailscale/tailscale:latest
     container_name: ts-transit-realtimeinfo

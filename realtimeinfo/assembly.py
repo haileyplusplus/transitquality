@@ -2,16 +2,12 @@ import asyncio
 import datetime
 import json
 
-from flask import Flask, render_template, request
-
 import grequests
-import requests
 
-from fastapi.encoders import jsonable_encoder
-from interfaces import Q_, ureg
+from interfaces import ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
-    StopEstimate, EstimateResponse, DetailRequest, CombinedResponseType, TransitOutput, BusEstimate, Mode, PositionInfo
-from realtime.queries import QueryManager, TrainQuery
+    StopEstimate, CombinedResponseType, TransitOutput, BusEstimate, Mode, PositionInfo
+from realtimeinfo.queries import QueryManager, TrainQuery
 
 
 class NearStopQuery:

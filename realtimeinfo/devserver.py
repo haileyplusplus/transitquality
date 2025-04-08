@@ -6,17 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import datetime
 import logging
-import json
-import sys
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from interfaces.estimates import TrainEstimate, BusResponse, TrainResponse, StopEstimates, StopEstimate, \
-    EstimateResponse, DetailRequest, CombinedResponseType, CombinedResponse, CombinedOutput, PositionInfo
-from realtime.assembly import NearStopQuery
+from interfaces.estimates import BusResponse, TrainResponse, StopEstimates, StopEstimate, \
+    EstimateResponse, DetailRequest, CombinedResponse, CombinedOutput, PositionInfo
+from realtimeinfo.assembly import NearStopQuery
 from realtime.rtmodel import db_init
-from realtime.queries import QueryManager, TrainQuery
+from realtimeinfo.queries import QueryManager, TrainQuery
 
 from schedules.schedule_analyzer import ScheduleAnalyzer
 

@@ -435,14 +435,15 @@ class QueryManager:
                         continue
                     row_distance = 0
                     seen.add(row.pattern_id)
-                    #prediction_first_stop = prediction.stop_id
                     row_update = prediction.timestamp
                     predicted_minutes = prediction.prediction
 
-                    print(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins {predicted_minutes}')
-                    pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
+                    #pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
+                    pts = Util.CTA_TIMEZONE.localize(prediction.timestamp)
+                    #print(f'Prediction raw {prediction.timestamp}, Predicted timestamp: {pts} local now {local_now}')
                     age = (local_now - pts).total_seconds() / 60
                     predicted_minutes = round(predicted_minutes - age)
+                    print(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins raw {prediction.prediction} adjusted {predicted_minutes}  age {age}')
                     dxx = BusEstimate(
                         query_start=startquery,
                         pattern=row.pattern_id,

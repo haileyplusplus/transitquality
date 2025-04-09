@@ -9,6 +9,7 @@ import logging
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from prometheus_client import make_asgi_app
 
 from interfaces.estimates import BusResponse, TrainResponse, StopEstimates, StopEstimate, \
     EstimateResponse, DetailRequest, CombinedResponse, CombinedOutput, PositionInfo
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+metrics_app = make_asgi_app()
+app.mount('/metrics', metrics_app)
 
 origins = [
     'http://localhost:3000',

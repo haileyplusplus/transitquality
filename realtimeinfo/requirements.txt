@@ -18,3 +18,4 @@ redis==5.2.1
 gtfs_kit==10.1.0
 pydantic-pint==0.1
 pint==0.24.4
+prometheus-client==0.21.1

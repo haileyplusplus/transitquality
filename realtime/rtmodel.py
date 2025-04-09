@@ -1,30 +1,10 @@
 import datetime
 from typing import List
-from typing import Optional
 
 from sqlalchemy import create_engine, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
 from geoalchemy2 import Geometry
-
-
-"""
-            row = {
-                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
-                'arrival_time': interpolated_timestamp,
-                'departure_time': interpolated_timestamp,
-                'stop_id': pattern_stop.stop_id,
-                'stop_sequence': pattern_stop.sequence_no,
-                'shape_dist_traveled': pattern_stop.pattern_distance,
-            }
-
-            trip_row = {
-                'route_id': self.route.route,
-                'service_id': self.day,
-                'trip_id': f'{self.day}.{self.vehicle_id}.{trip_id}',
-            }
-
-"""
 
 
 class Base(DeclarativeBase):
@@ -198,29 +178,6 @@ class TrainPosition(Base):
     route: Mapped[Route] = relationship(back_populates="train_positions")
 
 
-"""
-                            "@name": "red",
-                            "train": [
-                                {
-                                    "rn": "825",
-                                    "destSt": "30173",
-                                    "destNm": "Howard",
-                                    "trDr": "1",
-                                    "nextStaId": "40240",
-                                    "nextStpId": "30046",
-                                    "nextStaNm": "79th",
-                                    "prdt": "2025-01-13T21:57:34",
-                                    "arrT": "2025-01-13T21:58:34",
-                                    "isApp": "1",
-                                    "isDly": "0",
-                                    "flags": null,
-                                    "lat": "41.74593",
-                                    "lon": "-87.62504",
-                                    "heading": "358"
-                                },
-"""
-
-
 class CurrentTrainState(Base):
     __tablename__ = "current_train_state"
 
@@ -325,7 +282,7 @@ def db_init(echo=False, dev=False, local=False):
 
 
 """
-Figure out how to handle views:
+Views:
 
 - not used in queries
 

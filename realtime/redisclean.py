@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
 import sys
+import logging
 
 import redis
 import datetime
+
+
+logger = logging.getLogger(__file__)
 
 
 class Cleaner:
@@ -14,12 +18,12 @@ class Cleaner:
         r = self.redis
         thresh = datetime.datetime.now() - datetime.timedelta(hours=24)
         ts = int(thresh.timestamp())
-        print(f'Removing entries older than {ts}')
+        logger.debug(f'Removing entries older than {ts}')
         for keytype in ['train', 'bus']:
-            print(f'Cleaning {keytype}')
+            logger.debug(f'Cleaning {keytype}')
             empty = 0
             del_keys = r.keys(f'{keytype}position:*')
-            print(len(del_keys), type(del_keys))
+            logger.debug(len(del_keys), type(del_keys))
             p = r.pipeline()
             for k in del_keys:
                 p.ts().delete(k, 0, ts)
@@ -32,8 +36,7 @@ class Cleaner:
                     p.delete(k)
                     empty += 1
             p.execute()
-            print(f'Removed {empty} empty keys')
-
+            logger.debug(f'Removed {empty} empty keys')
 
 
 if __name__ == "__main__":

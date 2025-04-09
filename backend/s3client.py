@@ -13,9 +13,6 @@ class S3Client:
         if os.getenv('BUCKET'):
             self.bucket_name = os.getenv('BUCKET')
         print(f'Using bucket {self.bucket_name}')
-        #self.s3 = boto3.resource('s3')
-        #self.client = self.s3.Client()
-        #self.bucket = self.s3.Bucket('transitquality2024')
 
     def write_api_response(self, ts: datetime.datetime, command: str, contents: str):
         day = ts.strftime('%Y%m%d')

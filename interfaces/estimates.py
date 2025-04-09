@@ -1,7 +1,6 @@
 import datetime
 from enum import StrEnum
 from typing import Optional, Annotated
-#from enum import IntEnum
 
 from pydantic import BaseModel
 from pydantic_pint import PydanticPintQuantity
@@ -9,21 +8,6 @@ from pint import Quantity
 
 from . import ureg
 
-# class DistanceUnit(IntEnum):
-#     FEET = 1
-#     METERS = 2
-#     MILES = 3
-#
-#
-# class Distance(BaseModel):
-#     distance: float
-#     unit: DistanceUnit
-#
-#     def meters(self):
-#         if self.unit == DistanceUnit.METERS:
-#             return self.distance
-#         if self.unit == DistanceUnit.FEET:
-#             return self.distance *
 Meters = Annotated[Quantity, PydanticPintQuantity('m', ureg=ureg)]
 
 

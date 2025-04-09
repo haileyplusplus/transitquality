@@ -27,14 +27,6 @@ TRAIN_ROUTES = [
     {'rt': 'y', 'rtnm': 'Yellow Line'},
 ]
 
-# boto3.setup_default_session(
-#     region_name='us-east-2',
-# )
-
-
-# BUCKET = S3Path('/transitquality2024/bustracker/raw')
-# BUCKET.client = client
-
 
 class S3Getter:
     def __init__(self):
@@ -71,43 +63,31 @@ class S3Getter:
 
 
 def load_routes():
-    # path='~/transit/s3/getroutes/20250107/t025330z.json'
     engine = db_init(local=True)
-    #r = Path(path).expanduser()
-    #r = BUCKET / 'getroutes/20250107/t025330z.json'
-    #with r.open() as fh:
-    if True:
-        getter = S3Getter()
-        #j = json.load(fh)
-        j = getter.get_json_contents('bustracker/raw/getroutes/20250107/t025330z.json')
-        routes = j['requests'][0]['response']['bustime-response']['routes']
-        routes += TRAIN_ROUTES
-        with Session(engine) as session:
-            for rt in routes:
-                rt_id: str = rt['rt']
-                route_db = session.get(Route, rt_id)
-                if not route_db:
-                    route_db = Route(
-                        id=rt_id,
-                        name=rt['rtnm']
-                    )
-                    session.add(route_db)
-            session.commit()
+    getter = S3Getter()
+    j = getter.get_json_contents('bustracker/raw/getroutes/20250107/t025330z.json')
+    routes = j['requests'][0]['response']['bustime-response']['routes']
+    routes += TRAIN_ROUTES
+    with Session(engine) as session:
+        for rt in routes:
+            rt_id: str = rt['rt']
+            route_db = session.get(Route, rt_id)
+            if not route_db:
+                route_db = Route(
+                    id=rt_id,
+                    name=rt['rtnm']
+                )
+                session.add(route_db)
+        session.commit()
 
 
 def load():
-    # path='~/transit/s3/getpatterns'
-    #pattern_path = Path(path).expanduser()
-    #pattern_path = BUCKET / 'getpatterns'
-    #print(f'Pattern path: {pattern_path} exists {pattern_path.exists()}')
-    #ph = PatternHistory(pattern_path)
     ph = PatternHistory(Path())
     getter = S3Getter()
     keys = getter.list_with_prefix('bustracker/raw/getpatterns/2025')
     for k in keys['Contents']:
         jd = getter.get_json_contents(k['Key'])
         ph.read_json(jd)
-    #ph.traverse()
     engine = db_init()
     count = 0
     with Session(engine) as session:

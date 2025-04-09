@@ -95,6 +95,20 @@ services:
     depends_on:
     - memstore
     - transit-realtime-sidecar
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    restart: unless-stopped
+    #ports:
+    #  - '3000:3000'
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_BASIC_ENABLED=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    network_mode: service:transit-realtime-sidecar
+    depends_on:
+    - transit-realtime-sidecar
   transit-realtime-sidecar:
     image: tailscale/tailscale:latest
     container_name: ts-transit-realtime
@@ -116,3 +130,4 @@ services:
 volumes:
   transit-realtime-tailscale-state:
   db-data:
+  grafana-storage:

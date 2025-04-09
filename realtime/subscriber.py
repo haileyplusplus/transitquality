@@ -5,7 +5,6 @@ Subscribe to streaming updates and insert them into the database.
 """
 
 import asyncio
-import faulthandler
 import json
 import os
 import sys
@@ -15,8 +14,8 @@ from pathlib import Path
 import requests
 import shapely
 import sqlalchemy
-from geoalchemy2.shape import from_shape, to_shape
-from sqlalchemy import select, delete, func, text
+from geoalchemy2.shape import to_shape
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
 import redis
 import redis.asyncio as redis_async
@@ -24,29 +23,11 @@ from prometheus_client import start_http_server, Counter
 
 from backend.util import Util
 from realtime.rtmodel import *
-from realtime.load_patterns import load_routes, load, S3Getter
+from realtime.load_patterns import load_routes, S3Getter
 from realtime.redisclean import Cleaner
 from interfaces import ureg, Q_
 
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
-
-"""
-Detecting a finished trip:
- - 99% of way through route
- - vid update with new pattern or trip no
- 
-Grouped trip key:
- - vid, route, pid, origtatripno, day of first update
-"""
-
-"""
-Geo queries:
-
-select stop_name, 
-ST_TRANSFORM(geom, 26916) <-> ST_TRANSFORM('SRID=4326;POINT(-87.632892 41.903914)'::geometry, 26916) as dist
-from stop ORDER BY dist limit 10;
-
-"""
 
 
 class DatabaseUpdater:
@@ -59,13 +40,6 @@ class DatabaseUpdater:
 
 
 class TrainUpdater(DatabaseUpdater):
-    """
-    Finding pattern for route
-
-    trivial or mostly trivial: yellow, red, pink, brown, orange
-    easy choice: green
-    more complexity: blue, purple
-    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
         self.schedule_analyzer = kwargs['schedule_analyzer']
@@ -116,9 +90,6 @@ class TrainUpdater(DatabaseUpdater):
     def find_finalized_trips(self):
         finish_thresh = datetime.timedelta(minutes=5)
         with Session(self.subscriber.engine) as session:
-            completed = session.query(TrainPosition.completed).where(TrainPosition.completed.is_(True)).count()
-            all = session.query(TrainPosition.completed).count()
-            #print(f'  Finalized trips: {completed} completed of {all}')
             local_now = Util.ctanow()
             # only consider one run at a time
             runs = {}
@@ -138,7 +109,7 @@ class TrainUpdater(DatabaseUpdater):
                     if not previous or pos.timestamp > previous.timestamp:
                         runs[key] = pos
             except sqlalchemy.exc.InternalError as e:
-                print(f'')
+                print(f'Internal error: {e}')
             count = 0
             succeeded = 0
             for k, v in runs.items():
@@ -202,7 +173,6 @@ class TrainUpdater(DatabaseUpdater):
                 i += 1
                 break
             if prev_point and abs(p.timestamp - prev_point.timestamp) > datetime.timedelta(minutes=10):
-                start_position = prev_point
                 start_position = prev_point
                 i += 1
                 break
@@ -303,19 +273,14 @@ class TrainUpdater(DatabaseUpdater):
                     print(f'Warning: couldn\'t find stop pattern distance for stop {point.next_stop} pattern {pattern_id} computing trip {next_trip_id} at {point.timestamp.isoformat()}. Using fallback (prev larger {previous_larger})')
                     #continue
 
-
                 previous_larger, train_distance = shape_manager.get_distance_along_shape_anchor(stop_pattern_distance, train_point, previous_larger)
                 point.pattern_distance = train_distance
-
-                previous_distance = train_distance
 
                 redis_key = f'trainposition:{pattern_id}:{run}-{next_trip_id}'
                 if not self.r.exists(redis_key):
                     self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
                 self.r.ts().add(redis_key, int(point.timestamp.timestamp()), train_distance)
                 self.redis_position_counter.inc()
-            #print(
-            #    f'Matched pattern for run {end_position.run} rt {end_position.route} starting at {start_position.timestamp.isoformat()}: {len(pattern_result)}')
             return True
         except redis.exceptions.ResponseError as e:
             print(f'Redis summarizer error: {e}')

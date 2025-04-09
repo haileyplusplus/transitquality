@@ -4,6 +4,11 @@
     class="d-flex align-center justify-center"
     style="min-height: 300px"
   >
+    <div v-show="showNotFound">
+      <v-card>
+        <v-card-item>Selected location is not in the CTA service area</v-card-item>
+      </v-card>
+    </div>
     <div
       v-if="currentDirection"
     >
@@ -203,8 +208,9 @@ import AppBar from './AppBar.vue';
 
 const currentDirection = ref(null);
 const summaries = ref(null);
-const searchLocation = ref({lat: null, lon: null})
-const transitInfo = ref({})
+const searchLocation = ref({lat: null, lon: null});
+const transitInfo = ref({});
+const showNotFound = ref(false);
 
 const colorMap = new Map();
 
@@ -314,6 +320,15 @@ const colorMap = new Map();
     return Array.from(rv);
   }
 
+  function isEmpty(detail) {
+    var count = 0;
+    count += detail.n.length;
+    count += detail.s.length;
+    count += detail.e.length;
+    count += detail.w.length;
+    return count == 0;
+  }
+
   function showLatestFetched() {
     const store = useAppStore();
     console.log('mounting single direction: ' + new Date());
@@ -330,6 +345,13 @@ const colorMap = new Map();
       // });
       console.log('current direction (single): ' + currentDirection.value);
       console.log('displaying ' + JSON.stringify(store.summaries));
+
+      if (isEmpty(store.summaries)) {
+        console.log('Empty summaries');
+        showNotFound.value = true;
+        currentDirection.value = null;
+        return;
+      }
 
       const filters = JSON.parse(localStorage.getItem('filters', '{}'));
       if (filters) {

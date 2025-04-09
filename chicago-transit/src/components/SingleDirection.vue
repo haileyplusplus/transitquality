@@ -9,6 +9,11 @@
         <v-card-item>Selected location is not in the CTA service area</v-card-item>
       </v-card>
     </div>
+    <div v-show="showLoading">
+      <v-card>
+        <v-card-item>Loading</v-card-item>
+      </v-card>
+    </div>
     <div
       v-if="currentDirection"
     >
@@ -211,6 +216,7 @@ const summaries = ref(null);
 const searchLocation = ref({lat: null, lon: null});
 const transitInfo = ref({});
 const showNotFound = ref(false);
+const showLoading = ref(true);
 
 const colorMap = new Map();
 
@@ -352,6 +358,8 @@ const colorMap = new Map();
         currentDirection.value = null;
         return;
       }
+
+      showLoading.value = false;
 
       const filters = JSON.parse(localStorage.getItem('filters', '{}'));
       if (filters) {

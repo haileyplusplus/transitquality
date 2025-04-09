@@ -5,3 +5,20 @@ scrape_configs:
   - targets:
     - localhost:8080
     - localhost:8109
+- job_name: 'blackbox'
+  metrics_path: /probe
+  params:
+    module: [http_body_match]  # Look for a HTTP 200 response and matching body.
+  static_configs:
+    - targets:
+      - https://businfo.guineafowl-cloud.ts.net/api/combined-estimate?lat=41.976632&lon=-87.6684
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: 127.0.0.1:9115  # The blackbox exporter's real hostname:port.
+- job_name: 'blackbox_exporter'  # collect blackbox exporter's operational metrics.
+  static_configs:
+    - targets: ['127.0.0.1:9115']

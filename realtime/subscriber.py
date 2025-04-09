@@ -147,7 +147,7 @@ class TrainUpdater(DatabaseUpdater):
                 ts = v.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
                 update_age = local_now - ts
                 if update_age < finish_thresh:
-                    print(f'Skipping fresh update for {k}')
+                    #print(f'Skipping fresh update for {k}')
                     continue
                 success = self.finalize_trip(session, v)
                 if success:

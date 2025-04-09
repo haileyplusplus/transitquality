@@ -1,0 +1,10 @@
+modules:
+  http_body_match:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      # Replace with the below once there's a release supporting this feature
+      #fail_if_body_json_not_matches_cel: "size(response.Southbound) > 0 || size(response.Northbound) > 0"
+      fail_if_body_not_matches_regexp:
+      - "vehicle.:[0-9]+,"

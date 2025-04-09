@@ -81,6 +81,16 @@ services:
     depends_on:
     - cadvisor
     - transit-realtime-sidecar
+  prometheus-blackbox:
+    image: quay.io/prometheus/blackbox-exporter:latest
+    container_name: prometheus-blackbox
+    network_mode: service:transit-realtime-sidecar
+    command:
+    - --config.file=/config/blackbox.yml
+    volumes:
+    - ./blackbox.yml:/config/blackbox.yml:ro
+    depends_on:
+    - transit-realtime-sidecar
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor

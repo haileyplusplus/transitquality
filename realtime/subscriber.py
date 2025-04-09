@@ -153,28 +153,6 @@ class TrainUpdater(DatabaseUpdater):
                 if success:
                     succeeded += 1
             session.commit()
-            #if count > 0:
-            #    print(f'Finished finalization with {succeeded} of {count} succeeding')
-
-            # stmt = (select(TrainPatternDetail)
-            #         .join(Stop, TrainPatternDetail.first_stop_id == Stop.id)
-            #         .where(TrainPatternDetail.last_stop_id == last_station)
-            #         .where(TrainPatternDetail.pattern_id.not_in({308500036, 308500102}))
-            #         .where(func.ST_Distance(
-            #                 Stop.geom.ST_Transform(26916), func.ST_Transform(from_shape(train_point, srid=4326), 26916)
-            #             ) < 1000
-            #             )
-            #         )
-            # s = session.scalars(stmt)
-            #
-            #
-            # q = select(func.max(TrainPosition.synthetic_trip_id)).where(TrainPosition.run == run)
-            # result = session.scalars(q).first()
-            # if not result:
-            #     synthetic_trip_id = 0
-            # else:
-            #     synthetic_trip_id = result
-            # pass
 
     def finalize_trip(self, session, end_position):
         run = end_position.run
@@ -214,11 +192,6 @@ class TrainUpdater(DatabaseUpdater):
             points.pop(remove_index)
         if removed > 0:
             session.commit()
-        # if len(elide) == 1:
-        #     i, run_length = elide[0]
-        #     start = i - run_length
-        #     for x in range(run_length):
-        #         points.pop(start)
         prev_dest_name = points[-1].dest_name
         start_position = None
         i = len(points) - 1
@@ -445,33 +418,6 @@ class TrainUpdater(DatabaseUpdater):
                         dest_station = 30069
                     current.dest_station = dest_station
                     upd.dest_station = dest_station
-                    # if current.dest_station == current.next_stop:
-                    #     upd.current_pattern = current.current_pattern
-                    #     current.current_pattern = None
-                    #     #start_of_trip = False
-                    #     continue
-                    #else:
-                        # if current.current_pattern is None:
-                        #     if current.synthetic_trip_id is None:
-                        #         current.synthetic_trip_id = 0
-                        #     else:
-                        #         current.synthetic_trip_id += 1
-                    # if latest_update is None:
-                    #     start_of_trip = True
-                    #     current_pattern = self.schedule_analyzer.get_pattern(
-                    #         rt, dest_station, train_point)
-                    # else:
-                    #     current_pattern = latest_update.pattern
-                    # dest_station = current.dest_station
-                    # if current.current_pattern is None:
-                    #     start_of_trip = True
-                    #     current.
-                    #if current.current_pattern is None:
-                    # if current_pattern is None:
-                    #     continue
-                    # current.current_pattern = current_pattern
-                    # upd.pattern = current.current_pattern
-                    # previous_distance = current.pattern_distance
             session.commit()
 
     def prediction_callback(self, data):
@@ -620,55 +566,6 @@ class BusUpdater(DatabaseUpdater):
                 prev_key = key
             session.commit()
 
-    # def s3_refresh(self, daystr, hour):
-    #     cmd = 'getvehicles'
-    #     getter = S3Getter()
-    #     keys = getter.list_with_prefix(f'bustracker/raw/{cmd}/{daystr}/t{hour}')
-    #     refreshed = 0
-    #     for k in keys['Contents']:
-    #         print(f'Refreshing {k["Key"]}')
-    #         jd = getter.get_json_contents(k['Key'])
-    #         datalist = jd['requests']
-    #         refreshed += 1
-    #         for item in datalist:
-    #             response = item['response']
-    #             self.subscriber_callback(response['bustime-response']['vehicle'])
-    #     return {'refreshed': refreshed}
-
-
-    """
-        stop_id: Mapped[int] = mapped_column(primary_key=True)
-    destination: Mapped[str] = mapped_column(primary_key=True)
-    route: Mapped[str] = mapped_column(primary_key=True)
-    timestamp: Mapped[datetime.datetime]
-    origtatripno: Mapped[str]
-    prediction: Mapped[int]
-                {
-                    "tmstmp": "20250214 21:58",
-                    "typ": "D",
-                    "stpnm": "Neva & North Ave",
-                    "stpid": "845",
-                    "vid": "8548",
-                    "dstp": 763,
-                    "rt": "72",
-                    "rtdd": "72",
-                    "rtdir": "Eastbound",
-                    "des": "Pulaski",
-                    "prdtm": "20250214 21:59",
-                    "tablockid": "72 -853",
-                    "tatripid": "1075659",
-                    "origtatripno": "259624668",
-                    "dly": false,
-                    "dyn": 0,
-                    "prdctdn": "DUE",
-                    "zone": "",
-                    "psgld": "",
-                    "stst": 78300,
-                    "stsd": "2025-02-14",
-                    "flagstop": 0
-                },
-
-    """
     def bus_prediction_callback(self, data):
         with Session(self.subscriber.engine) as session:
             self.prediction_bundle_counter.inc()

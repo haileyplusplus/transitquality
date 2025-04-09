@@ -66,6 +66,35 @@ services:
      depends_on:
        transit-realtime-sidecar:
          condition: service_started
+  # Prometheus and cadvisor configs based on sample at
+  # https://prometheus.io/docs/guides/cadvisor/#monitoring-docker-container-metrics-using-cadvisor
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    network_mode: service:transit-realtime-sidecar
+    #ports:
+    #- 9090:9090
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+    - cadvisor
+    - transit-realtime-sidecar
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    #ports:
+    #- 8080:8080
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:rw
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    network_mode: service:transit-realtime-sidecar
+    depends_on:
+    - memstore
+    - transit-realtime-sidecar
   transit-realtime-sidecar:
     image: tailscale/tailscale:latest
     container_name: ts-transit-realtime

@@ -8,6 +8,7 @@
         {"name": "Thalia Hall", "lon": -87.657286, "lat": 41.857955},
         {"name": "Union Station", "lon": -87.640342, "lat": 41.878048},
         {"name": "Wrigley Field", "lon": -87.656480, "lat": 41.947217},
-        {"name": "My Current Location"}
+        {"name": "My Current Location"},
+        {"name": "Choose Location"}
     ]
 }

@@ -11,12 +11,14 @@ import { createRouter, createWebHistory } from 'vue-router/auto'
 import Transit from '@/components/Transit.vue'
 import SingleDirection from '@/components/SingleDirection.vue'
 import RouteDetail from '@/components/RouteDetail.vue'
+import ChooseLocation from '@/components/ChooseLocation.vue'
 
 // setupLayouts(routes),
 
 const routes = [
   { path: '/', component: Transit },
   { path: '/single-direction', component: SingleDirection },
+  { path: '/choose-location', component: ChooseLocation },
   { path: '/detail', component: RouteDetail }
 ]
 

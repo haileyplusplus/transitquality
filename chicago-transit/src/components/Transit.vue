@@ -90,6 +90,9 @@
         return;
       }
       console.log('Looking for current location');
+    } else if (event.id.name == "Choose Location") {
+      router.push('/choose-location');
+      return;
     } else {
         searchLocation.value.lat = event.id.lat;
         searchLocation.value.lon = event.id.lon;

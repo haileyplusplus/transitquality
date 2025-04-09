@@ -20,6 +20,7 @@ from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 import redis
 import redis.asyncio as redis_async
+from prometheus_client import start_http_server, Counter
 
 from backend.util import Util
 from realtime.rtmodel import *
@@ -476,6 +477,28 @@ class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
         super().__init__(*args)
         self.cleanup_iteration = 0
+        self.cleanup_counter = Counter('bus_cleanup_base', 'Standard cleanup run')
+        self.cleanup_position_counter = Counter('bus_cleanup_position', 'Clean up positions')
+        self.cleanup_redis_counter = Counter('bus_cleanup_redis', 'Clean up old redis entries')
+        self.prediction_bundle_counter = Counter('bus_prediction_bundle',
+                                                 'Bundles of bus predictions')
+        self.prediction_counter = Counter('bus_prediction_individual', 'Individual bus predictions')
+        self.new_prediction_counter = Counter('bus_new_prediction_individual',
+                                              'Individual bus predictions newly added to db')
+        self.position_bundle_counter = Counter('bus_position_bundle',
+                                               'Bundles of bus positions')
+        self.position_counter_total = Counter('bus_position_individual_total',
+                                              'Total individual bus position updates')
+        self.position_counter_success = Counter('bus_position_individual_success',
+                                                'Successful individual bus position updates')
+        self.redis_position_counter = Counter('bus_redis_position_success',
+                                              'Successful bus position redis update')
+        self.redis_position_error = Counter('bus_redis_position_error',
+                                            'Errors updating bus Redis position')
+        self.duplicate_key_counter = Counter('bus_position_duplicate_key_error', 'Duplicate key error')
+        self.route_error_counter = Counter('bus_position_unknown_route_error', 'Unknown route')
+        self.missing_position_counter = Counter('bus_position_missing_error',
+                                                'Bus position missing in database error')
 
     def periodic_cleanup(self):
         """
@@ -486,6 +509,7 @@ class BusUpdater(DatabaseUpdater):
         :return:
         """
         start = datetime.datetime.now()
+        self.cleanup_counter.inc()
         with Session(self.subscriber.engine) as session:
             session.execute(text('DELETE from current_vehicle_state where ((select max(last_update) from '
                                  'current_vehicle_state) - current_vehicle_state.last_update)'
@@ -498,6 +522,7 @@ class BusUpdater(DatabaseUpdater):
             session.execute(text('UPDATE pattern t2 SET rt = t1.rt '
                                  'FROM bus_position t1 WHERE t2.id = t1.pid'))
             if self.cleanup_iteration % 10 == 0:
+                self.cleanup_position_counter.inc()
                 session.execute(text('delete from bus_position where timestamp < '
                                      '(select max(timestamp) - interval \'24 hours\' from bus_position)'))
                 session.execute(text('delete from train_position where timestamp < '
@@ -505,6 +530,7 @@ class BusUpdater(DatabaseUpdater):
             self.cleanup_iteration += 1
             session.commit()
         if self.cleanup_iteration % 500 == 0:
+            self.cleanup_redis_counter.inc()
             host = None
             print(f'  Cleaning up redis {host}')
             c = Cleaner(host=host)
@@ -613,12 +639,14 @@ class BusUpdater(DatabaseUpdater):
     """
     def bus_prediction_callback(self, data):
         with Session(self.subscriber.engine) as session:
+            self.prediction_bundle_counter.inc()
             for v in data:
                 stop_id = int(v['stpid'])
                 destination = v['des']
                 route = v['rt']
                 key = (stop_id, destination, route)
                 prediction = session.get(BusPrediction, key)
+                self.prediction_counter.inc()
                 if not prediction:
                     prediction = BusPrediction(
                         stop_id=stop_id,
@@ -648,22 +676,28 @@ class BusUpdater(DatabaseUpdater):
         #print(f'Bus {len(data)}')
         #self.finish_past_trips()
         with Session(self.subscriber.engine) as session:
+            self.position_bundle_counter.inc()
             for v in data:
+                self.position_counter_total.inc()
                 vid = int(v['vid'])
                 timestamp = datetime.datetime.strptime(v['tmstmp'], '%Y%m%d %H:%M:%S')
                 existing = session.get(BusPosition, {'vid': vid, 'timestamp': timestamp})
                 route = session.get(Route, v['rt'])
                 if route is None:
                     print(f'Unknown route {route}')
+                    self.route_error_counter.inc()
                     continue
                 if existing is not None:
+                    self.missing_position_counter.inc()
                     continue
                 lat = v['lat']
                 lon = v['lon']
                 geom = f'POINT({lon} {lat})'
                 key = (vid, timestamp)
                 if session.get(BusPosition, key):
+                    self.duplicate_key_counter.inc()
                     continue
+                self.position_counter_success.inc()
                 upd = BusPosition(
                     vid=vid,
                     timestamp=timestamp,
@@ -685,8 +719,10 @@ class BusUpdater(DatabaseUpdater):
                     if not self.r.exists(redis_key):
                         self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
                     self.r.ts().add(redis_key, int(timestamp.timestamp()), bus_position.to(ureg.meters).m)
+                    self.redis_position_counter.inc()
                 except redis.exceptions.ResponseError as e:
                     print(f'Redis summarizer error: {e}')
+                    self.redis_position_error.inc()
                 session.add(upd)
                 pattern = session.get(Pattern, v['pid'])
                 if pattern is None:
@@ -859,4 +895,5 @@ async def main(host: str):
 
 
 if __name__ == "__main__":
+    start_http_server(8109)
     asyncio.run(main(sys.argv[1]))

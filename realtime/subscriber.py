@@ -71,6 +71,27 @@ class TrainUpdater(DatabaseUpdater):
         self.schedule_analyzer = kwargs['schedule_analyzer']
         self.schedule_analyzer.engine = self.subscriber.engine
         self.schedule_analyzer.setup_shapes()
+        self.prediction_bundle_counter = Counter('transit_train_prediction_bundle',
+                                                 'Bundles of train predictions')
+        self.prediction_counter = Counter('transit_train_prediction_individual', 'Individual train predictions')
+        self.new_prediction_counter = Counter('transit_train_new_prediction_individual',
+                                              'Individual train predictions newly added to db')
+        self.position_bundle_counter = Counter('transit_train_position_bundle',
+                                               'Bundles of train positions')
+        self.position_counter_total = Counter('transit_train_position_individual_total',
+                                              'Total individual train position updates')
+        self.position_counter_success = Counter('transit_train_position_individual_success',
+                                                'Successful individual train position updates')
+        self.redis_position_counter = Counter('transit_train_redis_position_success',
+                                              'Successful train position redis update')
+        self.redis_position_error = Counter('transit_train_redis_position_error',
+                                            'Errors updating train Redis position')
+        self.duplicate_key_counter = Counter('transit_train_position_duplicate_key_error', 'Duplicate key error')
+        self.route_error_counter = Counter('transit_train_position_unknown_route_error', 'Unknown route')
+        self.missing_position_counter = Counter('transit_train_position_missing_error',
+                                                'Train position missing in database error')
+        self.invalid_position_counter = Counter('transit_train_position_invalid_error',
+                                                'Train position invalid in database error')
         #self.refresh(hours=8)
 
 
@@ -319,11 +340,13 @@ class TrainUpdater(DatabaseUpdater):
                 if not self.r.exists(redis_key):
                     self.r.ts().create(redis_key, retention_msecs=60 * 60 * 24 * 1000)
                 self.r.ts().add(redis_key, int(point.timestamp.timestamp()), train_distance)
+                self.redis_position_counter.inc()
             #print(
             #    f'Matched pattern for run {end_position.run} rt {end_position.route} starting at {start_position.timestamp.isoformat()}: {len(pattern_result)}')
             return True
         except redis.exceptions.ResponseError as e:
             print(f'Redis summarizer error: {e}')
+            self.redis_position_error.inc()
         except KeyError as e:
             print(f'Bad pattern: {e}')
         except shapely.errors.GEOSException as e:
@@ -332,6 +355,7 @@ class TrainUpdater(DatabaseUpdater):
 
     def subscriber_callback(self, data):
         #print(f'Finding finalized trips data len {len(str(data))}')
+        self.position_bundle_counter.inc()
         self.find_finalized_trips()
         with Session(self.subscriber.engine) as session:
             routes = data['route']
@@ -340,23 +364,28 @@ class TrainUpdater(DatabaseUpdater):
                 route_db = session.get(Route, rt)
                 if route_db is None:
                     print(f'Unknown route {route_db}')
+                    self.route_error_counter.inc()
                     continue
                 if 'train' not in route:
+                    self.route_error_counter.inc()
                     continue
                 if isinstance(route['train'], dict):
                     trains = [route['train']]
                 else:
                     trains = route['train']
                 for v in trains:
+                    self.position_counter_total.inc()
                     run = int(v['rn'])
                     timestamp = datetime.datetime.strptime(v['prdt'], '%Y-%m-%dT%H:%M:%S')
                     existing = session.get(TrainPosition, {'run': run, 'timestamp': timestamp})
                     if existing is not None:
+                        self.missing_position_counter.inc()
                         continue
                     lat = v['lat']
                     lon = v['lon']
                     if abs(float(lat)) < 1 or abs(float(lon)) < 1:
                         #print(f'Invalid point {lat} {lon} in run {run}')
+                        self.invalid_position_counter.inc()
                         continue
                     geom = f'POINT({lon} {lat})'
                     key = (run, timestamp)
@@ -380,6 +409,7 @@ class TrainUpdater(DatabaseUpdater):
                         completed=False,
                     )
                     session.add(upd)
+                    self.position_counter_success.inc()
                     next_stop = session.get(Stop, upd.next_stop)
                     if next_stop:
                         llpoint = shapely.Point(lon, lat)
@@ -445,11 +475,13 @@ class TrainUpdater(DatabaseUpdater):
             session.commit()
 
     def prediction_callback(self, data):
+        self.prediction_bundle_counter.inc()
         with Session(self.subscriber.engine) as session:
             if 'eta' not in data:
                 print(f'Error reading prediction from {data}')
                 return
             for estimate in data['eta']:
+                self.prediction_counter.inc()
                 station_id = int(estimate['staId'])
                 destination = estimate['destNm']
                 destination_stop_id = int(estimate['destSt'])
@@ -477,27 +509,27 @@ class BusUpdater(DatabaseUpdater):
     def __init__(self, *args):
         super().__init__(*args)
         self.cleanup_iteration = 0
-        self.cleanup_counter = Counter('bus_cleanup_base', 'Standard cleanup run')
-        self.cleanup_position_counter = Counter('bus_cleanup_position', 'Clean up positions')
-        self.cleanup_redis_counter = Counter('bus_cleanup_redis', 'Clean up old redis entries')
-        self.prediction_bundle_counter = Counter('bus_prediction_bundle',
+        self.cleanup_counter = Counter('transit_bus_cleanup_base', 'Standard cleanup run')
+        self.cleanup_position_counter = Counter('transit_bus_cleanup_position', 'Clean up positions')
+        self.cleanup_redis_counter = Counter('transit_bus_cleanup_redis', 'Clean up old redis entries')
+        self.prediction_bundle_counter = Counter('transit_bus_prediction_bundle',
                                                  'Bundles of bus predictions')
-        self.prediction_counter = Counter('bus_prediction_individual', 'Individual bus predictions')
-        self.new_prediction_counter = Counter('bus_new_prediction_individual',
+        self.prediction_counter = Counter('transit_bus_prediction_individual', 'Individual bus predictions')
+        self.new_prediction_counter = Counter('transit_bus_new_prediction_individual',
                                               'Individual bus predictions newly added to db')
-        self.position_bundle_counter = Counter('bus_position_bundle',
+        self.position_bundle_counter = Counter('transit_bus_position_bundle',
                                                'Bundles of bus positions')
-        self.position_counter_total = Counter('bus_position_individual_total',
+        self.position_counter_total = Counter('transit_bus_position_individual_total',
                                               'Total individual bus position updates')
-        self.position_counter_success = Counter('bus_position_individual_success',
+        self.position_counter_success = Counter('transit_bus_position_individual_success',
                                                 'Successful individual bus position updates')
-        self.redis_position_counter = Counter('bus_redis_position_success',
+        self.redis_position_counter = Counter('transit_bus_redis_position_success',
                                               'Successful bus position redis update')
-        self.redis_position_error = Counter('bus_redis_position_error',
+        self.redis_position_error = Counter('transit_bus_redis_position_error',
                                             'Errors updating bus Redis position')
-        self.duplicate_key_counter = Counter('bus_position_duplicate_key_error', 'Duplicate key error')
-        self.route_error_counter = Counter('bus_position_unknown_route_error', 'Unknown route')
-        self.missing_position_counter = Counter('bus_position_missing_error',
+        self.duplicate_key_counter = Counter('transit_bus_position_duplicate_key_error', 'Duplicate key error')
+        self.route_error_counter = Counter('transit_bus_position_unknown_route_error', 'Unknown route')
+        self.missing_position_counter = Counter('transit_bus_position_missing_error',
                                                 'Bus position missing in database error')
 
     def periodic_cleanup(self):

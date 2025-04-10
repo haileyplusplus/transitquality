@@ -10,12 +10,12 @@
         {
           "name": "scrape-service",
           "description": "Service that scrapes bus and train vehicle position and prediction data.",
-          "prod": "http://leonard.guineafowl-cloud.ts.net:8002"
+          "prod": "http://leonard.perch-royal.ts.net:8002"
         },
         {
           "name": "valhalla",
           "description": "Valhalla routing service.",
-          "prod": "http://rttransit.guineafowl-cloud.ts.net:8002"
+          "prod": "http://rttransit.perch-royal.ts.net:8002"
         },
         {
           "name": "redis-pubsub",
@@ -25,36 +25,36 @@
         {
           "name": "vehicle-db",
           "description": "Postgres database that stores a 24-hour history of bus and train positions and predictions.",
-          "prod": "rttransit.guineafowl-cloud.ts.net",
-          "dev": "rttransit-1.guineafowl-cloud.ts.net",
+          "prod": "rttransit.perch-royal.ts.net",
+          "dev": "rttransit-1.perch-royal.ts.net",
           "local": "localhost"
         },
         {
           "name": "redis-vehicle-history",
           "description": "Redis store of train and bus location history; equivalent to database but stored as a time series for faster retrieval.",
-          "prod": "rttransit.guineafowl-cloud.ts.net",
-          "dev": "rttransit-1.guineafowl-cloud.ts.net"
+          "prod": "rttransit.perch-royal.ts.net",
+          "dev": "rttransit-1.perch-royal.ts.net"
         },
         {
           "name": "vehicle-server",
           "description": "Backend that answers queries about arrival estimates for transit vehicles near a given location.",
-          "prod": "https://businfo.guineafowl-cloud.ts.net:8501",
-          "dev": "http://businfo-1.guineafowl-cloud.ts.net:8500"
+          "prod": "https://businfo.perch-royal.ts.net:8501",
+          "dev": "http://businfo-1.perch-royal.ts.net:8500"
         }
       ],
       "allowed_origins": [
             "http://localhost:3000",
             "http://businfo:3000",
             "http://businfo-1:3000",
-            "https://businfo.guineafowl-cloud.ts.net"
+            "https://businfo.perch-royal.ts.net"
       ],
       "allowed_hosts": [
         "greendale",
         "brie",
         "businfo",
         "businfo-1",
-        "businfo.guineafowl-cloud.ts.net",
-        "businfo-1.guineafowl-cloud.ts.net"
+        "businfo.perch-royal.ts.net",
+        "businfo-1.perch-royal.ts.net"
       ]
     }
 }

@@ -8,14 +8,14 @@
     }
   },
   "Web": {
-    "businfo.guineafowl-cloud.ts.net:443": {
+    "businfo.perch-royal.ts.net:443": {
       "Handlers": {
         "/": {
           "Proxy": "http://127.0.0.1:3000"
         }
       }
     },
-    "businfo.guineafowl-cloud.ts.net:8501": {
+    "businfo.perch-royal.ts.net:8501": {
       "Handlers": {
         "/": {
           "Proxy": "http://127.0.0.1:8500"

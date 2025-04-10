@@ -66,9 +66,9 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'https://businfo.guineafowl-cloud.ts.net:8501',
+        target: 'https://businfo.perch-royal.ts.net:8501',
         // Uncomment to connect to dev backend
-        // target: 'http://businfo-1.guineafowl-cloud.ts.net:8500',
+        // target: 'http://businfo-1.perch-royal.ts.net:8500',
         changeOrigin: true,
         headers: {'Content-Type': 'application/json'},
         rewrite: (path) => path.replace(/^\/api/, ''),
@@ -79,8 +79,8 @@ export default defineConfig({
       'brie',
       'businfo',
       'businfo-1',
-      'businfo.guineafowl-cloud.ts.net',
-      'businfo-1.guineafowl-cloud.ts.net'
+      'businfo.perch-royal.ts.net',
+      'businfo-1.perch-royal.ts.net'
     ]
   },
   css: {

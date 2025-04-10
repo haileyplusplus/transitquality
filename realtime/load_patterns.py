@@ -14,6 +14,7 @@ from botocore import UNSIGNED
 
 from tools.patternhistory import PatternHistory
 from realtime.rtmodel import *
+import backend.util
 
 
 TRAIN_ROUTES = [
@@ -63,7 +64,7 @@ class S3Getter:
 
 
 def load_routes():
-    engine = db_init(local=True)
+    engine = db_init(backend.util.Config('local'))
     getter = S3Getter()
     j = getter.get_json_contents('bustracker/raw/getroutes/20250107/t025330z.json')
     routes = j['requests'][0]['response']['bustime-response']['routes']
@@ -88,7 +89,7 @@ def load():
     for k in keys['Contents']:
         jd = getter.get_json_contents(k['Key'])
         ph.read_json(jd)
-    engine = db_init()
+    engine = db_init(backend.util.Config('prod'))
     count = 0
     with Session(engine) as session:
         for maxts, pattern_obj in ph.latest_patterns():

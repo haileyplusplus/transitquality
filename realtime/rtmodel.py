@@ -6,6 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.orm import DeclarativeBase
 from geoalchemy2 import Geometry
 
+from backend.util import Config
+
 
 class Base(DeclarativeBase):
     pass
@@ -266,15 +268,8 @@ class ScheduleDestinations(Base):
     direction: Mapped[str]
 
 
-def db_init(echo=False, dev=False, local=False):
-    #engine = create_engine("sqlite+pysqlite:////tmp/rt.db", echo=echo)
-    # for local development
-    if dev:
-        conn_str = "postgresql://postgres:rttransit@rttransit-1.guineafowl-cloud.ts.net/rttransitstate"
-    elif local:
-        conn_str = "postgresql://postgres:rttransit@localhost/rttransitstate"
-    else:
-        conn_str = "postgresql://postgres:rttransit@rttransit.guineafowl-cloud.ts.net/rttransitstate"
+def db_init(config, echo=False):
+    conn_str = f'postgresql://postgres:rttransit@{config.get_server("vehicle-db")}/rttransitstate'
     print(f'Connecting to {conn_str}')
     engine = create_engine(conn_str, echo=echo)
     Base.metadata.create_all(engine)
@@ -305,4 +300,4 @@ where pattern_stop.sequence = 1;
 """
 
 if __name__ == "__main__":
-    db_init()
+    db_init(Config('prod'))

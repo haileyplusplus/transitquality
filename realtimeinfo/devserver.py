@@ -16,6 +16,7 @@ from interfaces.estimates import BusResponse, TrainResponse, StopEstimates, Stop
 from realtimeinfo.assembly import NearStopQuery
 from realtime.rtmodel import db_init
 from realtimeinfo.queries import QueryManager, TrainQuery
+from backend.util import Config
 
 from schedules.schedule_analyzer import ScheduleAnalyzer
 
@@ -34,22 +35,17 @@ app = FastAPI(lifespan=lifespan)
 metrics_app = make_asgi_app()
 app.mount('/metrics', metrics_app)
 
-origins = [
-    'http://localhost:3000',
-    'http://businfo:3000',
-    'http://businfo-1:3000',
-    'https://businfo.guineafowl-cloud.ts.net',
-]
 
+connection_config = Config('prod')
 app.add_middleware(CORSMiddleware,
-                   allow_origins=origins,
+                   allow_origins=connection_config.allowed_origins,
                    allow_credentials=True,
                    allow_methods=["*"],
                    allow_headers=["*"]
                    )
 
-engine = db_init(echo=False, dev=False)
-qm = QueryManager(engine)
+engine = db_init(connection_config, echo=False)
+qm = QueryManager(engine, connection_config)
 # fix for prod
 #schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
 schedule_file = Path('/app/cta_gtfs_20250206.zip')

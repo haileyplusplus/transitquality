@@ -11,6 +11,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 
+import backend.util
 from realtime.rtmodel import *
 
 from schedules.schedule_analyzer import ShapeManager
@@ -18,7 +19,10 @@ from schedules.schedule_analyzer import ShapeManager
 
 class PatternAnalyzer:
     def __init__(self, dev=True):
-        self.engine = db_init(dev=dev)
+        if dev:
+            self.engine = db_init(backend.util.Config('dev'))
+        else:
+            self.engine = db_init(backend.util.Config('prod'))
 
     def pattern_stats(self, pattern_id: int):
         with Session(self.engine) as session:
@@ -168,7 +172,7 @@ class RunAnalyzer:
 
 class FullAnalyzer:
     def __init__(self, dev=True):
-        self.engine = db_init(dev=dev)
+        self.engine = db_init(backend.util.Config('dev'))
 
     def analyze(self):
         with Session(self.engine) as session:

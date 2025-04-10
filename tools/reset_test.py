@@ -6,6 +6,7 @@ from sqlalchemy import select, delete, func, text
 from sqlalchemy.orm import Session
 import redis
 from realtime.rtmodel import *
+from backend.util import Config
 
 
 def redis_delete(keytype):
@@ -38,7 +39,11 @@ if __name__ == "__main__":
     if not args.bus and not args.train:
         print(f'At least one of --bus or --train must be specified.')
         sys.exit(1)
-    engine = db_init(dev=dev)
+    if dev:
+        config = Config('dev')
+    else:
+        config = Config('prod')
+    engine = db_init(config)
     with Session(engine) as session:
         if args.train:
             session.execute(text('delete from current_train_state'))

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 
 from realtime.rtmodel import *
+from backend.util import Config
 
 
 class ShapeManager:
@@ -412,6 +413,6 @@ class ScheduleAnalyzer:
 
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
-    sa = ScheduleAnalyzer(schedule_file, engine=db_init(dev=True))
+    sa = ScheduleAnalyzer(schedule_file, engine=db_init(Config('dev')))
     sa.add_destinations_to_db()
     #sa.update_db()

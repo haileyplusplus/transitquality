@@ -3,6 +3,8 @@
 import requests
 import json
 
+from backend.util import Config
+
 
 class ValhallaHelper:
     """

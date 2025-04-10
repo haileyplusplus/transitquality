@@ -128,7 +128,7 @@ class NearStopQuery:
                 "units": "miles",
                 "id": str(item.stop_id)}
             jp = json.dumps(routing_json)
-            urls.append(f'http://rttransit.guineafowl-cloud.ts.net:8002/route?json={jp}')
+            urls.append(f'{self.qm.config.get_server("valhalla")}/route?json={jp}')
         for u in urls:
             logger.debug(f'Requesting routing {u}')
             reqs.append(grequests.get(u))

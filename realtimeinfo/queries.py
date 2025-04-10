@@ -15,7 +15,7 @@ import redis
 
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop, \
     CurrentTrainState
-from backend.util import Util
+from backend.util import Util, Config
 from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
     PatternResponse, DetailRequest, Mode, StopEstimates
@@ -305,10 +305,11 @@ class EstimateFinder:
 
 
 class QueryManager:
-    def __init__(self, engine):
+    def __init__(self, engine, config):
         self.engine = engine
+        self.config = config
         self.patterns = {}
-        self.redis = redis.Redis(host='rttransit.guineafowl-cloud.ts.net')
+        self.redis = redis.Redis(host=self.config.get_server('redis-vehicle-history'))
         logger.debug(f'Initialize redis: {self.redis.ping()}')
         query = ('select p.pattern_id, pattern_stop.stop_id, stop.stop_name from pattern_stop inner join '
                  '(select pattern_id, max(sequence) as endseq from pattern_stop group by pattern_id) as p '
@@ -717,7 +718,7 @@ class TrainQuery:
 
 
 def main():
-    engine = db_init(local=True)
+    engine = db_init(Config('local'))
     qm = QueryManager(engine)
     lon = -87.610056
     lat = 41.822556

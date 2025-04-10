@@ -48,7 +48,7 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=["*"]
                    )
 
-engine = db_init(echo=True, dev=False)
+engine = db_init(echo=False, dev=False)
 qm = QueryManager(engine)
 # fix for prod
 #schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()

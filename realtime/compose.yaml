@@ -123,9 +123,10 @@ services:
     image: tailscale/tailscale:latest
     container_name: ts-transit-realtime
     hostname: rttransit
+    env_file:
+      - path: ~/.config/tailscale/ts-authkey
+        required: true
     environment:
-      - TS_AUTHKEY=tskey-auth-kyhNRZiosi11CNTRL-EnHCSi8Hgq1HcC84oHd1r1qMTEnmWoM7F
-      #- TS_SERVE_CONFIG=/config/serve-transit-realtime.json
       - TS_STATE_DIR=/var/lib/tailscale
     volumes:
       - transit-realtime-tailscale-state:/var/lib/tailscale

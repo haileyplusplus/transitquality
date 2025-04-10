@@ -2,7 +2,7 @@ import datetime
 import cProfile
 import heapq
 import statistics
-from typing import Iterable
+import logging
 
 import geoalchemy2
 import sqlalchemy.exc
@@ -13,10 +13,6 @@ from geoalchemy2.shape import to_shape
 import requests
 import redis
 
-import pandas as pd
-import numpy as np
-
-
 from realtime.rtmodel import db_init, BusPosition, CurrentVehicleState, Stop, TrainPosition, PatternStop, \
     CurrentTrainState
 from backend.util import Util
@@ -24,6 +20,9 @@ from schedules.schedule_analyzer import ScheduleAnalyzer, ShapeManager
 from interfaces.estimates import TrainEstimate, BusEstimate, StopEstimate, SingleEstimate, EstimateResponse, \
     PatternResponse, DetailRequest, Mode, StopEstimates
 from interfaces import ureg, Q_
+
+
+logger = logging.getLogger(__file__)
 
 
 class EstimateFinder:
@@ -116,13 +115,13 @@ class EstimateFinder:
             vehicles = {}
             for position_info in row.vehicle_positions:
                 #vids.append(position_info.vehicle_id)
-                print(f'Looking for {position_info.vehicle_id}')
+                logger.debug(f'Looking for {position_info.vehicle_id}')
                 if mode == mode.TRAIN:
                     vehicle = session.get(CurrentTrainState, position_info.vehicle_id)
                 else:
                     vehicle = session.get(CurrentVehicleState, position_info.vehicle_id)
                 if vehicle:
-                    print(f'Recalculated: {vehicle.__dict__}')
+                    logger.debug(f'Recalculated: {vehicle.__dict__}')
                     vehicles[position_info.vehicle_id] = vehicle
                     #e.distance * ureg.feet
             return vehicles
@@ -136,10 +135,10 @@ class EstimateFinder:
         except sqlalchemy.exc.NoResultFound as e:
             pattern_stop = None
         if pattern_stop is None:
-            print(f'Could not find pattern stop {pid} {train.rt} {train.id}')
+            logger.warning(f'Could not find pattern stop {pid} {train.rt} {train.id}')
             return None
         next_train_pattern_distance = pattern_stop.distance
-        # print(train.geom, type(train.geom))
+        # logger.debug(train.geom, type(train.geom))
         # The ORM would do this for us automatically, but we have a manual query here
         #train_wkb = geoalchemy2.elements.WKBElement(train.geom)
         train_wkb = train.geom
@@ -147,11 +146,11 @@ class EstimateFinder:
         # train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
         _, train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point, False)
         train_dist_m = train_dist * ureg.meters
-        print(f'Got train distance: {train_dist_m} stop pattern {stop_pattern_distance}')
+        logger.debug(f'Got train distance: {train_dist_m} stop pattern {stop_pattern_distance}')
         if train_dist_m > stop_pattern_distance:
             return None
         #dist_from_train = stop_pattern_distance - train_dist_m
-        #print(f' Distance from train: {dist_from_train}')
+        #logger.debug(f' Distance from train: {dist_from_train}')
         return train_dist_m
 
     def get_single_estimate(self):
@@ -167,10 +166,10 @@ class EstimateFinder:
             recalculate = False
         else:
             recalculate = self.recalculate_positions
-        print(f'Get estimate {pid} recalcluate {recalculate}')
+        logger.debug(f'Get estimate {pid} recalcluate {recalculate}')
         if recalculate:
             vehicles = self.do_recalculate(mode)
-            print(f'vehicles {vehicles}')
+            logger.debug(f'vehicles {vehicles}')
         for position_info in row.vehicle_positions:
             bus_dist = None
             timestamp = None
@@ -180,27 +179,27 @@ class EstimateFinder:
             if recalculate and position_info.vehicle_id in vehicles:
                 recalc = vehicles[position_info.vehicle_id]
                 if mode == mode.TRAIN:
-                    print(f'got train: {recalc.__dict__}')
+                    logger.debug(f'got train: {recalc.__dict__}')
                     with Session(self.engine) as session:
                         bus_dist = self.get_train_distance(session,
                                                            stop_dist, pid, recalc)
                 else:
                     bus_dist = recalc.distance * ureg.feet
                 timestamp = recalc.last_update
-            print(f'Using bus dist {bus_dist}')
+            logger.debug(f'Using bus dist {bus_dist}')
             if bus_dist is None:
                 bus_dist = position_info.vehicle_position
-                print(f'Bus dist fallback to {bus_dist}')
+                logger.debug(f'Bus dist fallback to {bus_dist}')
             if self.debug:
-                print(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
+                logger.debug(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:
                 #yield -1, -1, info
-                print(f'  skipping')
+                logger.debug(f'  skipping')
                 continue
             #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
             trips = self.get_latest_redis(pid, stop_dist)
             if self.debug:
-                print(f'  Found {len(trips)} total trips')
+                logger.debug(f'  Found {len(trips)} total trips')
             info = {"estimates": []}
             pipeline = self.redis.pipeline()
             estimates = []
@@ -213,16 +212,16 @@ class EstimateFinder:
 
             def process(closest_bus, closest_stop, rk1, rk2):
                 if self.debug:
-                    print(f'  inner process {closest_bus} st {closest_stop}')
+                    logger.debug(f'  inner process {closest_bus} st {closest_stop}')
                 if not closest_bus or not closest_stop:
                     return None
-                #print(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
+                #logger.debug(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
                 bus_time_samp, bus_dist_samp = closest_bus
                 stop_time_samp, stop_dist_samp = closest_stop
                 travel_time = stop_time_samp - bus_time_samp
                 travel_dist = stop_dist_samp - bus_dist_samp
                 if self.debug:
-                    print(f'    tt {travel_time} td {travel_dist}')
+                    logger.debug(f'    tt {travel_time} td {travel_dist}')
                 if travel_dist <= 0 or travel_time <= 0:
                     return None
                 travel_rate = travel_dist / travel_time
@@ -250,7 +249,7 @@ class EstimateFinder:
                 computed = actual_dist / travel_rate
                 d['raw_estimate_seconds'] = computed
                 d['raw_estimate'] = round(computed / 60, 1)
-                #print(f'computed: {computed}')
+                #logger.debug(f'computed: {computed}')
                 info['estimates'].append(d)
                 return computed
 
@@ -263,7 +262,7 @@ class EstimateFinder:
 
                 result = process(result1, result2, rk1, rk2)
                 if self.debug:
-                    print(f'  process {result1} {result2}  {rk1} {rk2} => {result}')
+                    logger.debug(f'  process {result1} {result2}  {rk1} {rk2} => {result}')
 
                 if result:
                     estimates.append(result)
@@ -275,7 +274,7 @@ class EstimateFinder:
             # consider more sophisticated percentile stuff
             stdev = statistics.stdev(estimates)
             mean = statistics.mean(estimates)
-            #print(estimates)
+            #logger.debug(estimates)
             considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
             if not considered:
                 continue
@@ -310,7 +309,7 @@ class QueryManager:
         self.engine = engine
         self.patterns = {}
         self.redis = redis.Redis(host='rttransit.guineafowl-cloud.ts.net')
-        print(f'Initialize redis: {self.redis.ping()}')
+        logger.debug(f'Initialize redis: {self.redis.ping()}')
         query = ('select p.pattern_id, pattern_stop.stop_id, stop.stop_name from pattern_stop inner join '
                  '(select pattern_id, max(sequence) as endseq from pattern_stop group by pattern_id) as p '
                  'on p.endseq = pattern_stop.sequence and p.pattern_id = pattern_stop.pattern_id inner join '
@@ -335,7 +334,7 @@ class QueryManager:
         url = 'http://leonard.guineafowl-cloud.ts.net:8002/patterninfo'
         resp = requests.get(url)
         if resp.status_code != 200:
-            print(f'Error loading patterns: {resp.status_code}')
+            logger.warning(f'Error loading patterns: {resp.status_code}')
             return
         patterns = resp.json()['pattern_info']
         for p in patterns:
@@ -425,21 +424,21 @@ class QueryManager:
             local_now = Util.ctanow()
             for row in result:
                 row_distance = row.distance
-                print(f'Looking for pattern {row.pattern_id}  distance {row_distance} stop distance {row.stop_pattern_distance}')
+                logger.debug(f'Looking for pattern {row.pattern_id}  distance {row_distance} stop distance {row.stop_pattern_distance}')
                 last_stop_id, last_stop_name = self.last_stops.get(row.pattern_id, (None, None))
                 if last_stop_id is None:
-                    print(f'No last stop found for {row.pattern_id} - {row.stop_name} {row.rt}')
+                    logger.debug(f'No last stop found for {row.pattern_id} - {row.stop_name} {row.rt}')
                     continue
                 info = self.patterns.get(row.pattern_id, {})
                 direction = info.get('direction')
                 if direction is None:
-                    print(f'Warning: Unknown direction in route {row.rt} pattern {row.pattern_id}')
+                    logger.debug(f'Warning: Unknown direction in route {row.rt} pattern {row.pattern_id}')
                     direction = 'unknown'
                 row_update = row.last_update
                 if row_distance is None or row_distance >= row.stop_pattern_distance:
                     prediction = predictions.get(row.pattern_id)
                     if prediction is None:
-                        print(f'No prediction found for {row.pattern_id} - {row.stop_name} {row.rt}')
+                        logger.debug(f'No prediction found for {row.pattern_id} - {row.stop_name} {row.rt}')
                         continue
                     if row.pattern_id in seen:
                         continue
@@ -450,10 +449,10 @@ class QueryManager:
 
                     #pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
                     pts = Util.CTA_TIMEZONE.localize(prediction.timestamp)
-                    #print(f'Prediction raw {prediction.timestamp}, Predicted timestamp: {pts} local now {local_now}')
+                    #logger.debug(f'Prediction raw {prediction.timestamp}, Predicted timestamp: {pts} local now {local_now}')
                     age = (local_now - pts).total_seconds() / 60
                     predicted_minutes = round(predicted_minutes - age)
-                    print(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins raw {prediction.prediction} adjusted {predicted_minutes}  age {age}')
+                    logger.debug(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins raw {prediction.prediction} adjusted {predicted_minutes}  age {age}')
                     dxx = BusEstimate(
                         query_start=startquery,
                         pattern=row.pattern_id,
@@ -476,13 +475,13 @@ class QueryManager:
                         vehicle=row.vehicle_id,
                     )
                     # TODO: avoid copy
-                    #print(dxx)
+                    #logger.debug(dxx)
                     key = (row.rt, last_stop_name)
                     #routes[key] = dxx
                     all_items.append(dxx)
                     continue
                 if row_distance >= row.stop_pattern_distance:
-                    #print(f'Skip ')
+                    #logger.debug(f'Skip ')
                     continue
                 bus_distance = row.stop_pattern_distance - row_distance
                 # split this out into its own thing
@@ -643,7 +642,7 @@ class TrainQuery:
             trains = {}
             current_state = session.execute(text(state_query))
             for row in current_state:
-                print(f'Found {row.dest_station}')
+                logger.debug(f'Found {row.dest_station}')
                 key = (row.dest_station, row.direction)
                 trains.setdefault(key, []).append(row)
 
@@ -653,11 +652,11 @@ class TrainQuery:
                                                    "thresh": 1000})
 
             for row in result:
-                print(f'Found {row}')
+                logger.debug(f'Found {row}')
                 shape_manager: ShapeManager = self.schedule_analyzer.managed_shapes.get(row.pid)
                 direction = self.DIRECTION_MAPPING.get((row.xrt, row.stop_headsign))
                 if not direction:
-                    print(f'Unrecognized route / headsign combo: {row.xrt}, {row.stop_headsign}')
+                    logger.debug(f'Unrecognized route / headsign combo: {row.xrt}, {row.stop_headsign}')
                     continue
                 key = (row.last_stop_id, direction)
                 if direction == 1:
@@ -677,10 +676,10 @@ class TrainQuery:
                     except sqlalchemy.exc.NoResultFound as e:
                         pattern_stop = None
                     if pattern_stop is None:
-                        print(f'Could not find pattern stop {row.pid} {rt} {train.id}')
+                        logger.debug(f'Could not find pattern stop {row.pid} {rt} {train.id}')
                         continue
                     next_train_pattern_distance = pattern_stop.distance
-                    #print(train.geom, type(train.geom))
+                    #logger.debug(train.geom, type(train.geom))
                     # The ORM would do this for us automatically, but we have a manual query here
                     train_wkb = geoalchemy2.elements.WKBElement(train.geom)
                     train_point = to_shape(train_wkb)

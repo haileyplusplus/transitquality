@@ -13,8 +13,8 @@ class ValhallaHelper:
     def query(self, cmd, jd):
         jp = json.dumps(jd)
         resp = requests.get(f'{self.BASE_URL}/{cmd}?json={jp}')
-        print(f'Response: {resp.status_code}')
-        print(json.dumps(resp.json(), indent=4))
+        #print(f'Response: {resp.status_code}')
+        #print(json.dumps(resp.json(), indent=4))
 
     @staticmethod
     def make_list(*items):

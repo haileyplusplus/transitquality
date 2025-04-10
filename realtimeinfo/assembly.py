@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import logging
 
 import grequests
 
@@ -8,6 +9,9 @@ from interfaces import ureg
 from interfaces.estimates import BusResponse, TrainEstimate, TrainResponse, TransitEstimate, StopEstimates, \
     StopEstimate, CombinedResponseType, TransitOutput, BusEstimate, Mode, PositionInfo
 from realtimeinfo.queries import QueryManager, TrainQuery
+
+
+logger = logging.getLogger(__file__)
 
 
 class NearStopQuery:
@@ -33,11 +37,11 @@ class NearStopQuery:
         for k, v in sorted(routes.items()):
             routev = []
             for d in v:
-                print(f'coalesce {dirname} {k}  vp {d.vehicle_position}  sp {d.stop_position}  le {d.low_estimate}')
+                logger.debug(f'coalesce {dirname} {k}  vp {d.vehicle_position}  sp {d.stop_position}  le {d.low_estimate}')
                 routev.append(d)
                 d.age = self.td_round(d.age)
                 d.distance_from_vehicle = d.distance_from_vehicle.to(ureg.miles)
-                # print(json.dumps(d, indent=4))
+                # logger.debug(json.dumps(d, indent=4))
                 if d.low_estimate is None:
                     miles = d.distance_from_vehicle.to(ureg.miles)
                     if miles <= ureg.miles * 1:
@@ -65,13 +69,13 @@ class NearStopQuery:
                 # d.low_estimate = el
                 # d.high_estimate = eh
                 if d.walk_time is None:
-                    print(f'  Missing walk time in {d.pattern}')
+                    logger.debug(f'  Missing walk time in {d.pattern}')
                     d.display = False
                     continue
 
                 if d.walk_time > datetime.timedelta(0) and datetime.timedelta(0) <= d.high_estimate <= d.walk_time:
                     item = d
-                    print(
+                    logger.debug(
                         f'  filtering out item due to walk time: item {item.pattern} vid ? vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
                     d.display = False
                     continue
@@ -89,7 +93,7 @@ class NearStopQuery:
                     vehicle = item.run
                 else:
                     vehicle = item.vehicle
-                print(
+                logger.debug(
                     f'  item {item.pattern} vid {vehicle} vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
             displayed = 0
             for r in routev:
@@ -126,26 +130,26 @@ class NearStopQuery:
             jp = json.dumps(routing_json)
             urls.append(f'http://rttransit.guineafowl-cloud.ts.net:8002/route?json={jp}')
         for u in urls:
-            print(f'Requesting routing {u}')
+            logger.debug(f'Requesting routing {u}')
             reqs.append(grequests.get(u))
 
         def handler(request, exception):
-            print(f'Issue with {request}: {exception}')
+            logger.warning(f'Issue with {request}: {exception}')
 
         responses = grequests.map(reqs, exception_handler=handler)
-        #print('index', index.keys())
-        print(f'Sent {len(reqs)} requests and got {len(responses)} responses')
+        #logger.debug('index', index.keys())
+        logger.debug(f'Sent {len(reqs)} requests and got {len(responses)} responses')
         for resp in responses:
             if resp is None:
-                print(f'  Got null response')
+                logger.warning(f'  Got null response')
                 continue
             if resp.status_code not in {200, 201}:
-                print(f'   Response status code to {resp.request.url}: {resp.staus_code}')
+                logger.warning(f'   Response status code to {resp.request.url}: {resp.staus_code}')
                 continue
 
             jd = resp.json()
             summary = jd['trip']['summary']
-            # print(jd)
+            # logger.debug(jd)
             seconds = summary['time']
             miles = summary['length']
             stop_id = int(jd['id'])
@@ -183,7 +187,7 @@ class NearStopQuery:
         reqs = []
         estimates_query = StopEstimates(estimates=sorted(ests.values()))
         reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
-        print(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
+        logger.debug(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
         #return qm.get_estimates(stop_estimates.estimates)
 
         #estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
@@ -205,14 +209,14 @@ class NearStopQuery:
                     index[pattern_id][vehicle_position].high_estimate = se.high_estimate
                     index[pattern_id][vehicle_position].trace_info = se.info
                 else:
-                    print(f'Warning: pattern {pattern_id} vehicle position missing {vehicle_position}')
+                    logger.warning(f'Warning: pattern {pattern_id} vehicle position missing {vehicle_position}')
 
         for item in results:
             rr = routing_responses.get(item.stop_id)
             if rr:
                 item.walk_time, item.walk_distance = rr
             else:
-                print(f'Warning: stop {item.stop_id} missing routing')
+                logger.warning(f'Warning: stop {item.stop_id} missing routing')
             # item.walk_time, item.walk
             directions.setdefault(item.direction, []).append(item)
         return directions
@@ -244,11 +248,11 @@ class NearStopQuery:
         #if resp.status_code != 200:
         #    return f'Error handling request'
         results: list[TransitEstimate] = []
-        print(f'Running query')
+        logger.debug(f'Running query')
         resp = await asyncio.gather(self.nearest_buses(), self.nearest_trains())
-        print(f'Gathered')
+        logger.debug(f'Gathered')
         bus_response, train_response = resp
-        print(f'resp done')
+        logger.debug(f'resp done')
         #bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
         results += bus_response.results
         #train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)

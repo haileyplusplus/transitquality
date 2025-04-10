@@ -25,7 +25,7 @@ logger = logging.getLogger(__file__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f'App starting up')
-    print('serving')
+    logger.debug('serving')
     yield
     logger.info(f'App lifespan done')
 
@@ -148,16 +148,16 @@ async def single_estimate(pattern_id: int, stop_position: str, vehicle_position:
 
 @app.post('/estimates/')
 async def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
-    #print(f'Estimates: ', stop_estimates)
+    #logger.debug(f'Estimates: ', stop_estimates)
     return await qm.get_estimates(stop_estimates)
     #return {'estimates': rv}
 
 
 @app.get('/combined-estimate-raw')
 async def combined_estimate_raw(lat: float, lon: float) -> CombinedResponse:
-    print(f'Running query combined estimate 1')
+    logger.debug(f'Running query combined estimate 1')
     q = NearStopQuery(qm, sa, lat=lat, lon=lon, do_conversion=False)
-    print(f'Running query combined estimate 2')
+    logger.debug(f'Running query combined estimate 2')
     response = await q.run_query()
     return CombinedResponse(response=response)
 

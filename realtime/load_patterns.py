@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from s3path import S3Path
 import boto3
 import botocore
-from botocore.config import Config
+import botocore.config
 from botocore import UNSIGNED
 
 from tools.patternhistory import PatternHistory
@@ -35,7 +35,7 @@ class S3Getter:
         self.cachedir.mkdir(exist_ok=True)
         self.client = boto3.client(
             's3', region_name='us-east-2',
-            config=Config(signature_version=UNSIGNED)
+            config=botocore.config.Config(signature_version=UNSIGNED)
         )
         self.bucket = 'transitquality2024'
         self.fetched = 0

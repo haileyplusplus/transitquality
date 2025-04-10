@@ -53,10 +53,7 @@ if __name__ == "__main__":
             session.execute(text('delete from bus_position'))
         session.commit()
     print(f'Cleared db')
-    if dev:
-        r = redis.Redis(host='rttransit-1')
-    else:
-        r = redis.Redis(host='rttransit')
+    r = redis.Redis(host=config.get_server('redis-vehicle-history'))
     #for key in r.scan_iter('trainposition:*'):
     if args.bus:
         redis_delete('bus')

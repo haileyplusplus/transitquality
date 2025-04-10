@@ -4,10 +4,13 @@ import asyncio
 
 import redis.asyncio as redis
 
+from backend.util import Config
+
 
 class Subscriber:
     def __init__(self):
-        self.redis = redis.Redis(host='leonard.guineafowl-cloud.ts.net')
+        self.config = Config('prod')
+        self.redis = redis.Redis(host=self.config.get_server('redis-pubsub'))
 
     async def reader(self, pubsub):
         while True:

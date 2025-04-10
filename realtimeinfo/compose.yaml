@@ -12,6 +12,8 @@ services:
     build:
       context: ../chicago-transit
       dockerfile: Dockerfile
+    volumes:
+      - ../config/connections.json:/app/connections.json
     network_mode: service:transit-realtimeinfo-sidecar
     depends_on:
       transit-realtimeinfo-sidecar:

@@ -10,13 +10,14 @@ class ValhallaHelper:
     """
     Helper for querying Vahalla
     """
-    BASE_URL = 'http://rttransit:8002/'
+    def __init__(self):
+        self.config = Config('prod')
 
     def query(self, cmd, jd):
         jp = json.dumps(jd)
-        resp = requests.get(f'{self.BASE_URL}/{cmd}?json={jp}')
-        #print(f'Response: {resp.status_code}')
-        #print(json.dumps(resp.json(), indent=4))
+        resp = requests.get(f'{self.config.get_server("valhalla")}/{cmd}?json={jp}')
+        print(f'Response: {resp.status_code}')
+        print(json.dumps(resp.json(), indent=4))
 
     @staticmethod
     def make_list(*items):

@@ -8,6 +8,11 @@
       ],
       "servers": [
         {
+          "name": "scrape-service",
+          "description": "Service that scrapes bus and train vehicle position and prediction data.",
+          "prod": "http://leonard.guineafowl-cloud.ts.net:8002"
+        },
+        {
           "name": "valhalla",
           "description": "Valhalla routing service.",
           "prod": "http://rttransit.guineafowl-cloud.ts.net:8002"

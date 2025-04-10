@@ -332,7 +332,7 @@ class QueryManager:
                 print(f'table {table} has count {count}')
 
     def load_pattern_info(self):
-        url = 'http://leonard.guineafowl-cloud.ts.net:8002/patterninfo'
+        url = f'{self.config.get_server("scrape-service")}/patterninfo'
         resp = requests.get(url)
         if resp.status_code != 200:
             logger.warning(f'Error loading patterns: {resp.status_code}')

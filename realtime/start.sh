@@ -1,6 +1,6 @@
 #!/bin/bash
 HOST=$(hostname -s)
-if [[ "$HOST" == "brie" ]]
+if [[ "$HOST" == "shirley" ]]
 then
   echo "Starting with prod config on $HOST"
   docker compose -f compose.yaml -f compose.prod.yaml up --build rtserver -d

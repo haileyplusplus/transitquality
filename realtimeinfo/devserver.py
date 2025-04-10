@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from prometheus_client import make_asgi_app
 
 from interfaces.estimates import BusResponse, TrainResponse, StopEstimates, StopEstimate, \
-    EstimateResponse, DetailRequest, CombinedResponse, CombinedOutput, PositionInfo
+    EstimateResponse, DetailRequest, CombinedResponse, CombinedOutput, PositionInfo, CombinedEstimateRequest
 from realtimeinfo.assembly import NearStopQuery
 from realtime.rtmodel import db_init
 from realtimeinfo.queries import QueryManager, TrainQuery
@@ -162,8 +162,8 @@ async def combined_estimate_raw(lat: float, lon: float) -> CombinedResponse:
     return CombinedResponse(response=response)
 
 
-@app.get('/combined-estimate')
-async def combined_estimate(lat: float, lon: float) -> CombinedOutput:
-    q = NearStopQuery(qm, sa, lat=lat, lon=lon, do_conversion=True)
+@app.post('/combined-estimate')
+async def combined_estimate(request: CombinedEstimateRequest) -> CombinedOutput:
+    q = NearStopQuery(qm, sa, lat=request.lat, lon=request.lon, do_conversion=True)
     response = await q.run_query()
     return CombinedOutput(response=response)

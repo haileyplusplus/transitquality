@@ -384,11 +384,20 @@ onMounted(() => {
 
 
 
-      const BACKEND_URL = `/api/combined-estimate`;
+    const BACKEND_URL = `/api/combined-estimate`;
 
     async function backendFetch(lat, lon) {
-      const url = `${BACKEND_URL}?lat=${lat}&lon=${lon}`;
-      transitInfo.value = await (await fetch(url)).json();
+      transitInfo.value = await (await fetch(BACKEND_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          lat: lat,
+          lon: lon
+        }),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8"
+        }
+      }
+      )).json();
     }
 
     if (store.searchLocation) {

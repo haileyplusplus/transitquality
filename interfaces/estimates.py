@@ -153,6 +153,11 @@ class DetailRequest(BaseModel):
     walk_time: datetime.timedelta
 
 
+class CombinedEstimateRequest(BaseModel):
+    lat: float
+    lon: float
+
+
 CombinedResponseType = dict[str, list[TransitEstimate]]
 
 
@@ -162,3 +167,5 @@ class CombinedResponse(BaseModel):
 
 class CombinedOutput(BaseModel):
     response: dict[str, list[TransitOutput]]
+
+

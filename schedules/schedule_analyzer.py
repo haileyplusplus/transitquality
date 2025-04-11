@@ -413,6 +413,6 @@ class ScheduleAnalyzer:
 
 if __name__ == "__main__":
     schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
-    sa = ScheduleAnalyzer(schedule_file, engine=db_init(Config('dev')))
+    sa = ScheduleAnalyzer(schedule_file, engine=db_init(Config('prod')))
     sa.add_destinations_to_db()
     #sa.update_db()

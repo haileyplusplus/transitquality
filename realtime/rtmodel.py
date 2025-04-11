@@ -287,6 +287,8 @@ order by run, timestamp;
 
 - used in queries
 
+TODO: actually initialize these automatically
+
 create view last_stop as select distinct on (pattern_id) pattern_id, sequence, distance, stop_id from pattern_stop order by pattern_id, sequence desc;
 
 

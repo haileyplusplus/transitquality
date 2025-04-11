@@ -64,7 +64,7 @@ class S3Getter:
 
 
 def load_routes():
-    engine = db_init(backend.util.Config('local'))
+    engine = db_init(backend.util.Config('prod'))
     getter = S3Getter()
     j = getter.get_json_contents('bustracker/raw/getroutes/20250107/t025330z.json')
     routes = j['requests'][0]['response']['bustime-response']['routes']

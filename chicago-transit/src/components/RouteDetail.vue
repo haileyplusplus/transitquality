@@ -105,7 +105,7 @@ const chartOptions = ref({
 
 const chartSeries = ref([])
 
-const BACKEND_URL = `/api/single-estimate`;
+const BACKEND_URL = `/api/single-estimate/`;
 
   async function backendFetch(item) {
     const params = new URLSearchParams();

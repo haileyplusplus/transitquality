@@ -1,5 +1,5 @@
 #!/bin/bash
-HOST=$(tailscale status --json | jq .Self.DNSName | tr -d \" | cut -d\. -f 1)
+HOST=$(tailscale status --json | jq -r '.Self.DNSName | split(".") | first')
 if [[ "$HOST" == "leonard" ]]
 then
   echo "Starting with prod config on $HOST"

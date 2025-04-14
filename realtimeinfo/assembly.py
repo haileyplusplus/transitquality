@@ -53,21 +53,12 @@ class NearStopQuery:
                     # consider better values
                     d.low_estimate = datetime.timedelta(minutes=1)
                     d.high_estimate = datetime.timedelta(minutes=5)
-                    # routev.append(d)
                     continue
-                # predicted = d.predicted_minutes
-                # age = d.age
                 d.low_estimate -= d.age
                 d.high_estimate -= d.age
                 if d.waiting_to_depart and d.predicted_minutes:
-                    # el += predicted * 60
-                    # eh += predicted * 60
                     d.low_estimate += d.predicted_minutes
                     d.high_estimate += d.predicted_minutes
-                # el = round((d.low_estimate - age) / 60)
-                # eh = round((d.high_estimate - age) / 60)
-                # d.low_estimate = el
-                # d.high_estimate = eh
                 if d.walk_time is None:
                     logger.debug(f'  Missing walk time in {d.pattern}')
                     d.display = False
@@ -79,14 +70,9 @@ class NearStopQuery:
                         f'  filtering out item due to walk time: item {item.pattern} vid ? vp {item.vehicle_position}  sp {item.stop_position}  le {item.low_estimate}  he {item.high_estimate}')
                     d.display = False
                     continue
-                # age_minutes = round(d['age'] / 60)
-                # d['age'] = round(d['age'])
-                # d['old_estimate'] = f'{el}-{eh} min'
-                # d['estimate'] = f'{el}-{eh} min'
                 elm = round(d.low_estimate.total_seconds() / 60)
                 ehm = round(d.high_estimate.total_seconds() / 60)
                 d.displayed_estimate = f'{elm}-{ehm} min'
-                # routev.append(d)
             routev.sort(key=lambda x: x.low_estimate)
             for item in routev:
                 if isinstance(item, TrainEstimate):
@@ -149,7 +135,6 @@ class NearStopQuery:
 
             jd = resp.json()
             summary = jd['trip']['summary']
-            # logger.debug(jd)
             seconds = summary['time']
             miles = summary['length']
             stop_id = int(jd['id'])
@@ -159,7 +144,6 @@ class NearStopQuery:
 
     async def estimate_vehicle_locations(self, results: list[TransitEstimate]) -> CombinedResponseType:
         directions = {'Northbound': [], 'Southbound': [], 'Eastbound': [], 'Westbound': []}
-        # estimate_params: list[dict] = []
         index = {}
         ests = {}
 
@@ -188,9 +172,6 @@ class NearStopQuery:
         estimates_query = StopEstimates(estimates=sorted(ests.values()))
         reqs.append(grequests.post('http://localhost:8500/estimates/', data=estimates_query.model_dump_json()))
         logger.debug(f'Requesting estimate http://localhost:8500/estimates/ post {estimates_query.model_dump_json(indent=4)}')
-        #return qm.get_estimates(stop_estimates.estimates)
-
-        #estimate_response: EstimateResponse = EstimateResponse.model_validate_json(resp.text)
 
         gathered = await asyncio.gather(
             self.qm.get_estimates(estimates_query),
@@ -201,7 +182,6 @@ class NearStopQuery:
         for p in estimate_response.patterns:
             pattern_id = p.pattern_id
             for se in p.single_estimates:
-                # vehicle_position = se.vehicle_position
                 # TODO: fix this
                 vehicle_position = round(se.vehicle_position.m)
                 if vehicle_position in index[pattern_id]:
@@ -226,8 +206,6 @@ class NearStopQuery:
         results = self.qm.nearest_stop_vehicles(self.lat, self.lon)
         end = datetime.datetime.now()
         latency = int((end - start).total_seconds())
-        # return {'results': results, 'start': start.isoformat(), 'latency': latency,
-        #         'lat': lat, 'lon': lon}
         return BusResponse(
             results=results,
             start=start,
@@ -243,30 +221,18 @@ class NearStopQuery:
         return TrainResponse(results=tq.get_relevant_stops(self.lat, self.lon))
 
     async def run_query(self) -> CombinedResponseType:
-        #backend = 'http://localhost:8500/nearest-estimates'
-        #resp = requests.get(backend, params=request.args)
-        #if resp.status_code != 200:
-        #    return f'Error handling request'
         results: list[TransitEstimate] = []
         logger.debug(f'Running query')
         resp = await asyncio.gather(self.nearest_buses(), self.nearest_trains())
         logger.debug(f'Gathered')
         bus_response, train_response = resp
         logger.debug(f'resp done')
-        #bus_response: BusResponse = BusResponse.model_validate_json(resp.text)
         results += bus_response.results
-        #train_resp = requests.get('http://localhost:8500/nearest-trains', params=request.args)
-        #if resp.status_code == 200:
-        #    train_response: TrainResponse = TrainResponse.model_validate_json(train_resp.text)
-        #    results += train_resp.json()['results']
         results += train_response.results
         directions = await self.estimate_vehicle_locations(results)
         directions2 = {}
         for k, v in directions.items():
-            # directions.setdefault(item.direction, []).append(item)
             directions2[k] = self.route_coalesce(k, v)
-        #raw = json.dumps(jsonable_encoder(directions2), indent=4)
-        # raw = directions2.model_dump_json
         return directions2
 
     def convert_output(self, e: TransitEstimate) -> TransitOutput:

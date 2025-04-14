@@ -47,15 +47,9 @@ app.add_middleware(CORSMiddleware,
 engine = db_init(connection_config, echo=False)
 qm = QueryManager(engine, connection_config)
 # fix for prod
-#schedule_file = Path('~/datasets/transit/cta_gtfs_20250206.zip').expanduser()
 schedule_file = Path('/app/cta_gtfs_20250206.zip')
-# if schedule_file.exists():
-#     sa = ScheduleAnalyzer(schedule_file, engine=engine)
-# else:
 sa = ScheduleAnalyzer(schedule_file, engine=engine)
 sa.setup_shapes()
-
-#def __init__(self, engine, schedule_analyzer: ScheduleAnalyzer, lat, lon):
 
 
 @app.get('/')
@@ -95,8 +89,6 @@ def nearest_estimates(lat: float, lon: float) -> BusResponse:
     results = qm.nearest_stop_vehicles(lat, lon)
     end = datetime.datetime.now()
     latency = int((end - start).total_seconds())
-    # return {'results': results, 'start': start.isoformat(), 'latency': latency,
-    #         'lat': lat, 'lon': lon}
     return BusResponse(
         results=results,
         start=start,
@@ -144,9 +136,7 @@ async def single_estimate(pattern_id: int, stop_position: str, vehicle_position:
 
 @app.post('/estimates/')
 async def estimates(stop_estimates: StopEstimates) -> EstimateResponse:
-    #logger.debug(f'Estimates: ', stop_estimates)
     return await qm.get_estimates(stop_estimates)
-    #return {'estimates': rv}
 
 
 @app.get('/combined-estimate-raw')

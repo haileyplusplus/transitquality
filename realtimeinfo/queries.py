@@ -79,14 +79,10 @@ class EstimateFinder:
         thresh = ureg.feet * 3000
         if redis_key.decode('utf-8').startswith('train'):
             thresh = 3000 * ureg.meter
-        # name msec seems inaccurate - do they mean seconds?
         ts.range(redis_key, '-', '+', count=1, aggregation_type='max', bucket_size_msec=1,
                  filter_by_min_value=(dist-thresh).m, filter_by_max_value=dist.m)
         ts.range(redis_key, '-', '+', count=1, aggregation_type='min', bucket_size_msec=1,
                  filter_by_min_value=dist.m, filter_by_max_value=(dist+thresh).m)
-        #if debug and pipeline.command_stack:
-        #    for i, pipeline_item in enumerate(pipeline.command_stack[-2:]):
-        #        print(f'    pipeline queue: {redis_key} / {i} / {pipeline_item}')
 
         def callback(left, right):
             if self.debug:
@@ -114,7 +110,6 @@ class EstimateFinder:
             row = self.estimate_request
             vehicles = {}
             for position_info in row.vehicle_positions:
-                #vids.append(position_info.vehicle_id)
                 logger.debug(f'Looking for {position_info.vehicle_id}')
                 if mode == mode.TRAIN:
                     vehicle = session.get(CurrentTrainState, position_info.vehicle_id)
@@ -123,7 +118,6 @@ class EstimateFinder:
                 if vehicle:
                     logger.debug(f'Recalculated: {vehicle.__dict__}')
                     vehicles[position_info.vehicle_id] = vehicle
-                    #e.distance * ureg.feet
             return vehicles
 
     def get_train_distance(self, session, stop_pattern_distance, pid, train):
@@ -138,19 +132,13 @@ class EstimateFinder:
             logger.warning(f'Could not find pattern stop {pid} {train.rt} {train.id}')
             return None
         next_train_pattern_distance = pattern_stop.distance
-        # logger.debug(train.geom, type(train.geom))
-        # The ORM would do this for us automatically, but we have a manual query here
-        #train_wkb = geoalchemy2.elements.WKBElement(train.geom)
         train_wkb = train.geom
         train_point = to_shape(train_wkb)
-        # train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
         _, train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point, False)
         train_dist_m = train_dist * ureg.meters
         logger.debug(f'Got train distance: {train_dist_m} stop pattern {stop_pattern_distance}')
         if train_dist_m > stop_pattern_distance:
             return None
-        #dist_from_train = stop_pattern_distance - train_dist_m
-        #logger.debug(f' Distance from train: {dist_from_train}')
         return train_dist_m
 
     def get_single_estimate(self):
@@ -193,10 +181,8 @@ class EstimateFinder:
             if self.debug:
                 logger.debug(f'Getting estimate {pid} vehicle {bus_dist} stop {stop_dist}')
             if bus_dist >= stop_dist:
-                #yield -1, -1, info
                 logger.debug(f'  skipping')
                 continue
-            #def estimate_redis(self, pid, bus_dist, stop_dist, debug=False):
             trips = self.get_latest_redis(pid, stop_dist)
             if self.debug:
                 logger.debug(f'  Found {len(trips)} total trips')
@@ -215,7 +201,6 @@ class EstimateFinder:
                     logger.debug(f'  inner process {closest_bus} st {closest_stop}')
                 if not closest_bus or not closest_stop:
                     return None
-                #logger.debug(f'Process {closest_bus} {closest_stop} T {rk1} {rk2}')
                 bus_time_samp, bus_dist_samp = closest_bus
                 stop_time_samp, stop_dist_samp = closest_stop
                 travel_time = stop_time_samp - bus_time_samp
@@ -228,10 +213,8 @@ class EstimateFinder:
                 # in meters
                 actual_dist = (stop_dist - bus_dist).m
                 key = datetime.datetime.fromtimestamp(stop_time_samp).isoformat()
-                #info[key] = {}
                 d = {}
                 d['timestamp']  = key
-                #d = info[key]
                 d['redis_key'] = rk1
                 if rk1 != rk2:
                     d['error'] = f'Redis key mismatch: {rk1} / {rk2}'
@@ -241,15 +224,9 @@ class EstimateFinder:
                 d['travel_dist'] = travel_dist
                 d['travel_rate'] = travel_rate
                 d['display'] = True
-                # print(f'pid {pid} trip starting at {self.printable_ts(ts)}  bus {bus_dist} stop {stop_dist} redis key '
-                #       f'{redis_key}: closest bus {closest_bus}  closest stop {closest_stop} '
-                #       f'travel time {travel_time} travel dist {travel_dist} '
-                #       f'travel rate {travel_rate} actual dist {actual_dist} '
-                #       f'estimate {actual_dist / travel_rate}')
                 computed = actual_dist / travel_rate
                 d['raw_estimate_seconds'] = computed
                 d['raw_estimate'] = round(computed / 60, 1)
-                #logger.debug(f'computed: {computed}')
                 info['estimates'].append(d)
                 return computed
 
@@ -268,13 +245,11 @@ class EstimateFinder:
                     estimates.append(result)
 
             if not estimates or len(estimates) < 2:
-                #yield None, None, info
                 continue
 
             # consider more sophisticated percentile stuff
             stdev = statistics.stdev(estimates)
             mean = statistics.mean(estimates)
-            #logger.debug(estimates)
             considered = [x for x in estimates if abs(x - mean) < 2 * stdev]
             if not considered:
                 continue
@@ -286,7 +261,6 @@ class EstimateFinder:
                 if abs(e['raw_estimate_seconds'] - info['mean']) > (4 * stdev):
                     e['display'] = False
             info['estimates'].sort(key=lambda x: x['timestamp'], reverse=True)
-            #yield min(considered), max(considered), info
             miles = lambda x: f"{x.to('mi').m:0.2f} mi" if x is not None else None
             low_estimate = datetime.timedelta(seconds=min(considered))
             high_estimate = datetime.timedelta(seconds=max(considered))
@@ -380,7 +354,6 @@ class QueryManager:
                
               order by dist, distance
         """
-# where distance is null or distance < stop_pattern_distance
 
         predictions = """
             select pattern_id, stop_id, destination, route, timestamp, prediction from bus_prediction 
@@ -448,9 +421,7 @@ class QueryManager:
                     row_update = prediction.timestamp
                     predicted_minutes = prediction.prediction
 
-                    #pts = prediction.timestamp.replace(tzinfo=Util.CTA_TIMEZONE)
                     pts = Util.CTA_TIMEZONE.localize(prediction.timestamp)
-                    #logger.debug(f'Prediction raw {prediction.timestamp}, Predicted timestamp: {pts} local now {local_now}')
                     age = (local_now - pts).total_seconds() / 60
                     predicted_minutes = round(predicted_minutes - age)
                     logger.debug(f'Prediction: {row.pattern_id} - {row.stop_name} {row.rt} / {row_update} mins raw {prediction.prediction} adjusted {predicted_minutes}  age {age}')
@@ -475,22 +446,13 @@ class QueryManager:
                         predicted_minutes=datetime.timedelta(minutes=predicted_minutes),
                         vehicle=row.vehicle_id,
                     )
-                    # TODO: avoid copy
-                    #logger.debug(dxx)
-                    key = (row.rt, last_stop_name)
-                    #routes[key] = dxx
                     all_items.append(dxx)
                     continue
                 if row_distance >= row.stop_pattern_distance:
-                    #logger.debug(f'Skip ')
                     continue
                 bus_distance = row.stop_pattern_distance - row_distance
-                # split this out into its own thing
-                #point = to_shape(row.stop_geom)
-                #lat, lon = point.y, point.x
 
                 age = (startquery - row_update).total_seconds()
-
                 dxx = BusEstimate(
                     query_start=startquery,
                     pattern=row.pattern_id,
@@ -511,8 +473,6 @@ class QueryManager:
                     waiting_to_depart=False,
                     vehicle=row.vehicle_id,
                 )
-                key = (row.rt, last_stop_name)
-                #routes[key] = dxx
                 all_items.append(dxx)
         return all_items
 
@@ -530,9 +490,7 @@ class QueryManager:
                 mode = Mode.TRAIN
             else:
                 mode = Mode.BUS
-            #stop_dist = request.stop_position.m
             if mode == mode.TRAIN:
-                # not yet implemented
                 return None
             elif mode == mode.BUS:
                 dist_ft = request.stop_position.to(ureg.feet).m
@@ -554,14 +512,8 @@ class QueryManager:
             rp = response.patterns[0]
             d = lambda x: round(x.total_seconds() / 60)
             for single_estimate in rp.single_estimates:
-                # bus_dist = row.distance
                 mi_from_here = (request.stop_position - single_estimate.vehicle_position).to('mi')
                 row = rd[single_estimate.vehicle_position]
-                # mi_from_here = (stop_dist - bus_dist) / 5280.0
-                # timestamp = row.last_update
-                # vid = row.id
-                # rt = row.rt
-                # x1, x2, interp = self.estimate(pid, bus_dist, stop_dist)
                 rv.append({
                     'bus_pattern_dist': single_estimate.vehicle_position,
                     'mi_from_here': f'{mi_from_here:.2f~P}',
@@ -680,11 +632,8 @@ class TrainQuery:
                         logger.debug(f'Could not find pattern stop {row.pid} {rt} {train.id}')
                         continue
                     next_train_pattern_distance = pattern_stop.distance
-                    #logger.debug(train.geom, type(train.geom))
-                    # The ORM would do this for us automatically, but we have a manual query here
                     train_wkb = geoalchemy2.elements.WKBElement(train.geom)
                     train_point = to_shape(train_wkb)
-                    #train_dist = shape_manager.get_distance_along_shape_dc(row.direction_change, train_point)
                     _, train_dist = shape_manager.get_distance_along_shape_anchor(next_train_pattern_distance, train_point, False)
                     if train_dist > row.stop_pattern_distance:
                         continue
@@ -722,7 +671,6 @@ def main():
     qm = QueryManager(engine)
     lon = -87.610056
     lat = 41.822556
-    # no longer includes estimates
     results = qm.nearest_stop_vehicles(lat, lon)
     return results
 

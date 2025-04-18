@@ -198,18 +198,15 @@
 
 <script setup>
 
-// mounted() {
-//   console.log('Mounted');
-// }
 import { onMounted, ref } from 'vue';
-  import { useAppStore } from '@/stores/app';
-  import { useRouter } from 'vue-router';
+import { useAppStore } from '@/stores/app';
+import { useRouter } from 'vue-router';
 
 import AppFooter from './AppFooter.vue';
 import AppBar from './AppBar.vue';
 
-  const router = useRouter();
-  import routeColors from '@/assets/route-colors.json'
+const router = useRouter();
+import routeColors from '@/assets/route-colors.json'
 
 const currentDirection = ref(null);
 const summaries = ref(null);
@@ -220,14 +217,8 @@ const showLoading = ref(true);
 
 const colorMap = new Map();
 
-      {/* return {
-        colorMap: colorMap
-      } */}
-
       function routeColor(route) {
-        //console.log('getting route ' + JSON.stringify(route));
         var obj = this.colorMap.get(route.toLowerCase())
-        //console.log('getting color for ' + route.toLowerCase() + ': ' + JSON.stringify(obj));
         if (!obj) {
           return { backgroundColor: 'none' }
         }
@@ -287,7 +278,6 @@ const colorMap = new Map();
         org: 'O'
       };
       const rv = routes[route];
-      //console.log('route ' + route + ' is ' + rv);
       if (!rv) {
         return route;
       }
@@ -346,9 +336,6 @@ const colorMap = new Map();
         store.currentDirection = currentDirection.value;
         store.summaries = summaries.value;
       }
-      // summaries.value.n.forEach((elem, index, arr) => {
-      //   arr[index] = this.routeDisp(elem);
-      // });
       console.log('current direction (single): ' + currentDirection.value);
       console.log('displaying ' + JSON.stringify(store.summaries));
 
@@ -375,12 +362,11 @@ const colorMap = new Map();
   }
 
 onMounted(() => {
-  const store = useAppStore();
+    const store = useAppStore();
 
-  routeColors.colors.forEach((elem) => {
-        colorMap.set(elem.route.toLowerCase(), elem);
-        //delete elem.route;
-      });
+    routeColors.colors.forEach((elem) => {
+          colorMap.set(elem.route.toLowerCase(), elem);
+    });
 
 
 
